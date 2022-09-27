@@ -3,6 +3,7 @@ pub enum Token {
     LParen,
     RParen,
     Equals,
+    Plus,
     Ident(String),
     LiteralNum(u32),
 }
@@ -56,6 +57,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             '(' => tokens.push(Token::LParen),
             ')' => tokens.push(Token::RParen),
             '=' => tokens.push(Token::Equals),
+            '+' => tokens.push(Token::Plus),
             c if alpha(c) => {
                 state = InIdent(String::from(c));
             },
