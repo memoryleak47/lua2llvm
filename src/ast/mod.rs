@@ -46,7 +46,13 @@ impl Ast {
     }
 
     fn assemble_print_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-        todo!()
+        let Token::Ident(print_ident) = &tokens[0] else { return Err(()) };
+        if print_ident != "print" { return Err(()); }
+        if tokens[1] != Token::LParen { return Err(()); }
+        let (expr, rest) = Ast::assemble_expr(&tokens[2..])?;
+        if rest[0] != Token::RParen { return Err(()); }
+        let stmt = Statement::Print(expr);
+        Ok((stmt, &rest[1..]))
     }
 
     fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {

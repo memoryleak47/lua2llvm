@@ -1,3 +1,5 @@
+#![feature(let_else)]
+
 extern crate llvm_sys as llvm;
 
 mod ast;
