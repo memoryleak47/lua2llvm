@@ -64,6 +64,19 @@ impl Ast {
     }
 
     fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+        Ast::assemble_plus_expr(tokens)
+            .or_else(|_|
+                Ast::assemble_var_expr(tokens)
+            )
+    }
+
+    fn assemble_var_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+        let Token::Ident(var) = &tokens[0] else { return Err(()) };
+        let expr = Expr::Var(var.to_string());
+        Ok((expr, &tokens[1..]))
+    }
+
+    fn assemble_plus_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
         todo!()
     }
 }
