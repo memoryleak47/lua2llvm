@@ -56,7 +56,11 @@ impl Ast {
     }
 
     fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-        todo!()
+        let Token::Ident(var) = &tokens[0] else { return Err(()) };
+        if tokens[1] != Token::Equals { return Err(()); }
+        let (expr, rest) = Ast::assemble_expr(&tokens[2..])?;
+        let stmt = Statement::Assignment(var.to_string(), expr);
+        Ok((stmt, rest))
     }
 
     fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
