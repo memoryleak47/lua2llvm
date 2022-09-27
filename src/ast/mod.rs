@@ -20,8 +20,9 @@ pub struct Ast {
 }
 
 impl Ast {
-    fn parse(code: &str) -> Result<Ast, ()> {
+    pub fn parse(code: &str) -> Result<Ast, ()> {
         let tokens = token::tokenize(code);
+        dbg!(&tokens);
         Ast::assemble(&tokens)
     }
 
@@ -45,7 +46,6 @@ impl Ast {
     }
 
     fn assemble_print_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-        tokens[0]
         todo!()
     }
 
@@ -54,6 +54,6 @@ impl Ast {
     }
 
     fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
-        
+        todo!()
     }
 }

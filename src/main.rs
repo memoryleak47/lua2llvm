@@ -1,6 +1,7 @@
 extern crate llvm_sys as llvm;
 
 mod ast;
+use ast::Ast;
 
 use std::mem;
 
@@ -9,6 +10,12 @@ use llvm::execution_engine::*;
 use llvm::target::*;
 
 fn main() {
+    let filename = std::env::args().skip(1).next().unwrap();
+    let code = std::fs::read_to_string(filename).unwrap();
+    Ast::parse(&code);
+}
+
+fn main2() {
     unsafe {
         // Set up a context, module and builder in that context.
         let context = LLVMContextCreate();
