@@ -45,7 +45,15 @@ impl Ast {
     }
 
     fn assemble_print_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-        todo!() }
+        tokens[0]
+        todo!()
+    }
+
     fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-        todo!() }
+        todo!()
+    }
+
+    fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+        
+    }
 }
