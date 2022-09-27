@@ -38,6 +38,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
         if let InIdent(ident) = &mut state {
             if alpha(chr) {
                 ident.push(chr);
+                continue;
             } else {
                 tokens.push(Token::Ident(ident.clone()));
                 state = Start;
@@ -47,6 +48,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
         if let InNum(num) = &mut state {
             if let Some(digit) = numeric(chr) {
                 *num = 10 * *num + digit;
+                continue;
             } else {
                 tokens.push(Token::LiteralNum(*num));
                 state = Start;
