@@ -1,5 +1,7 @@
 extern crate llvm_sys as llvm;
 
+mod ast;
+
 use std::mem;
 
 use llvm::core::*;
