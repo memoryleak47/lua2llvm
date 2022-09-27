@@ -1,5 +1,7 @@
 mod token;
 
+use token::Token;
+
 type Var = String;
 
 enum Expr {
@@ -20,6 +22,30 @@ pub struct Ast {
 impl Ast {
     fn parse(code: &str) -> Result<Ast, ()> {
         let tokens = token::tokenize(code);
-        Err(())
+        Ast::assemble(&tokens)
     }
+
+    fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
+        let mut ast = Ast { statements: vec![] };
+
+        while !tokens.is_empty() {
+            let (st, rest) = Ast::assemble_statement(tokens)?;
+            tokens = rest;
+            ast.statements.push(st);
+        }
+
+        Ok(ast)
+    }
+
+    fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+        Ast::assemble_print_statement(tokens)
+            .or_else(|_|
+                Ast::assemble_assign_statement(tokens)
+            )
+    }
+
+    fn assemble_print_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+        todo!() }
+    fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+        todo!() }
 }
