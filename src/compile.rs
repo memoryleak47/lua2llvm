@@ -69,7 +69,7 @@ impl Ast {
             let z: i32 = i32::MAX;
             let res = f(x, y, z);
 
-            println!("{} + {} + {} = {}", x, y, z, res);
+            // println!("{} + {} + {} = {}", x, y, z, res);
 
             // Clean up the rest.
             LLVMDisposeExecutionEngine(ee);
