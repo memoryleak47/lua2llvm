@@ -19,28 +19,27 @@ impl Ast {
     }
 
     fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-        Ast::assemble_print_statement(tokens)
-            .or_else(|_|
-                Ast::assemble_assign_statement(tokens)
-            )
+        Err(())
+            .or_else(|_| Ast::assemble_print_statement(tokens))
+            .or_else(|_| Ast::assemble_assign_statement(tokens))
     }
 
     fn assemble_print_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-        let Token::Ident(print_ident) = &tokens[0] else { return Err(()) };
-        if print_ident != "print" { return Err(()); }
-        if tokens[1] != Token::LParen { return Err(()); }
-        let (expr, rest) = Ast::assemble_expr(&tokens[2..])?;
-        if rest[0] != Token::RParen { return Err(()); }
+        let [Token::Ident(print_ident), tokens@..] = tokens else { return Err(()) };
+        let "print" = &**print_ident else { return Err(()) };
+        let [Token::LParen, tokens@..] = tokens else { return Err(()) };
+        let (expr, tokens) = Ast::assemble_expr(tokens)?;
+        let [Token::RParen, tokens@..] = tokens else { return Err(()) };
         let stmt = Statement::Print(expr);
-        Ok((stmt, &rest[1..]))
+        Ok((stmt, tokens))
     }
 
     fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-        let Token::Ident(var) = &tokens[0] else { return Err(()) };
-        if tokens[1] != Token::Equals { return Err(()); }
-        let (expr, rest) = Ast::assemble_expr(&tokens[2..])?;
+        let [Token::Ident(var), tokens@..] = tokens else { return Err(()) };
+        let [Token::Equals, tokens@..] = tokens else { return Err(()) };
+        let (expr, tokens) = Ast::assemble_expr(tokens)?;
         let stmt = Statement::Assignment(var.to_string(), expr);
-        Ok((stmt, rest))
+        Ok((stmt, tokens))
     }
 
     fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
@@ -62,13 +61,13 @@ impl Ast {
     }
 
     fn assemble_var_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
-        let Token::Ident(var) = &tokens[0] else { return Err(()) };
+        let [Token::Ident(var), rest@..] = &tokens else { return Err(()) };
         let expr = Expr::Var(var.to_string());
-        Ok((expr, &tokens[1..]))
+        Ok((expr, rest))
     }
 
     fn assemble_num_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
-        let &[Token::LiteralNum(x), rest@..] = &tokens else { return Err(()) };
+        let [Token::LiteralNum(x), rest@..] = tokens else { return Err(()) };
         let expr = Expr::LiteralNum(*x);
         Ok((expr, rest))
     }

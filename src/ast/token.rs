@@ -15,11 +15,11 @@ enum TokenState {
 }
 
 fn alpha(chr: char) -> bool {
-   ('a'..'z').contains(&chr)
+   ('a'..='z').contains(&chr)
 }
 
 fn numeric(chr: char) -> Option<u32> { // returns the digit
-   if ('0'..'9').contains(&chr) {
+   if ('0'..='9').contains(&chr) {
         Some(chr as u32 - '0' as u32)
    } else { None }
 }
