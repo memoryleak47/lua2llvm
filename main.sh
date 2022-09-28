@@ -2,9 +2,15 @@
 
 echo compiling lua2llvm ...
 cargo b
+
 echo running lua2llvm ...
 ./target/debug/lua2llvm file.lua 2> file.ll
+
+echo compiling extra.cpp ...
+clang extra/extra.cpp -c -o extra/extra.o
+
 echo running clang ...
-clang file.ll -o exe
-echo executing exe
+clang file.ll extra/extra.o -o exe
+
+echo executing exe ...
 ./exe
