@@ -5,6 +5,8 @@ extern crate llvm_sys as llvm;
 mod ast;
 use ast::Ast;
 
+mod exec;
+
 use std::mem;
 
 use llvm::core::*;
@@ -14,7 +16,8 @@ use llvm::target::*;
 fn main() {
     let filename = std::env::args().nth(1).unwrap();
     let code = std::fs::read_to_string(filename).unwrap();
-    dbg!(Ast::parse(&code).unwrap());
+    let ast = Ast::parse(&code).unwrap();
+    ast.exec();
 }
 
 fn main2() {

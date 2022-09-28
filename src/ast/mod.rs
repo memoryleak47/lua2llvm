@@ -3,22 +3,22 @@ mod parse;
 
 use token::Token;
 
-type Var = String;
+pub type Var = String;
 
 #[derive(Debug)]
-enum Expr {
+pub enum Expr {
     Var(Var),
     LiteralNum(u32),
     Plus(Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug)]
-enum Statement {
+pub enum Statement {
     Print(Expr),
     Assignment(Var, Expr)
 }
 
 #[derive(Debug)]
 pub struct Ast {
-    statements: Vec<Statement>,
+    pub statements: Vec<Statement>,
 }
