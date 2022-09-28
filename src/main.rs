@@ -14,7 +14,7 @@ use llvm::target::*;
 fn main() {
     let filename = std::env::args().skip(1).next().unwrap();
     let code = std::fs::read_to_string(filename).unwrap();
-    Ast::parse(&code);
+    dbg!(Ast::parse(&code).unwrap());
 }
 
 fn main2() {
