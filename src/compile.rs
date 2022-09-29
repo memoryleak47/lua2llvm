@@ -14,6 +14,20 @@ impl Ast {
             let i32t: *mut llvm::LLVMType = LLVMInt32TypeInContext(context);
             let voidt = LLVMVoidType();
 
+            // declare print
+            let mut argts_print = [i32t];
+            let print_type = LLVMFunctionType(voidt, argts_print.as_mut_ptr(), 1, 0);
+            let print_function = LLVMAddFunction(module, b"extra_print\0".as_ptr() as *const _, print_type);
+
+            // nop function
+            let mut argts_nop = [];
+            let nop_type = LLVMFunctionType(voidt, argts_nop.as_mut_ptr(), 0, 0);
+            let nop_function = LLVMAddFunction(module, b"nop\0".as_ptr() as *const _, nop_type);
+
+            let bb = LLVMAppendBasicBlockInContext(context, nop_function, b"entry\0".as_ptr() as *const _);
+            LLVMPositionBuilderAtEnd(builder, bb);
+            LLVMBuildRetVoid(builder);
+
             // create main
             let mut argts = [];
             let main_function_type = LLVMFunctionType(i32t, argts.as_mut_ptr(), 0, 0);
@@ -22,27 +36,24 @@ impl Ast {
             let bb = LLVMAppendBasicBlockInContext(context, main_function, b"entry\0".as_ptr() as *const _);
             LLVMPositionBuilderAtEnd(builder, bb);
 
-            // create print
-            let mut argts_print = [i32t];
-            let print_type = LLVMFunctionType(voidt, argts_print.as_mut_ptr(), 1, 0);
-            let print_function = LLVMAddFunction(module, b"extra_print\0".as_ptr() as *const _, print_type);
-
+/*
             for st in &self.statements {
                 match st {
                     Statement::Print(_expr) => {
-                        let args_ref = &mut LLVMConstInt(i32t, 0, 0);
+                        let mut args = [];
                         LLVMBuildCall2(
                             /*builder: */ builder,
-                            /*type: */ voidt, // right? is that the return type?
-                            /*Fn: */ print_function,
-                            /*Args: */ args_ref as *mut _,
-                            /*Num Args: */ 1,
+                            /*type: */ voidt,
+                            /*Fn: */ nop_function,
+                            /*Args: */ args.as_mut_ptr(),
+                            /*Num Args: */ 0,
                             /*Name: */ b"tmpresult\0".as_ptr() as *const i8,
                         );
                     },
                     _ => println!("not yet done! ignoring.."),
                 }
             }
+*/
 
             let zero = LLVMConstInt(i32t, 0, 0);
             LLVMBuildRet(builder, zero);
