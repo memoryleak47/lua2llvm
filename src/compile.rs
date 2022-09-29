@@ -9,9 +9,9 @@ impl Ast {
             // Set up a context, module and builder in that context.
             let context = LLVMContextCreate();
             let module = LLVMModuleCreateWithNameInContext(b"luamod\0".as_ptr() as *const _, context);
-            let builder: *mut llvm::LLVMBuilder = LLVMCreateBuilderInContext(context);
+            let builder = LLVMCreateBuilderInContext(context);
 
-            let i32t: *mut llvm::LLVMType = LLVMInt32TypeInContext(context);
+            let i32t = LLVMInt32TypeInContext(context);
             let voidt = LLVMVoidType();
 
             // declare print
@@ -20,8 +20,7 @@ impl Ast {
             let print_function = LLVMAddFunction(module, b"extra_print\0".as_ptr() as *const _, print_type);
 
             // nop function
-            let mut argts_nop = [];
-            let nop_type = LLVMFunctionType(voidt, argts_nop.as_mut_ptr(), 0, 0);
+            let nop_type = LLVMFunctionType(voidt, [].as_mut_ptr(), 0, 0);
             let nop_function = LLVMAddFunction(module, b"nop\0".as_ptr() as *const _, nop_type);
 
             let bb = LLVMAppendBasicBlockInContext(context, nop_function, b"entry\0".as_ptr() as *const _);
@@ -29,8 +28,7 @@ impl Ast {
             LLVMBuildRetVoid(builder);
 
             // create main
-            let mut argts = [];
-            let main_function_type = LLVMFunctionType(i32t, argts.as_mut_ptr(), 0, 0);
+            let main_function_type = LLVMFunctionType(i32t, [].as_mut_ptr(), 0, 0);
             let main_function = LLVMAddFunction(module, b"main\0".as_ptr() as *const _, main_function_type);
 
             let bb = LLVMAppendBasicBlockInContext(context, main_function, b"entry\0".as_ptr() as *const _);
@@ -40,9 +38,10 @@ impl Ast {
                 match st {
                     Statement::Print(_expr) => {
                         let mut args = [];
-                        LLVMBuildCall(
+                        let t = LLVMFunctionType(voidt, [].as_mut_ptr(), 0, 0);
+                        LLVMBuildCall2(
                             /*builder: */ builder,
-                            // /*type: */ voidt,
+                            /*type: */ t,
                             /*Fn: */ nop_function,
                             /*Args: */ args.as_mut_ptr(),
                             /*Num Args: */ 0,
