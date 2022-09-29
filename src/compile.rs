@@ -68,7 +68,10 @@ impl Compile {
                             /*Name: */ EMPTY,
                         );
                     },
-                    _ => println!("not yet done! ignoring.."),
+                    Statement::Assignment(var, expr) => {
+                        let val = self.compile_expr(expr);
+                        self.vars.insert(var.clone(), val);
+                    }
                 }
             }
 
