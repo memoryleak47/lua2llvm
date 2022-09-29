@@ -36,24 +36,22 @@ impl Ast {
             let bb = LLVMAppendBasicBlockInContext(context, main_function, b"entry\0".as_ptr() as *const _);
             LLVMPositionBuilderAtEnd(builder, bb);
 
-/*
             for st in &self.statements {
                 match st {
                     Statement::Print(_expr) => {
                         let mut args = [];
-                        LLVMBuildCall2(
+                        LLVMBuildCall(
                             /*builder: */ builder,
-                            /*type: */ voidt,
+                            // /*type: */ voidt,
                             /*Fn: */ nop_function,
                             /*Args: */ args.as_mut_ptr(),
                             /*Num Args: */ 0,
-                            /*Name: */ b"tmpresult\0".as_ptr() as *const i8,
+                            /*Name: */ [0i8].as_ptr(),
                         );
                     },
                     _ => println!("not yet done! ignoring.."),
                 }
             }
-*/
 
             let zero = LLVMConstInt(i32t, 0, 0);
             LLVMBuildRet(builder, zero);
