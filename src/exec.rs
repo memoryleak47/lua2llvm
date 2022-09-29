@@ -1,14 +1,12 @@
+use crate::*;
+
 use std::collections::HashMap;
 
-use crate::ast::*;
+pub fn exec(ast: &Ast) {
+    let mut vars: HashMap<String, u32> = HashMap::new();
 
-impl Ast {
-    pub fn exec(&self) {
-        let mut vars: HashMap<String, u32> = HashMap::new();
-
-        for st in &self.statements {
-            exec_statement(st, &mut vars);
-        }
+    for st in &ast.statements {
+        exec_statement(st, &mut vars);
     }
 }
 
