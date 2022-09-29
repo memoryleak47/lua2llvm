@@ -1,5 +1,7 @@
 #include <iostream>
 
-void extra_print(int x) {
-    std::cout << x << std::endl;
+extern "C" {
+    void extra_print(int x) {
+        std::cout << x << std::endl;
+    }
 }
