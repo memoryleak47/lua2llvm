@@ -30,7 +30,6 @@ impl Ast {
             for st in &self.statements {
                 match st {
                     Statement::Print(_expr) => {
-                        let name = b"extra_print\0";
                         let args_ref = &mut LLVMConstInt(i32t, 0, 0);
                         LLVMBuildCall2(
                             /*builder: */ builder,
@@ -38,7 +37,7 @@ impl Ast {
                             /*Fn: */ print_function,
                             /*Args: */ args_ref as *mut _,
                             /*Num Args: */ 1,
-                            /*Name: */ &name[0] as *const u8 as *const i8,
+                            /*Name: */ b"tmpresult\0".as_ptr() as *const i8,
                         );
                     },
                     _ => println!("not yet done! ignoring.."),
