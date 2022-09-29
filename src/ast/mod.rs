@@ -1,7 +1,8 @@
 mod token;
-mod parse;
+pub use token::*;
 
-use token::Token;
+mod parse;
+pub use parse::*;
 
 pub type Var = String;
 

@@ -1,8 +1,8 @@
-use super::*;
+use crate::*;
 
 impl Ast {
     pub fn parse(code: &str) -> Result<Ast, ()> {
-        let tokens = token::tokenize(code);
+        let tokens = tokenize(code);
         Ast::assemble(&tokens)
     }
 

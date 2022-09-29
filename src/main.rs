@@ -3,11 +3,13 @@
 extern crate llvm_sys as llvm;
 
 mod ast;
-use ast::Ast;
+pub use ast::*;
 
 mod exec;
+pub use exec::*;
 
 mod compile;
+pub use compile::*;
 
 fn main() {
     let filename = std::env::args().nth(1).unwrap();
