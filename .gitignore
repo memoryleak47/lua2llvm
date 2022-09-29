@@ -3,3 +3,4 @@ Cargo.lock
 file.ll
 extra/extra.o
 exe
+file.lua
