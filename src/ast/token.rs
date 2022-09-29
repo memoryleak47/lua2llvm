@@ -4,6 +4,8 @@ pub enum Token {
     RParen,
     Equals,
     Plus,
+    Function,
+    End,
     Ident(String),
     LiteralNum(u32),
 }
@@ -40,7 +42,11 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                 ident.push(chr);
                 continue;
             } else {
-                tokens.push(Token::Ident(ident.clone()));
+                tokens.push(match &**ident {
+                    "function" => Token::Function,
+                    "end" => Token::End,
+                    _ => Token::Ident(ident.clone()),
+                });
                 state = Start;
             }
         }

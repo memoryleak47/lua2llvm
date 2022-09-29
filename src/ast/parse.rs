@@ -29,7 +29,7 @@ fn assemble_print_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), (
     let [Token::LParen, tokens@..] = tokens else { return Err(()) };
     let (expr, tokens) = assemble_expr(tokens)?;
     let [Token::RParen, tokens@..] = tokens else { return Err(()) };
-    let stmt = Statement::Print(expr);
+    let stmt = Statement::FunctionCall { fn_name: "print".to_string(), args: vec![expr] };
     Ok((stmt, tokens))
 }
 
@@ -37,7 +37,7 @@ fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), 
     let [Token::Ident(var), tokens@..] = tokens else { return Err(()) };
     let [Token::Equals, tokens@..] = tokens else { return Err(()) };
     let (expr, tokens) = assemble_expr(tokens)?;
-    let stmt = Statement::Assignment(var.to_string(), expr);
+    let stmt = Statement::Assign { var: var.to_string(), expr };
     Ok((stmt, tokens))
 }
 

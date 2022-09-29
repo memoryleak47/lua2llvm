@@ -12,12 +12,15 @@ pub fn exec(ast: &Ast) {
 
 fn exec_statement(stmt: &Statement, vars: &mut HashMap<String, u32>) {
     match stmt {
-        Statement::Print(expr) => {
-            println!("{}", eval_expr(expr, vars));
+        Statement::FunctionCall { fn_name, args } => {
+            if fn_name == "print" {
+                println!("{}", eval_expr(&args[0], vars));
+            } else { todo!() }
         },
-        Statement::Assignment(var, expr) => {
+        Statement::Assign { var, expr } => {
             vars.insert(var.clone(), eval_expr(expr, vars));
         }
+        Statement::FunctionDef { .. } => todo!(),
     }
 }
 

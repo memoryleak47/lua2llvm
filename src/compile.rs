@@ -57,8 +57,11 @@ impl Compile {
 
             for st in &ast.statements {
                 match st {
-                    Statement::Print(expr) => {
-                        let mut args = [self.compile_expr(expr)];
+                    Statement::FunctionCall { fn_name, args } => {
+                        assert_eq!(fn_name, "print");
+                        assert_eq!(args.len(), 1);
+
+                        let mut args = [self.compile_expr(&args[0])];
                         LLVMBuildCall2(
                             /*builder: */ self.builder,
                             /*type: */ print_type,
@@ -68,10 +71,11 @@ impl Compile {
                             /*Name: */ EMPTY,
                         );
                     },
-                    Statement::Assignment(var, expr) => {
+                    Statement::Assign { var, expr } => {
                         let val = self.compile_expr(expr);
                         self.vars.insert(var.clone(), val);
-                    }
+                    },
+                    Statement::FunctionDef { .. } => todo!(),
                 }
             }
 
