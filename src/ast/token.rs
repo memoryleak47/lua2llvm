@@ -2,6 +2,7 @@
 pub enum Token {
     LParen,
     RParen,
+    Comma,
     Equals,
     Plus,
     Function,
@@ -65,6 +66,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             '(' => tokens.push(Token::LParen),
             ')' => tokens.push(Token::RParen),
             '=' => tokens.push(Token::Equals),
+            ',' => tokens.push(Token::Comma),
             '+' => tokens.push(Token::Plus),
             c if alpha(c) => {
                 state = InIdent(String::from(c));

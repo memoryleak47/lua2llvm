@@ -29,14 +29,26 @@ fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[To
 
     let mut tokens: &[Token] = tokens;
     let mut args = Vec::new();
-    loop {
-        if let [Token::RParen, tks@..] = tokens {
-            tokens = tks;
-            break;
+
+    // zero arg functions
+    if let [Token::RParen, ts@..] = tokens {
+        tokens = ts;
+    } else { // >= 1 arg functions
+        loop {
+            let (expr, ts) = assemble_expr(tokens)?;
+            args.push(expr);
+
+            match ts {
+                [Token::RParen, ts@..] => {
+                    tokens = ts;
+                    break;
+                },
+                [Token::Comma, ts@..] => {
+                    tokens = ts;
+                },
+                _ => return Err(()),
+            }
         }
-        let (expr, local_tokens) = assemble_expr(tokens)?;
-        args.push(expr);
-        tokens = local_tokens;
     }
     let stmt = Statement::FunctionCall { fn_name: fn_name.clone(), args };
     Ok((stmt, tokens))
