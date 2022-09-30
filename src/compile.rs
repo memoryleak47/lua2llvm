@@ -8,7 +8,7 @@ const EMPTY: *const i8 = b"\0".as_ptr() as *const _;
 
 pub fn compile(ast: &Ast) {
     Compile::new()
-        .compile(ast)
+        .compile_ast(ast)
 }
 
 struct Compile {
@@ -18,6 +18,8 @@ struct Compile {
     i32t: LLVMTypeRef,
     voidt: LLVMTypeRef,
     vars: HashMap<String, LLVMValueRef>,
+    fns: HashMap<String, LLVMValueRef>,
+    bb: LLVMBasicBlockRef,
 }
 
 impl Compile {
@@ -30,6 +32,8 @@ impl Compile {
             let i32t = LLVMInt32TypeInContext(context);
             let voidt = LLVMVoidType();
             let vars = HashMap::new();
+            let fns = HashMap::new();
+            let bb = 0 as *mut _;
 
             Compile {
                 context,
@@ -38,34 +42,44 @@ impl Compile {
                 i32t,
                 voidt,
                 vars,
+                fns,
+                bb,
             }
         }
     }
 
-    fn compile(&mut self, ast: &Ast) {
+    fn compile_ast(&mut self, ast: &Ast) {
         unsafe {
             let mut argts_print = [self.i32t];
             let print_type = LLVMFunctionType(self.voidt, argts_print.as_mut_ptr(), 1, 0);
-            let print_function = LLVMAddFunction(self.module, b"extra_print\0".as_ptr() as *const _, print_type);
+            let print = LLVMAddFunction(self.module, b"extra_print\0".as_ptr() as *const _, print_type);
+            self.fns.insert("print".to_string(), print); 
 
             // create main
             let main_function_type = LLVMFunctionType(self.i32t, [].as_mut_ptr(), 0, 0);
             let main_function = LLVMAddFunction(self.module, b"main\0".as_ptr() as *const _, main_function_type);
 
-            let bb = LLVMAppendBasicBlockInContext(self.context, main_function, b"entry\0".as_ptr() as *const _);
-            LLVMPositionBuilderAtEnd(self.builder, bb);
+            self.bb = LLVMAppendBasicBlockInContext(self.context, main_function, b"entry\0".as_ptr() as *const _);
+            LLVMPositionBuilderAtEnd(self.builder, self.bb);
 
-            for st in &ast.statements {
+            self.compile(&ast.statements);
+
+            let zero = LLVMConstInt(self.i32t, 0, 0);
+            LLVMBuildRet(self.builder, zero);
+        }
+    }
+    fn compile(&mut self, stmts: &[Statement]) {
+        unsafe {
+            for st in stmts {
                 match st {
                     Statement::FunctionCall { fn_name, args } => {
-                        assert_eq!(fn_name, "print");
-                        assert_eq!(args.len(), 1);
-
-                        let mut args = [self.compile_expr(&args[0])];
+                        let mut args: Vec<LLVMValueRef> = args.iter().map(|expr| self.compile_expr(expr)).collect();
+                        let mut fn_ty_args: Vec<LLVMTypeRef> = args.iter().map(|_| self.i32t).collect();
+                        let fn_ty = LLVMFunctionType(self.voidt, fn_ty_args.as_mut_ptr(), fn_ty_args.len() as u32, 0);
                         LLVMBuildCall2(
                             /*builder: */ self.builder,
-                            /*type: */ print_type,
-                            /*Fn: */ print_function,
+                            /*type: */ fn_ty,
+                            /*Fn: */ self.fns[&fn_name.to_string()],
                             /*Args: */ args.as_mut_ptr(),
                             /*Num Args: */ args.len() as u32,
                             /*Name: */ EMPTY,
@@ -75,12 +89,28 @@ impl Compile {
                         let val = self.compile_expr(expr);
                         self.vars.insert(var.clone(), val);
                     },
-                    Statement::FunctionDef { .. } => todo!(),
+                    Statement::FunctionDef { fn_name, args, body } => {
+                        if args.len() > 0 {
+                            println!("ignoring multi-arg fn...");
+                            continue;
+                        }
+                        let mut fn_ty_args: Vec<LLVMTypeRef> = args.iter().map(|_| self.i32t).collect();
+                        let fn_ty = LLVMFunctionType(self.voidt, fn_ty_args.as_mut_ptr(), fn_ty_args.len() as u32, 0);
+                        let fun = LLVMAddFunction(self.module, EMPTY, fn_ty);
+
+                        let old_bb = self.bb;
+                        self.bb = LLVMAppendBasicBlockInContext(self.context, fun, EMPTY);
+                        LLVMPositionBuilderAtEnd(self.builder, self.bb);
+                        self.compile(&body);
+                        LLVMBuildRetVoid(self.builder);
+
+                        self.bb = old_bb;
+                        LLVMPositionBuilderAtEnd(self.builder, self.bb);
+
+                        self.fns.insert(fn_name.clone(), fun);
+                    },
                 }
             }
-
-            let zero = LLVMConstInt(self.i32t, 0, 0);
-            LLVMBuildRet(self.builder, zero);
         }
     }
 
