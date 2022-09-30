@@ -17,15 +17,17 @@ fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
     Ok(ast)
 }
 
+// assemble_statement
+
 fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
     Err(())
         .or_else(|_| assemble_assign_statement(tokens))
         .or_else(|_| assemble_function_call_statement(tokens))
-        .or_else(|_| assemble_function_def_statement(tokens))
 }
 
 fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let [Token::Ident(fn_name), Token::LParen, tokens@..] = tokens else { return Err(()) };
+    let (func, tokens) = assemble_expr(tokens)?;
+    let [Token::LParen, tokens@..] = tokens else { return Err(()) };
     let mut tokens = tokens;
 
     let mut args = Vec::new();
@@ -50,12 +52,53 @@ fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[To
             }
         }
     }
-    let stmt = Statement::FunctionCall { fn_name: fn_name.clone(), args };
+    let stmt = Statement::FunctionCall { func, args };
     Ok((stmt, tokens))
 }
 
-fn assemble_function_def_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let [Token::Function, Token::Ident(fn_name), Token::LParen, tokens@..] = tokens else { return Err(()) };
+
+fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+    let [Token::Ident(var), tokens@..] = tokens else { return Err(()) };
+    let [Token::Equals, tokens@..] = tokens else { return Err(()) };
+    let (expr, tokens) = assemble_expr(tokens)?;
+    let stmt = Statement::Assign { var: var.to_string(), expr };
+    Ok((stmt, tokens))
+}
+
+// assemble_expr
+
+fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+    let (mut expr, mut rest) = assemble_atomic_expr(tokens)?;
+    while let [Token::Plus, next_rest@..]= rest {
+        let (next_expr, next_rest) = assemble_atomic_expr(next_rest)?;
+        expr = Expr::Plus(Box::new(expr), Box::new(next_expr));
+        rest = next_rest;
+    }
+
+    Ok((expr, rest))
+}
+
+fn assemble_atomic_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+    Err(())
+        .or_else(|_| assemble_var_expr(tokens))
+        .or_else(|_| assemble_num_expr(tokens))
+        .or_else(|_| assemble_function_expr(tokens))
+}
+
+fn assemble_var_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+    let [Token::Ident(var), rest@..] = &tokens else { return Err(()) };
+    let expr = Expr::Var(var.to_string());
+    Ok((expr, rest))
+}
+
+fn assemble_num_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+    let [Token::LiteralNum(x), rest@..] = tokens else { return Err(()) };
+    let expr = Expr::LiteralNum(*x);
+    Ok((expr, rest))
+}
+
+fn assemble_function_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+    let [Token::Function, Token::LParen, tokens@..] = tokens else { return Err(()) };
     let mut tokens = tokens;
 
     let mut args = Vec::new();
@@ -79,60 +122,18 @@ fn assemble_function_def_statement(tokens: &[Token]) -> Result<(Statement, &[Tok
         }
     }
 
-    let mut statements = Vec::new();
+    let mut body = Vec::new();
     loop {
         if let [Token::End, ts@..] = tokens {
             tokens = ts;
             break;
         } else {
             let (stat, ts) = assemble_statement(tokens)?;
-            statements.push(stat);
+            body.push(stat);
             tokens = ts;
         }
     }
 
-    let stmt = Statement::FunctionDef {
-        fn_name: fn_name.clone(),
-        args,
-        body: statements,
-    };
-
-    Ok((stmt, tokens))
-}
-
-fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let [Token::Ident(var), tokens@..] = tokens else { return Err(()) };
-    let [Token::Equals, tokens@..] = tokens else { return Err(()) };
-    let (expr, tokens) = assemble_expr(tokens)?;
-    let stmt = Statement::Assign { var: var.to_string(), expr };
-    Ok((stmt, tokens))
-}
-
-fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
-    let (mut expr, mut rest) = assemble_atomic_expr(tokens)?;
-    while let [Token::Plus, next_rest@..]= rest {
-        let (next_expr, next_rest) = assemble_atomic_expr(next_rest)?;
-        expr = Expr::Plus(Box::new(expr), Box::new(next_expr));
-        rest = next_rest;
-    }
-
-    Ok((expr, rest))
-}
-
-fn assemble_atomic_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
-    Err(())
-        .or_else(|_| assemble_var_expr(tokens))
-        .or_else(|_| assemble_num_expr(tokens))
-}
-
-fn assemble_var_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
-    let [Token::Ident(var), rest@..] = &tokens else { return Err(()) };
-    let expr = Expr::Var(var.to_string());
-    Ok((expr, rest))
-}
-
-fn assemble_num_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
-    let [Token::LiteralNum(x), rest@..] = tokens else { return Err(()) };
-    let expr = Expr::LiteralNum(*x);
-    Ok((expr, rest))
+    let expr = Expr::Function { args, body, };
+    Ok((expr, tokens))
 }
