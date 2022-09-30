@@ -12,8 +12,28 @@ mod compile;
 pub use compile::*;
 
 fn main() {
-    let filename = std::env::args().nth(1).unwrap();
-    let code = std::fs::read_to_string(filename).unwrap();
-    let ast = parse(&code).unwrap();
-    compile(&ast);
+    let mut exec_flag = false;
+    let args: Vec<String> = std::env::args().skip(1).map(|x| {
+        if x == "--exec" {
+            exec_flag = true;
+            None
+        } else {
+            Some(x)
+        }
+    }).flatten()
+    .collect();
+
+    if let [filename] = &args[..] {
+        let code = std::fs::read_to_string(filename).unwrap();
+        let ast = parse(&code).unwrap();
+
+        if exec_flag {
+            exec(&ast);
+        } else {
+            compile(&ast);
+        }
+    } else {
+        println!("usage: lua2llvm <filename>");
+        println!("       lua2llvm --exec <filename>");
+    }
 }
