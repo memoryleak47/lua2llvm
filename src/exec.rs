@@ -14,7 +14,9 @@ fn exec_statement(stmt: &Statement, vars: &mut HashMap<String, u32>) {
     match stmt {
         Statement::FunctionCall { fn_name, args } => {
             if fn_name == "print" {
-                println!("{}", eval_expr(&args[0], vars));
+                for arg in args {
+                    println!("{}", eval_expr(arg, vars));
+                }
             } else { todo!() }
         },
         Statement::Assign { var, expr } => {
