@@ -9,10 +9,12 @@ struct StackFrame {
     next_statement: usize,
 }
 
-#[derive(Clone)]
-struct Function {
-    args: Vec<String>,
-    statements: Vec<Statement>,
+enum Function {
+    Native(Box<dyn Fn(Vec<u32>)>),
+    Lua {
+        args: Vec<String>,
+        statements: Vec<Statement>,
+    }
 }
 
 #[derive(Default)]
@@ -28,6 +30,12 @@ pub fn exec(ast: &Ast) {
         statements: ast.statements.clone(),
         next_statement: 0,
     });
+    let print = |vec: Vec<u32>| {
+        for arg in vec {
+            println!("{}", arg);
+        }
+    };
+    e.fns.insert("print".to_string(), Function::Native(Box::new(print)));
     e.exec();
 }
 
@@ -47,19 +55,17 @@ impl Exec {
     fn exec_statement(&mut self, stmt: &Statement) {
         match stmt {
             Statement::FunctionCall { fn_name, args } => {
-                let args: Vec<u32> = args.iter().map(|expr| self.eval_expr(expr) ).collect();
-                if fn_name == "print" {
-                    for arg in args {
-                        println!("{}", arg);
-                    }
-                } else {
-                    let function = self.fns[fn_name].clone();
-                    let mut sf = StackFrame::default();
-                    sf.statements = function.statements.clone();
-                    for (name, value) in function.args.iter().zip(args.iter()) {
-                        sf.vars.insert(name.clone(), *value);
-                    }
-                    self.stack.push(sf);
+                let val_args: Vec<u32> = args.iter().map(|expr| self.eval_expr(expr) ).collect();
+                match &self.fns[fn_name] {
+                    Function::Native(f) => f(val_args),
+                    Function::Lua { args, statements } => {
+                        let mut sf = StackFrame::default();
+                        sf.statements = statements.clone();
+                        for (name, value) in args.iter().zip(val_args.iter()) {
+                            sf.vars.insert(name.clone(), *value);
+                        }
+                        self.stack.push(sf);
+                    },
                 }
             },
             Statement::Assign { var, expr } => {
@@ -71,7 +77,7 @@ impl Exec {
                 frame.vars.insert(var.clone(), val);
             }
             Statement::FunctionDef { fn_name, args, body } => {
-                let function = Function { args: args.clone(), statements: body.clone() };
+                let function = Function::Lua { args: args.clone(), statements: body.clone() };
                 self.fns.insert(fn_name.clone(), function);
             }
         }
