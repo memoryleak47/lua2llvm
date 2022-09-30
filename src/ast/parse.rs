@@ -60,17 +60,22 @@ fn assemble_function_def_statement(tokens: &[Token]) -> Result<(Statement, &[Tok
 
     let mut args = Vec::new();
 
-    loop {
-        match tokens {
-            [Token::Ident(ident), Token::Comma, ts@..] => {
-                args.push(ident.clone());
-                tokens = ts;
-            },
-            [Token::RParen, ts@..] => {
-                tokens = ts;
-                break;
-            },
-            _ => return Err(()),
+    if let [Token::RParen, ts@..] = tokens {
+        tokens = ts;
+    } else {
+        loop {
+            match tokens {
+                [Token::Ident(ident), Token::Comma, ts@..] => {
+                    args.push(ident.clone());
+                    tokens = ts;
+                },
+                [Token::Ident(ident), Token::RParen, ts@..] => {
+                    args.push(ident.clone());
+                    tokens = ts;
+                    break;
+                },
+                _ => return Err(()),
+            }
         }
     }
 
