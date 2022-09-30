@@ -4,14 +4,14 @@ pub use token::*;
 mod parse;
 pub use parse::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Var(String),
     LiteralNum(u32),
     Plus(Box<Expr>, Box<Expr>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     FunctionCall {
         fn_name: String,
@@ -27,7 +27,7 @@ pub enum Statement {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ast {
     pub statements: Vec<Statement>,
 }

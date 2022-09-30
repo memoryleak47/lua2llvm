@@ -5,6 +5,7 @@ use std::collections::HashMap;
 #[derive(Default)]
 struct Exec {
     vars: HashMap<String, u32>,
+    fns: HashMap<String, Vec<Statement>>,
 }
 
 pub fn exec(ast: &Ast) {
@@ -29,12 +30,19 @@ impl Exec {
                     for arg in args {
                         println!("{}", self.eval_expr(arg));
                     }
-                } else { todo!() }
+                } else {
+                    let statements = self.fns[fn_name].clone();
+                    for st in statements {
+                        self.exec_statement(&st);
+                    }
+                }
             },
             Statement::Assign { var, expr } => {
                 self.vars.insert(var.clone(), self.eval_expr(expr));
             }
-            Statement::FunctionDef { .. } => todo!(),
+            Statement::FunctionDef { fn_name, body } => {
+                self.fns.insert(fn_name.clone(), body.clone());
+            }
         }
     }
 
