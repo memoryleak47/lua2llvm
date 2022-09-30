@@ -18,8 +18,8 @@ pub enum Statement {
         args: Vec<Expr>,
     },
     FunctionDef {
-        name: String,
-        body: Vec<Ast>,
+        fn_name: String,
+        body: Vec<Statement>,
     },
     Assign {
         var: String,

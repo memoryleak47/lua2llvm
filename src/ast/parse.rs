@@ -26,8 +26,8 @@ fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
 
 fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
     let [Token::Ident(fn_name), Token::LParen, tokens@..] = tokens else { return Err(()) };
+    let mut tokens = tokens;
 
-    let mut tokens: &[Token] = tokens;
     let mut args = Vec::new();
 
     // zero arg functions
@@ -54,8 +54,29 @@ fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[To
     Ok((stmt, tokens))
 }
 
+// TODO support function args
 fn assemble_function_def_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    todo!()
+    let [Token::Function, Token::Ident(fn_name), Token::LParen, Token::RParen, tokens@..] = tokens else { return Err(()) };
+    let mut tokens = tokens;
+
+    let mut statements = Vec::new();
+    loop {
+        if let [Token::End, ts@..] = tokens {
+            tokens = ts;
+            break;
+        } else {
+            let (stat, ts) = assemble_statement(tokens)?;
+            statements.push(stat);
+            tokens = ts;
+        }
+    }
+
+    let stmt = Statement::FunctionDef {
+        fn_name: fn_name.clone(),
+        body: statements,
+    };
+
+    Ok((stmt, tokens))
 }
 
 fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
@@ -75,7 +96,6 @@ fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
     }
 
     Ok((expr, rest))
-    
 }
 
 fn assemble_atomic_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
