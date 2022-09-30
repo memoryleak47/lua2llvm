@@ -19,18 +19,31 @@ fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
 
 fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
     Err(())
-        .or_else(|_| assemble_print_statement(tokens))
         .or_else(|_| assemble_assign_statement(tokens))
+        .or_else(|_| assemble_function_call_statement(tokens))
+        .or_else(|_| assemble_function_def_statement(tokens))
 }
 
-fn assemble_print_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let [Token::Ident(print_ident), tokens@..] = tokens else { return Err(()) };
-    let "print" = &**print_ident else { return Err(()) };
-    let [Token::LParen, tokens@..] = tokens else { return Err(()) };
-    let (expr, tokens) = assemble_expr(tokens)?;
-    let [Token::RParen, tokens@..] = tokens else { return Err(()) };
-    let stmt = Statement::FunctionCall { fn_name: "print".to_string(), args: vec![expr] };
+fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+    let [Token::Ident(fn_name), Token::LParen, tokens@..] = tokens else { return Err(()) };
+
+    let mut tokens: &[Token] = tokens;
+    let mut args = Vec::new();
+    loop {
+        if let [Token::RParen, tks@..] = tokens {
+            tokens = tks;
+            break;
+        }
+        let (expr, local_tokens) = assemble_expr(tokens)?;
+        args.push(expr);
+        tokens = local_tokens;
+    }
+    let stmt = Statement::FunctionCall { fn_name: fn_name.clone(), args };
     Ok((stmt, tokens))
+}
+
+fn assemble_function_def_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+    todo!()
 }
 
 fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
