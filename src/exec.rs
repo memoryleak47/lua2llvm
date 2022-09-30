@@ -40,7 +40,7 @@ impl Exec {
             Statement::Assign { var, expr } => {
                 self.vars.insert(var.clone(), self.eval_expr(expr));
             }
-            Statement::FunctionDef { fn_name, body } => {
+            Statement::FunctionDef { fn_name, args, body } => {
                 self.fns.insert(fn_name.clone(), body.clone());
             }
         }

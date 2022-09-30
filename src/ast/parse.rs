@@ -54,10 +54,25 @@ fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[To
     Ok((stmt, tokens))
 }
 
-// TODO support function args
 fn assemble_function_def_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let [Token::Function, Token::Ident(fn_name), Token::LParen, Token::RParen, tokens@..] = tokens else { return Err(()) };
+    let [Token::Function, Token::Ident(fn_name), Token::LParen, tokens@..] = tokens else { return Err(()) };
     let mut tokens = tokens;
+
+    let mut args = Vec::new();
+
+    loop {
+        match tokens {
+            [Token::Ident(ident), Token::Comma, ts@..] => {
+                args.push(ident.clone());
+                tokens = ts;
+            },
+            [Token::RParen, ts@..] => {
+                tokens = ts;
+                break;
+            },
+            _ => return Err(()),
+        }
+    }
 
     let mut statements = Vec::new();
     loop {
@@ -73,6 +88,7 @@ fn assemble_function_def_statement(tokens: &[Token]) -> Result<(Statement, &[Tok
 
     let stmt = Statement::FunctionDef {
         fn_name: fn_name.clone(),
+        args,
         body: statements,
     };
 

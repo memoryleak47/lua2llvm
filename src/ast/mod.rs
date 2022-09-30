@@ -19,6 +19,7 @@ pub enum Statement {
     },
     FunctionDef {
         fn_name: String,
+        args: Vec<String>,
         body: Vec<Statement>,
     },
     Assign {
