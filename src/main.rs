@@ -5,6 +5,12 @@ extern crate llvm_sys as llvm;
 mod ast;
 pub use ast::*;
 
+mod token;
+pub use token::*;
+
+mod parse;
+pub use parse::*;
+
 mod exec;
 pub use exec::*;
 
