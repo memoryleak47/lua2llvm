@@ -13,6 +13,7 @@ pub struct Function {
 pub enum Statement {
     Assign(Var, Expr),
     FunctionCall(Expr, Vec<Expr>),
+    Return(Expr),
 }
 
 #[derive(Debug, Clone)]
@@ -37,5 +38,6 @@ pub enum Expr {
     Var(Var),
     LiteralNum(f64),
     Function(usize), // the usize indexes into IR::fns
+    FunctionCall(Box<Expr>, Vec<Expr>),
     Plus(Box<Expr>, Box<Expr>),
 }

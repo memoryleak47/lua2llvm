@@ -11,6 +11,10 @@ pub enum Expr {
         args: Vec<String>,
         body: Vec<Statement>,
     },
+    FunctionCall {
+        func: Box<Expr>,
+        args: Vec<Expr>
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -23,6 +27,7 @@ pub enum Statement {
         var: String,
         expr: Expr,
     },
+    Return(Expr),
 }
 
 #[derive(Debug, Clone)]

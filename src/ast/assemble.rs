@@ -18,6 +18,7 @@ fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
     Err(())
         .or_else(|_| assemble_assign_statement(tokens))
         .or_else(|_| assemble_function_call_statement(tokens))
+        .or_else(|_| assemble_return_statement(tokens))
 }
 
 fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
@@ -60,6 +61,13 @@ fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), 
     Ok((stmt, tokens))
 }
 
+fn assemble_return_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+    let [Token::Return, tokens@..] = tokens else { return Err(()) };
+    let (expr, tokens) = assemble_expr(tokens)?;
+    let stmt = Statement::Return(expr);
+    Ok((stmt, tokens))
+}
+
 // assemble_expr
 
 fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
@@ -78,6 +86,8 @@ fn assemble_atomic_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
         .or_else(|_| assemble_var_expr(tokens))
         .or_else(|_| assemble_num_expr(tokens))
         .or_else(|_| assemble_function_expr(tokens))
+        // .or_else(|_| assemble_call_expr(tokens))
+        // TODO this infinite-loops
 }
 
 fn assemble_var_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
@@ -130,5 +140,36 @@ fn assemble_function_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
     }
 
     let expr = Expr::Function { args, body, };
+    Ok((expr, tokens))
+}
+
+fn assemble_call_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+    let (expr, tokens) = assemble_expr(tokens)?;
+    let [Token::LParen, tokens@..] = tokens else { return Err(()) };
+    let mut tokens = tokens;
+    let mut args = Vec::new();
+
+    if let [Token::RParen, ts@..] = tokens {
+        tokens = ts;
+    } else {
+        loop {
+            let (arg, ts) = assemble_expr(tokens)?;
+            args.push(arg);
+
+            match ts {
+                [Token::RParen, ts@..] => {
+                    tokens = ts;
+                    break;
+                },
+                [Token::Comma, ts@..] => {
+                    tokens = ts;
+                    continue;
+                },
+                _ => panic!()
+            }
+        }
+    }
+
+    let expr = Expr::FunctionCall { func: Box::new(expr), args };
     Ok((expr, tokens))
 }

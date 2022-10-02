@@ -35,6 +35,11 @@ impl IR {
                     let stat = ir::Statement::Assign(lvar, lexpr);
                     active_fn.body.push(stat);
                 },
+                ast::Statement::Return(expr) => {
+                    let lexpr = self.lower_expr(expr, active_args);
+                    let stat = ir::Statement::Return(lexpr);
+                    active_fn.body.push(stat);
+                },
             }
         }
 
@@ -54,6 +59,11 @@ impl IR {
                 ),
             ast::Expr::Function { args, body } => 
                 ir::Expr::Function(self.lower_fn(args, body)),
+            ast::Expr::FunctionCall { func, args } => {
+                let lfunc = self.lower_expr(func, active_args);
+                let largs: Vec<_> = args.iter().map(|expr| self.lower_expr(expr, active_args)).collect();
+                ir::Expr::FunctionCall(Box::new(lfunc), largs)
+            },
         }
     }
 

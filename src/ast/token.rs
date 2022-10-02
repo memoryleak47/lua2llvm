@@ -7,6 +7,7 @@ pub enum Token {
     Plus,
     Function,
     End,
+    Return,
     Ident(String),
     LiteralNum(u32),
 }
@@ -46,6 +47,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                 tokens.push(match &**ident {
                     "function" => Token::Function,
                     "end" => Token::End,
+                    "return" => Token::Return,
                     _ => Token::Ident(ident.clone()),
                 });
                 state = Start;
