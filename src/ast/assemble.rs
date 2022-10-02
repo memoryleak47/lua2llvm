@@ -1,11 +1,6 @@
-use crate::*;
+use super::*;
 
-pub fn parse(code: &str) -> Result<Ast, ()> {
-    let tokens = tokenize(code);
-    assemble(&tokens)
-}
-
-fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
+pub fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
     let mut ast = Ast { statements: vec![] };
 
     while !tokens.is_empty() {

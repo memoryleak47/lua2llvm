@@ -3,16 +3,11 @@
 extern crate llvm_sys as llvm;
 
 mod ast;
-pub use ast::*;
+use ast::Ast;
 
 mod ir;
-pub use ir::*;
+use ir::IR;
 
-mod token;
-pub use token::*;
-
-mod parse;
-pub use parse::*;
 
 // TODO(WIP): these modules don't currently work.
 // mod exec;
@@ -35,7 +30,7 @@ fn main() {
 
     if let [filename] = &args[..] {
         let code = std::fs::read_to_string(filename).unwrap();
-        let ast = parse(&code).unwrap();
+        let ast = Ast::parse(&code).unwrap();
 
         if exec_flag { // TODO re-enable
             // exec(&ast);

@@ -1,7 +1,11 @@
+mod token;
+use token::*;
+
+mod assemble;
+
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Var(String),
-    LiteralNum(u32),
+    Var(String), LiteralNum(u32),
     Plus(Box<Expr>, Box<Expr>),
     Function {
         args: Vec<String>,
@@ -24,4 +28,11 @@ pub enum Statement {
 #[derive(Debug, Clone)]
 pub struct Ast {
     pub statements: Vec<Statement>,
+}
+
+impl Ast {
+    pub fn parse(code: &str) -> Result<Ast, ()> {
+        let tokens = token::tokenize(code);
+        assemble::assemble(&tokens)
+    }
 }
