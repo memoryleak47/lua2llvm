@@ -29,7 +29,7 @@ fn main() {
 
     if let [filename] = &args[..] {
         let code = std::fs::read_to_string(filename).unwrap();
-        let ast = Ast::parse(&code).unwrap();
+        let ast = Ast::parse(&code).expect("Ast::parse failed!");
         let ir = IR::lower(&ast);
 
         if exec_flag {
