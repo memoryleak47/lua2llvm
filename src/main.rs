@@ -8,7 +8,6 @@ use ast::Ast;
 mod ir;
 use ir::IR;
 
-
 // TODO(WIP): these modules don't currently work.
 // mod exec;
 // pub use exec::*;
@@ -31,6 +30,8 @@ fn main() {
     if let [filename] = &args[..] {
         let code = std::fs::read_to_string(filename).unwrap();
         let ast = Ast::parse(&code).unwrap();
+        let ir = IR::lower(&ast);
+        dbg!(&ir);
 
         if exec_flag { // TODO re-enable
             // exec(&ast);
