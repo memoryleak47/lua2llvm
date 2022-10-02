@@ -18,7 +18,7 @@ enum TokenState {
 }
 
 fn alpha(chr: char) -> bool {
-   ('a'..='z').contains(&chr)
+   ('a'..='z').contains(&chr) || chr == '_'
 }
 
 fn numeric(chr: char) -> Option<u32> { // returns the digit
