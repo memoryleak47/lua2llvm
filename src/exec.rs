@@ -1,96 +1,62 @@
-use crate::*;
+use crate::ir::*;
 
-use std::collections::HashMap;
-
-#[derive(Default)]
-struct StackFrame {
-    vars: HashMap<String, u32>,
-    statements: Vec<Statement>,
-    next_statement: usize,
+#[derive(Clone)]
+enum Value {
+    Nil,
+    NativeFn(fn(&[Value])),
+    LuaFn(usize), // indexes into IR::fns
+    Num(f64),
 }
 
-enum Function {
-    Native(Box<dyn Fn(Vec<u32>)>),
-    Lua {
-        args: Vec<String>,
-        statements: Vec<Statement>,
-    }
-}
-
-#[derive(Default)]
-struct Exec {
-    stack: Vec<StackFrame>,
-    fns: HashMap<String, Function>,
-}
-
-pub fn exec(ast: &Ast) {
-    let mut e = Exec::default();
-    e.stack.push(StackFrame {
-        vars: Default::default(),
-        statements: ast.statements.clone(),
-        next_statement: 0,
-    });
-    let print = |vec: Vec<u32>| {
-        for arg in vec {
-            println!("{}", arg);
-        }
-    };
-    e.fns.insert("print".to_string(), Function::Native(Box::new(print)));
-    e.exec();
-}
-
-impl Exec {
-    fn exec(&mut self) {
-        while let Some(f) = self.stack.last_mut() {
-            if f.next_statement < f.statements.len() {
-                let stmt = f.statements[f.next_statement].clone();
-                f.next_statement += 1;
-                self.exec_statement(&stmt);
-            } else {
-                self.stack.pop();
-            }
-        }
-    }
-
-    fn exec_statement(&mut self, stmt: &Statement) {
-        match stmt {
-            Statement::FunctionCall { fn_name, args } => {
-                let val_args: Vec<u32> = args.iter().map(|expr| self.eval_expr(expr) ).collect();
-                match &self.fns[fn_name] {
-                    Function::Native(f) => f(val_args),
-                    Function::Lua { args, statements } => {
-                        let mut sf = StackFrame::default();
-                        sf.statements = statements.clone();
-                        for (name, value) in args.iter().zip(val_args.iter()) {
-                            sf.vars.insert(name.clone(), *value);
-                        }
-                        self.stack.push(sf);
-                    },
+pub fn exec(ir: &IR) {
+    let mut globals: Vec<Value> = vec![Value::Nil; ir.global_idents.len()];
+    if let Some(i) = ir.global_idents.iter().position(|x| x == "print") {
+        let print = |vals: &[Value]| {
+            for arg in vals {
+                match arg {
+                    Value::Nil => println!("nil"),
+                    Value::NativeFn(_) => println!("<native-fn>"),
+                    Value::LuaFn(_) => println!("<lua-fn>"),
+                    Value::Num(x) => println!("{}", x),
                 }
-            },
-            Statement::Assign { var, expr } => {
-                let val = self.eval_expr(expr);
-                let frame: &mut StackFrame = match self.stack.iter_mut().rfind(|f| f.vars.contains_key(var)) {
-                    Some(x) => x,
-                    None => &mut self.stack[0],
-                };
-                frame.vars.insert(var.clone(), val);
             }
-            Statement::FunctionDef { fn_name, args, body } => {
-                let function = Function::Lua { args: args.clone(), statements: body.clone() };
-                self.fns.insert(fn_name.clone(), function);
+        };
+        let print = Value::NativeFn(print);
+        globals[i] = print;
+    }
+
+    exec_fn(ir, ir.main_idx, &mut [], &mut globals);
+}
+
+fn exec_fn(ir: &IR, fn_idx: usize, active_args: &mut [Value], globals: &mut [Value]) {
+    let func = &ir.fns[fn_idx];
+    for st in &func.body {
+        match st {
+            Statement::Assign(Var::Global(i), expr) => globals[*i] = exec_expr(expr, ir, active_args, globals),
+            Statement::Assign(Var::FnArg(i), expr) => active_args[*i] = exec_expr(expr, ir, active_args, globals),
+            Statement::FunctionCall(fnexpr, args) => {
+                let func = exec_expr(fnexpr, ir, active_args, globals);
+                let mut args: Vec<_> = args.iter().map(|x| exec_expr(x, ir, active_args, globals)).collect();
+                match func {
+                    Value::NativeFn(f) => f(&args),
+                    Value::LuaFn(i) => exec_fn(ir, i, &mut args, globals),
+                    _ => panic!("trying to execute non-function"),
+                }
             }
         }
     }
+}
 
-    fn eval_expr(&self, expr: &Expr) -> u32 {
-        match expr {
-            Expr::LiteralNum(x) => *x,
-            Expr::Var(var) => {
-                let frame: &StackFrame = self.stack.iter().rfind(|f| f.vars.contains_key(var)).expect("variable not defined!");
-                *frame.vars.get(var).unwrap()
-            }
-            Expr::Plus(a, b) => self.eval_expr(a) + self.eval_expr(b),
-        }
+fn exec_expr(expr: &Expr, ir: &IR, active_args: &mut [Value], globals: &mut [Value]) -> Value {
+    match expr {
+        Expr::Var(Var::Global(i)) => globals[*i].clone(),
+        Expr::Var(Var::FnArg(i)) => active_args[*i].clone(),
+        Expr::LiteralNum(x) => Value::Num(*x),
+        Expr::Function(i) => Value::LuaFn(*i),
+        Expr::Plus(l, r) => {
+            let Value::Num(l) = exec_expr(l, ir, active_args, globals) else { panic!("non-numeric addition") };
+            let Value::Num(r) = exec_expr(r, ir, active_args, globals) else { panic!("non-numeric addition") };
+            Value::Num(l + r)
+        },
     }
 }
