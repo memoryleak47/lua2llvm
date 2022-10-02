@@ -5,17 +5,21 @@ extern crate llvm_sys as llvm;
 mod ast;
 pub use ast::*;
 
+mod ir;
+pub use ir::*;
+
 mod token;
 pub use token::*;
 
 mod parse;
 pub use parse::*;
 
-mod exec;
-pub use exec::*;
+// TODO(WIP): these modules don't currently work.
+// mod exec;
+// pub use exec::*;
 
-mod compile;
-pub use compile::*;
+// mod compile;
+// pub use compile::*;
 
 fn main() {
     let mut exec_flag = false;
@@ -33,10 +37,10 @@ fn main() {
         let code = std::fs::read_to_string(filename).unwrap();
         let ast = parse(&code).unwrap();
 
-        if exec_flag {
-            exec(&ast);
+        if exec_flag { // TODO re-enable
+            // exec(&ast);
         } else {
-            compile(&ast);
+            // compile(&ast);
         }
     } else {
         println!("usage: lua2llvm <filename>");
