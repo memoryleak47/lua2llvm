@@ -18,7 +18,7 @@ pub enum BinOpKind {
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Var(String), LiteralNum(u32),
+    Var(String), LiteralNum(f64),
     BinOp(BinOpKind, Box<Expr>, Box<Expr>),
     Function {
         args: Vec<String>,

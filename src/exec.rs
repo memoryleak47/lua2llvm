@@ -59,6 +59,7 @@ fn exec_fn_val(ir: &IR, func: &Expr, args: &[Expr], active_args: &mut [Value], g
 }
 
 fn kind_fn(kind: BinOpKind) -> fn(&Value, &Value) -> Value {
+    #[allow(unused)]
     match kind {
         BinOpKind::Plus => |l, r| {
             let Value::Num(l) = l else { panic!() };

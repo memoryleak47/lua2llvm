@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     LParen, RParen, LBracket, RBracket, LBrace, RBrace, Comma, Equals, Dot, Colon, Semicolon,
 
@@ -15,7 +15,7 @@ pub enum Token {
     Not, Hash,
 
     Ident(String),
-    LiteralNum(u32),
+    LiteralNum(f64),
 }
 
 enum TokenState {
@@ -73,7 +73,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                 *num = 10 * *num + digit;
                 i += 1; continue;
             } else {
-                tokens.push(Token::LiteralNum(*num));
+                tokens.push(Token::LiteralNum(*num as f64));
                 state = Start;
             }
         }
