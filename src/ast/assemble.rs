@@ -1,9 +1,6 @@
 use super::*;
 
-mod expr;
-use expr::assemble_expr;
-
-pub fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
+pub(super) fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
     let mut ast = Ast { statements: vec![] };
 
     while !tokens.is_empty() {
@@ -17,7 +14,7 @@ pub fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
 
 // assemble_statement
 
-fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+pub(super) fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
     Err(())
         .or_else(|_| assemble_assign_statement(tokens))
         .or_else(|_| assemble_function_call_statement(tokens))

@@ -2,6 +2,10 @@ mod token;
 use token::*;
 
 mod assemble;
+use assemble::assemble_statement;
+
+mod expr;
+use expr::assemble_expr;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
