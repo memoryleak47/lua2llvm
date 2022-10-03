@@ -1,13 +1,19 @@
 #[derive(Debug, PartialEq, Eq)]
 pub enum Token {
-    LParen,
-    RParen,
-    Comma,
-    Equals,
-    Plus,
-    Function,
-    End,
-    Return,
+    LParen, RParen, Comma, Equals,
+
+    // keywords
+    Function, End, Return,
+
+    // ops
+    Plus, Minus, Mult, Div, Mod,
+    Or, And,
+    Lt, Le, Gt, Ge,
+    IsEqual, IsNotEqual,
+    Concat, Pow,
+
+    Not, Hash,
+
     Ident(String),
     LiteralNum(u32),
 }
@@ -38,7 +44,14 @@ pub fn tokenize(code: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut state = TokenState::Start;
 
-    for chr in code.chars() {
+    let chars: Vec<_> = code.chars().collect();
+
+    let mut outer_i = -1i32;
+    while ((outer_i+1) as usize) < chars.len() {
+        outer_i = outer_i+1;
+        let i = outer_i as usize;
+        let chr = chars[i];
+
         if let InIdent(ident) = &mut state {
             if alpha(chr) {
                 ident.push(chr);
@@ -48,6 +61,9 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                     "function" => Token::Function,
                     "end" => Token::End,
                     "return" => Token::Return,
+                    "or" => Token::Or,
+                    "and" => Token::And,
+                    "not" => Token::Not,
                     _ => Token::Ident(ident.clone()),
                 });
                 state = Start;
@@ -70,6 +86,14 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             '=' => tokens.push(Token::Equals),
             ',' => tokens.push(Token::Comma),
             '+' => tokens.push(Token::Plus),
+            '-' => tokens.push(Token::Minus),
+            '*' => tokens.push(Token::Mult),
+            '/' => tokens.push(Token::Div),
+            '%' => tokens.push(Token::Mod),
+            '<' => tokens.push(Token::Lt),
+            '>' => tokens.push(Token::Gt),
+            '^' => tokens.push(Token::Pow),
+            '#' => tokens.push(Token::Hash),
             c if alpha(c) => {
                 state = InIdent(String::from(c));
             },
@@ -77,7 +101,18 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                 state = InNum(numeric(c).unwrap());
             },
             c if whitespace(c) => {},
-            c => { panic!("unexpected char {}", c); },
+            _ => {
+                let tok = match chars[i..] {
+                    ['<', '=', ..] => Token::Le,
+                    ['>', '=', ..] => Token::Ge,
+                    ['=', '=', ..] => Token::IsEqual,
+                    ['~', '=', ..] => Token::IsNotEqual,
+                    ['.', '.', ..] => Token::Concat,
+                    _ => panic!("cannot tokenize!"),
+                };
+                tokens.push(tok);
+                outer_i += 1; // skip the extra char.
+            },
         }
     }
 
