@@ -1,10 +1,7 @@
 use super::*;
 
-mod atomic;
-use atomic::*;
-
-mod nonatomic;
-use nonatomic::*;
+mod expr;
+use expr::assemble_expr;
 
 pub fn assemble(mut tokens: &[Token]) -> Result<Ast, ()> {
     let mut ast = Ast { statements: vec![] };
@@ -46,16 +43,4 @@ fn assemble_return_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), 
     let (expr, tokens) = assemble_expr(tokens)?;
     let stmt = Statement::Return(expr);
     Ok((stmt, tokens))
-}
-
-// assemble_expr
-
-fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
-    let (mut expr, mut tokens) = assemble_atomic_expr(tokens)?;
-    while let Ok((new_expr, ts)) = assemble_nonatomic_expr(tokens, &expr) {
-        expr = new_expr;
-        tokens = ts;
-    }
-
-    Ok((expr, tokens))
 }
