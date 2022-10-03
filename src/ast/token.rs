@@ -1,6 +1,6 @@
 #[derive(Debug, PartialEq, Eq)]
 pub enum Token {
-    LParen, RParen, Comma, Equals,
+    LParen, RParen, LBracket, RBracket, LBrace, RBrace, Comma, Equals, Dot, Colon, Semicolon,
 
     // keywords
     Function, End, Return,
@@ -95,6 +95,13 @@ pub fn tokenize(code: &str) -> Vec<Token> {
         match chr {
             '(' => tokens.push(Token::LParen),
             ')' => tokens.push(Token::RParen),
+            '[' => tokens.push(Token::LBracket),
+            ']' => tokens.push(Token::RBracket),
+            '{' => tokens.push(Token::LBrace),
+            '}' => tokens.push(Token::RBrace),
+            '.' => tokens.push(Token::Dot),
+            ':' => tokens.push(Token::Colon),
+            ';' => tokens.push(Token::Semicolon),
             '=' => tokens.push(Token::Equals),
             ',' => tokens.push(Token::Comma),
             '+' => tokens.push(Token::Plus),
