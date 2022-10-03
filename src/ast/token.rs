@@ -46,16 +46,14 @@ pub fn tokenize(code: &str) -> Vec<Token> {
 
     let chars: Vec<_> = code.chars().collect();
 
-    let mut outer_i = -1i32;
-    while ((outer_i+1) as usize) < chars.len() {
-        outer_i = outer_i+1;
-        let i = outer_i as usize;
+    let mut i: usize = 0;
+    while i < chars.len() {
         let chr = chars[i];
 
         if let InIdent(ident) = &mut state {
             if alpha(chr) {
                 ident.push(chr);
-                continue;
+                i += 1; continue;
             } else {
                 tokens.push(match &**ident {
                     "function" => Token::Function,
@@ -73,11 +71,25 @@ pub fn tokenize(code: &str) -> Vec<Token> {
         if let InNum(num) = &mut state {
             if let Some(digit) = numeric(chr) {
                 *num = 10 * *num + digit;
-                continue;
+                i += 1; continue;
             } else {
                 tokens.push(Token::LiteralNum(*num));
                 state = Start;
             }
+        }
+
+        let opttok = match chars[i..] {
+            ['<', '=', ..] => Some(Token::Le),
+            ['>', '=', ..] => Some(Token::Ge),
+            ['=', '=', ..] => Some(Token::IsEqual),
+            ['~', '=', ..] => Some(Token::IsNotEqual),
+            ['.', '.', ..] => Some(Token::Concat),
+            _ => None,
+        };
+
+        if let Some(tok) = opttok {
+            tokens.push(tok);
+            i += 2; continue;
         }
 
         match chr {
@@ -101,19 +113,10 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                 state = InNum(numeric(c).unwrap());
             },
             c if whitespace(c) => {},
-            _ => {
-                let tok = match chars[i..] {
-                    ['<', '=', ..] => Token::Le,
-                    ['>', '=', ..] => Token::Ge,
-                    ['=', '=', ..] => Token::IsEqual,
-                    ['~', '=', ..] => Token::IsNotEqual,
-                    ['.', '.', ..] => Token::Concat,
-                    _ => panic!("cannot tokenize!"),
-                };
-                tokens.push(tok);
-                outer_i += 1; // skip the extra char.
-            },
+            _ => panic!("cannot tokenize!"),
         }
+
+        i += 1;
     }
 
     tokens
