@@ -29,6 +29,7 @@ fn get_subexpr_pre(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
         .or_else(|_| get_var_subexpr(tokens))
         .or_else(|_| get_num_subexpr(tokens))
         .or_else(|_| get_function_subexpr(tokens))
+        .or_else(|_| get_in_paren_subexpr(tokens))
 }
 
 fn get_var_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
@@ -83,6 +84,16 @@ fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     }
 
     let expr = Expr::Function { args, body, };
+    let subexpr = SubExpr::Expr(expr);
+    Ok((subexpr, tokens))
+}
+
+
+fn get_in_paren_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+    let [Token::LParen, tokens@..] = tokens else { return Err(()) };
+    let (expr, tokens) = assemble_expr(tokens)?;
+    let [Token::RParen, tokens@..] = tokens else { return Err(()) };
+
     let subexpr = SubExpr::Expr(expr);
     Ok((subexpr, tokens))
 }
