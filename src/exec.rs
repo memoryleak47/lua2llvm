@@ -1,4 +1,5 @@
 use crate::ir::*;
+use crate::ast::BinOpKind;
 
 #[derive(Clone)]
 enum Value {
@@ -57,16 +58,74 @@ fn exec_fn_val(ir: &IR, func: &Expr, args: &[Expr], active_args: &mut [Value], g
     }
 }
 
+fn kind_fn(kind: BinOpKind) -> fn(&Value, &Value) -> Value {
+    match kind {
+        BinOpKind::Plus => |l, r| {
+            let Value::Num(l) = l else { panic!() };
+            let Value::Num(r) = r else { panic!() };
+            Value::Num(l + r)
+        },
+        BinOpKind::Minus => |l, r| {
+            let Value::Num(l) = l else { panic!() };
+            let Value::Num(r) = r else { panic!() };
+            Value::Num(l - r)
+        },
+        BinOpKind::Mul => |l, r| {
+            let Value::Num(l) = l else { panic!() };
+            let Value::Num(r) = r else { panic!() };
+            Value::Num(l * r)
+        },
+        BinOpKind::Div => |l, r| {
+            let Value::Num(l) = l else { panic!() };
+            let Value::Num(r) = r else { panic!() };
+            Value::Num(l / r)
+        },
+        BinOpKind::Mod => |l, r| {
+            let Value::Num(l) = l else { panic!() };
+            let Value::Num(r) = r else { panic!() };
+            Value::Num(l % r)
+        },
+        BinOpKind::And => |l, r| {
+            todo!()
+        },
+        BinOpKind::Or => |l, r| {
+            todo!()
+        },
+        BinOpKind::Lt => |l, r| {
+            todo!()
+        },
+        BinOpKind::Le => |l, r| {
+            todo!()
+        },
+        BinOpKind::Gt => |l, r| {
+            todo!()
+        },
+        BinOpKind::Ge => |l, r| {
+            todo!()
+        },
+        BinOpKind::IsEqual => |l, r| todo!(),
+        BinOpKind::IsNotEqual => |l, r| todo!(),
+        BinOpKind::Concat => |l, r| {
+            todo!()
+        },
+        BinOpKind::Pow => |l, r| {
+            let Value::Num(l) = l else { panic!() };
+            let Value::Num(r) = r else { panic!() };
+            Value::Num(l.powf(*r))
+        },
+    }
+}
+
 fn exec_expr(expr: &Expr, ir: &IR, active_args: &mut [Value], globals: &mut [Value]) -> Value {
     match expr {
         Expr::Var(Var::Global(i)) => globals[*i].clone(),
         Expr::Var(Var::FnArg(i)) => active_args[*i].clone(),
         Expr::LiteralNum(x) => Value::Num(*x),
         Expr::Function(i) => Value::LuaFn(*i),
-        Expr::Plus(l, r) => {
-            let Value::Num(l) = exec_expr(l, ir, active_args, globals) else { panic!("non-numeric addition") };
-            let Value::Num(r) = exec_expr(r, ir, active_args, globals) else { panic!("non-numeric addition") };
-            Value::Num(l + r)
+        Expr::BinOp(kind, l, r) => {
+            let l = exec_expr(l, ir, active_args, globals);
+            let r = exec_expr(r, ir, active_args, globals);
+            kind_fn(*kind)(&l, &r)
         },
         Expr::FunctionCall(func, args) => 
             exec_fn_val(ir, func, args, active_args, globals),

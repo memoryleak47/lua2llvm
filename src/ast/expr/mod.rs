@@ -17,7 +17,7 @@ pub(super) fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
 // partial expr, not fully parsed yet.
 #[derive(Debug)]
 enum SubExpr {
-    Plus,
+    BinOp(BinOpKind),
     CallArgs(Vec<Expr>),
     Expr(Expr), // an already fully parsed Expr
 }
@@ -29,7 +29,7 @@ impl SubExpr {
     // returning true means that this SubExpr needs an expression to it's left. like +, ["foo"], .field
     fn left(&self) -> bool {
         match self {
-            SubExpr::Plus => true,
+            SubExpr::BinOp(_) => true,
             SubExpr::CallArgs(_) => true,
             _ => false,
         }
@@ -38,16 +38,24 @@ impl SubExpr {
     // analogous to right
     fn right(&self) -> bool {
         match self {
-            SubExpr::Plus => true,
+            SubExpr::BinOp(_) => true,
             _ => false,
         }
     }
 
     // the returned value describes the operator priority.
     fn prio(&self) -> u32 {
+        use BinOpKind::*;
         match self {
             SubExpr::CallArgs(_) => 1000,
-            SubExpr::Plus => 100,
+            SubExpr::BinOp(Pow) => 101,
+            // SubExpr::UnOp(_) => 100,
+            SubExpr::BinOp(Mul | Div | Mod) => 99,
+            SubExpr::BinOp(Plus | Minus) => 98,
+            SubExpr::BinOp(Concat) => 97,
+            SubExpr::BinOp(Lt | Le | Gt | Ge | IsEqual | IsNotEqual) => 96,
+            SubExpr::BinOp(And) => 95,
+            SubExpr::BinOp(Or) => 94,
             _ => 0,
         }
     }

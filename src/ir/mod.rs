@@ -1,5 +1,7 @@
 mod lower;
 
+use crate::ast::BinOpKind;
+
 #[derive(Debug, Clone)]
 pub struct Function {
     pub body: Vec<Statement>,
@@ -39,5 +41,5 @@ pub enum Expr {
     LiteralNum(f64),
     Function(usize), // the usize indexes into IR::fns
     FunctionCall(Box<Expr>, Vec<Expr>),
-    Plus(Box<Expr>, Box<Expr>),
+    BinOp(BinOpKind, Box<Expr>, Box<Expr>),
 }

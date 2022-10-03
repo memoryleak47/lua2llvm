@@ -52,8 +52,9 @@ impl IR {
         match expr {
             ast::Expr::Var(x) => ir::Expr::Var(self.lower_var(x, active_args)),
             ast::Expr::LiteralNum(x) => ir::Expr::LiteralNum(*x as f64),
-            ast::Expr::Plus(l, r) =>
-                ir::Expr::Plus(
+            ast::Expr::BinOp(kind, l, r) =>
+                ir::Expr::BinOp(
+                    *kind,
                     Box::new(self.lower_expr(l, active_args)),
                     Box::new(self.lower_expr(r, active_args)),
                 ),

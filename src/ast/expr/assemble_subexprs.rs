@@ -48,8 +48,8 @@ pub(super) fn assemble_subexprs(mut subexprs: Vec<SubExpr>) -> Result<Expr, ()> 
 fn assemble(center: &SubExpr, l: Option<&SubExpr>, r: Option<&SubExpr>) -> Result<Expr, ()> {
     let bc = |x: &Expr| -> Box<Expr> { Box::new(x.clone()) };
     match (center, l, r) {
-        (SubExpr::Plus, Some(SubExpr::Expr(l)), Some(SubExpr::Expr(r))) =>
-            Ok(Expr::Plus(bc(l), bc(r))),
+        (SubExpr::BinOp(kind), Some(SubExpr::Expr(l)), Some(SubExpr::Expr(r))) =>
+            Ok(Expr::BinOp(*kind, bc(l), bc(r))),
         (SubExpr::CallArgs(args), Some(SubExpr::Expr(l)), None) =>
             Ok(Expr::FunctionCall {
                 func: bc(l),

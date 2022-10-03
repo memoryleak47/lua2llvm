@@ -6,7 +6,7 @@ pub enum Token {
     Function, End, Return,
 
     // ops
-    Plus, Minus, Mult, Div, Mod,
+    Plus, Minus, Mul, Div, Mod,
     Or, And,
     Lt, Le, Gt, Ge,
     IsEqual, IsNotEqual,
@@ -106,7 +106,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             ',' => tokens.push(Token::Comma),
             '+' => tokens.push(Token::Plus),
             '-' => tokens.push(Token::Minus),
-            '*' => tokens.push(Token::Mult),
+            '*' => tokens.push(Token::Mul),
             '/' => tokens.push(Token::Div),
             '%' => tokens.push(Token::Mod),
             '<' => tokens.push(Token::Lt),

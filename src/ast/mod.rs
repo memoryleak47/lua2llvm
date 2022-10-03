@@ -7,10 +7,19 @@ use assemble::assemble_statement;
 mod expr;
 use expr::assemble_expr;
 
+#[derive(Debug, Clone, Copy)]
+pub enum BinOpKind {
+    Plus, Minus, Mul, Div, Mod,
+    And, Or,
+    Lt, Le, Gt, Ge,
+    IsEqual, IsNotEqual,
+    Concat, Pow,
+}
+
 #[derive(Debug, Clone)]
 pub enum Expr {
     Var(String), LiteralNum(u32),
-    Plus(Box<Expr>, Box<Expr>),
+    BinOp(BinOpKind, Box<Expr>, Box<Expr>),
     Function {
         args: Vec<String>,
         body: Vec<Statement>,
