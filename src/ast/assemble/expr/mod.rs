@@ -4,6 +4,7 @@ mod assemble;
 use assemble::assemble_subexprs;
 
 // partial expr, not fully parsed yet.
+#[derive(Debug)]
 enum SubExpr {
     Plus,
     CallArgs(Vec<Expr>),
@@ -83,6 +84,7 @@ fn get_subexpr_pre(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     Err(())
         .or_else(|_| get_var_subexpr(tokens))
         .or_else(|_| get_num_subexpr(tokens))
+        .or_else(|_| get_function_subexpr(tokens))
 }
 
 fn get_var_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
@@ -96,6 +98,48 @@ fn get_num_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     let [Token::LiteralNum(x), tokens@..] = tokens else { return Err(()) };
     let subexpr = SubExpr::Expr(Expr::LiteralNum(*x));
 
+    Ok((subexpr, tokens))
+}
+
+fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+    let [Token::Function, Token::LParen, tokens@..] = tokens else { return Err(()) };
+    let mut tokens = tokens;
+
+    let mut args = Vec::new();
+
+    if let [Token::RParen, ts@..] = tokens {
+        tokens = ts;
+    } else {
+        loop {
+            match tokens {
+                [Token::Ident(ident), Token::Comma, ts@..] => {
+                    args.push(ident.clone());
+                    tokens = ts;
+                },
+                [Token::Ident(ident), Token::RParen, ts@..] => {
+                    args.push(ident.clone());
+                    tokens = ts;
+                    break;
+                },
+                _ => return Err(()),
+            }
+        }
+    }
+
+    let mut body = Vec::new();
+    loop {
+        if let [Token::End, ts@..] = tokens {
+            tokens = ts;
+            break;
+        } else {
+            let (stat, ts) = assemble_statement(tokens)?;
+            body.push(stat);
+            tokens = ts;
+        }
+    }
+
+    let expr = Expr::Function { args, body, };
+    let subexpr = SubExpr::Expr(expr);
     Ok((subexpr, tokens))
 }
 

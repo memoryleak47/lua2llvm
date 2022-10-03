@@ -1,7 +1,12 @@
 use super::*;
 
 pub(super) fn assemble_subexprs(mut subexprs: Vec<SubExpr>) -> Result<Expr, ()> {
+    if subexprs.is_empty() { return Err(()); }
     loop {
+        if let [SubExpr::Expr(x)] = &subexprs[..] {
+            return Ok(x.clone());
+        }
+
         let maxprio = subexprs.iter().map(|x| x.prio()).max().unwrap();
         let mut i = subexprs.iter().position(|x| x.prio() == maxprio).unwrap();
         if subexprs[i].assoc() == Assoc::Right {
@@ -23,10 +28,6 @@ pub(super) fn assemble_subexprs(mut subexprs: Vec<SubExpr>) -> Result<Expr, ()> 
         if right { range.end += 1; }
 
         subexprs.splice(range, std::iter::once(expr));
-
-        if let [SubExpr::Expr(x)] = &subexprs[..] {
-            return Ok(x.clone());
-        }
     }
 }
 
