@@ -7,27 +7,23 @@ pub(super) fn assemble_subexprs(mut subexprs: Vec<SubExpr>) -> Result<Expr, ()> 
             return Ok(x.clone());
         }
 
-        // valid(i) == true iff i and it's required neighbour subexprs can be assembled together.
-        let valid = |i: usize| {
-            (!subexprs[i].left() || matches!(subexprs.get(i-1), Some(SubExpr::Expr(_))))
-            &&
-            (!subexprs[i].right() || matches!(subexprs.get(i+1), Some(SubExpr::Expr(_))))
-        };
+        let valids: Vec<usize> = (0..subexprs.len())
+                .filter(|&i|
+                    (!subexprs[i].left() || matches!(subexprs.get(i-1), Some(SubExpr::Expr(_))))
+                    &&
+                    (!subexprs[i].right() || matches!(subexprs.get(i+1), Some(SubExpr::Expr(_))))
+                ).collect();
 
-        let maxprio = (0..subexprs.len())
-                        .filter(|&i| valid(i))
-                        .map(|i| subexprs[i].prio())
+        let maxprio = valids.iter()
+                        .map(|&i| subexprs[i].prio())
                         .max()
                         .ok_or(())?;
-        let mut i = (0..subexprs.len())
-                        .filter(|&i| valid(i))
-                        .find(|&i| subexprs[i].prio() == maxprio)
+        let mut i: usize = *valids.iter()
+                        .find(|&&i| subexprs[i].prio() == maxprio)
                         .ok_or(())?;
         if subexprs[i].assoc() == Assoc::Right {
-            i = (0..subexprs.len())
-                .rev()
-                .filter(|&i| valid(i))
-                .find(|&i| subexprs[i].prio() == maxprio)
+            i = *valids.iter()
+                .rfind(|&&i| subexprs[i].prio() == maxprio)
                 .ok_or(())?;
         }
         // this is correct as subexprs with the same prio have the same assoc aswell.
