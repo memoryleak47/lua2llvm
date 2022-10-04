@@ -47,7 +47,7 @@ pub enum Expr {
     Literal(Literal),
     LValue(Box<LValue>),
     BinOp(BinOpKind, /*l: */ Box<Expr>, /*r: */ Box<Expr>),
-    UnOp(UnOpKind, /*l: */ Box<Expr>),
+    UnOp(UnOpKind, /*r: */ Box<Expr>),
     FunctionCall(Box<FunctionCall>),
 }
 
