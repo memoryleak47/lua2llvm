@@ -25,6 +25,7 @@ enum TokenState {
     Start,
     InIdent(String),
     InNum(u32),
+    InStr(/*delim: */char, String),
 }
 
 fn alpha(chr: char) -> bool {
@@ -92,6 +93,30 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             }
         }
 
+        if let InStr(d, s) = &mut state {
+            let optchr = match chars[i..] {
+                ['\\', '\\', ..] => Some('\\'),
+                ['\\', 't', ..] => Some('\t'),
+                ['\\', 'r', ..] => Some('\r'),
+                ['\\', 'n', ..] => Some('\n'),
+                ['\\', del, ..] if *d == del => Some(*d),
+                _ => None,
+            };
+            if let Some(c) = optchr {
+                s.push(c);
+                i += 2; continue;
+            }
+
+            if chr == *d {
+                tokens.push(Token::LiteralStr(s.clone()));
+                state = Start;
+                i += 1; continue;
+            } else {
+                s.push(chr);
+                i += 1; continue;
+            }
+        }
+
         let opttok = match chars[i..] {
             ['<', '=', ..] => Some(Token::Le),
             ['>', '=', ..] => Some(Token::Ge),
@@ -127,6 +152,12 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             '>' => tokens.push(Token::Gt),
             '^' => tokens.push(Token::Pow),
             '#' => tokens.push(Token::Len),
+            '"' => {
+                state = InStr('"', String::new());
+            },
+            '\'' => {
+                state = InStr('\'', String::new());
+            },
             c if alpha(c) => {
                 state = InIdent(String::from(c));
             },
