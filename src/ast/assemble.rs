@@ -32,7 +32,7 @@ fn assemble_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), 
     let [Token::Ident(var), tokens@..] = tokens else { return Err(()) };
     let [Token::Equals, tokens@..] = tokens else { return Err(()) };
     let (expr, tokens) = assemble_expr(tokens)?;
-    let stmt = Statement::Assign(var.to_string(), expr);
+    let stmt = Statement::Assign(LValue::Var(var.to_string()), expr);
     Ok((stmt, tokens))
 }
 

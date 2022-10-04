@@ -35,7 +35,9 @@ fn get_subexpr_pre(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
 
 fn get_var_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     let [Token::Ident(ident), tokens@..] = tokens else { return Err(()) };
-    let subexpr = SubExpr::Expr(Expr::Var(ident.clone()));
+    let lvalue = LValue::Var(ident.clone());
+    let expr = Expr::LValue(Box::new(lvalue));
+    let subexpr = SubExpr::Expr(expr);
 
     Ok((subexpr, tokens))
 }

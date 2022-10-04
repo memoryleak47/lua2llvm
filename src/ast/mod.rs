@@ -29,6 +29,13 @@ pub enum Field {
 }
 
 #[derive(Debug, Clone)]
+pub enum LValue {
+    Var(String), // foo
+    Dot(Expr, String), // foo.bar
+    Index(Expr, Expr), // thingy[2]
+}
+
+#[derive(Debug, Clone)]
 pub enum Literal {
     Num(f64),
     Str(String),
@@ -41,7 +48,7 @@ pub enum Literal {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Literal),
-    Var(String),
+    LValue(Box<LValue>),
     BinOp(BinOpKind, /*l: */ Box<Expr>, /*r: */ Box<Expr>),
     UnOp(UnOpKind, /*l: */ Box<Expr>),
     FunctionCall(/*func: */ Box<Expr>, /*args: */ Vec<Expr>),
@@ -52,7 +59,7 @@ pub struct ElseIf(/*condition: */ Expr, /*body: */ Vec<Statement>);
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Assign(/*var: */ String, Expr),
+    Assign(LValue, Expr),
     FunctionCall(/*function: */ Expr, /*args: */ Vec<Expr>),
     While(Expr, /*body: */ Vec<Statement>),
     If(Expr, /*if-body: */ Vec<Statement>, /*list of else-ifs: */ Vec<ElseIf>, /*else-body: */ Option<Vec<Statement>>),
