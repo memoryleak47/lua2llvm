@@ -5,6 +5,7 @@ pub(in crate::parse::expr) fn get_subexpr_pre(tokens: &[Token]) -> Result<(SubEx
         .or_else(|_| get_var_subexpr(tokens))
         .or_else(|_| get_lit_subexpr(tokens))
         .or_else(|_| get_function_subexpr(tokens))
+        .or_else(|_| get_table_subexpr(tokens))
         .or_else(|_| get_in_paren_subexpr(tokens))
         .or_else(|_| get_unop_subexpr(tokens))
 }
@@ -74,6 +75,57 @@ fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     Ok((subexpr, tokens))
 }
 
+fn get_table_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+    fn get_expr_field(tokens: &[Token]) -> Result<(Field, &[Token]), ()> {
+        let (expr, tokens) = parse_expr(tokens)?;
+        Ok((Field::Expr(expr), tokens))
+    }
+
+    fn get_expr_to_expr_field(tokens: &[Token]) -> Result<(Field, &[Token]), ()> {
+        let [Token::LBracket, tokens@..] = tokens else { return Err(()) };
+        let (l, tokens) = parse_expr(tokens)?;
+        let [Token::RBracket, Token::Equals, tokens@..] = tokens else { return Err(()) };
+        let (r, tokens) = parse_expr(tokens)?;
+        Ok((Field::ExprToExpr(l, r), tokens))
+    }
+
+    fn get_name_to_expr_field(tokens: &[Token]) -> Result<(Field, &[Token]), ()> {
+        let [Token::Ident(id), Token::Equals, tokens@..] = tokens else { return Err(()) };
+        let (expr, tokens) = parse_expr(tokens)?;
+        Ok((Field::NameToExpr(id.clone(), expr), tokens))
+    }
+
+    let [Token::LBrace, tokens@..] = tokens else { return Err(()) };
+    let mut tokens = tokens;
+
+    let mut fields = Vec::new();
+
+    if let [Token::RBrace, ts@..] = tokens {
+        tokens = ts;
+    } else {
+        loop {
+            let (field, ts) = Err(())
+                            .or_else(|_| get_name_to_expr_field(tokens))
+                            .or_else(|_| get_expr_to_expr_field(tokens))
+                            .or_else(|_| get_expr_field(tokens))?;
+            fields.push(field);
+            match ts {
+                [Token::Comma | Token::Semicolon, ts@..] => {
+                    tokens = ts;
+                },
+                [Token::RBrace, ts@..] => {
+                    tokens = ts;
+                    break;
+                },
+                _ => return Err(()),
+            }
+        }
+    }
+
+    let expr = Expr::Literal(Literal::Table(fields));
+    let subexpr = SubExpr::Expr(expr);
+    Ok((subexpr, tokens))
+}
 
 fn get_in_paren_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     let [Token::LParen, tokens@..] = tokens else { return Err(()) };
