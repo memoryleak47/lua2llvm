@@ -51,16 +51,17 @@ pub enum Expr {
 }
 
 #[derive(Debug, Clone)]
+pub struct ElseIf(/*condition: */ Expr, /*body: */ Vec<Statement>);
+
+#[derive(Debug, Clone)]
 pub enum Statement {
-    FunctionCall {
-        func: Expr,
-        args: Vec<Expr>,
-    },
-    Assign {
-        var: String,
-        expr: Expr,
-    },
+    Assign(/*var: */ String, Expr),
+    FunctionCall(/*function: */ Expr, /*args: */ Vec<Expr>),
+    While(Expr, /*body: */ Vec<Statement>),
+    If(Expr, /*if-body: */ Vec<Statement>, /*list of else-ifs: */ Vec<ElseIf>, /*else-body: */ Option<Vec<Statement>>),
+    Local(/*var: */ String, /*rhs: */ Option<Expr>),
     Return(Expr),
+    Break,
 }
 
 #[derive(Debug, Clone)]
