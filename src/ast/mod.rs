@@ -42,9 +42,9 @@ pub enum Literal {
 pub enum Expr {
     Literal(Literal),
     Var(String),
-    BinOp(BinOpKind, Box<Expr>, Box<Expr>),
-    UnOp(UnOpKind, Box<Expr>),
-    FunctionCall(Box<Expr>, Vec<Expr>),
+    BinOp(BinOpKind, /*l: */ Box<Expr>, /*r: */ Box<Expr>),
+    UnOp(UnOpKind, /*l: */ Box<Expr>),
+    FunctionCall(/*func: */ Box<Expr>, /*args: */ Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]
