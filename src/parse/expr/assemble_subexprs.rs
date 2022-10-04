@@ -50,14 +50,22 @@ fn assemble(center: &SubExpr, l: Option<&SubExpr>, r: Option<&SubExpr>) -> Resul
     match (center, l, r) {
         (SubExpr::BinOp(kind), Some(SubExpr::Expr(l)), Some(SubExpr::Expr(r))) =>
             Ok(Expr::BinOp(*kind, bc(l), bc(r))),
+
         (SubExpr::UnOp(kind), None, Some(SubExpr::Expr(r))) =>
             Ok(Expr::UnOp(*kind, bc(r))),
+
         (SubExpr::Index(expr), Some(SubExpr::Expr(l)), None) =>
             Ok(Expr::LValue(Box::new(LValue::Index(l.clone(), expr.clone())))),
-        (SubExpr::CallArgs(args), Some(SubExpr::Expr(l)), None) =>
+
+        (SubExpr::CallArgs(None, args), Some(SubExpr::Expr(l)), None) =>
             Ok(Expr::FunctionCall(Box::new(FunctionCall::Direct(l.clone(), args.clone())))),
+
+        (SubExpr::CallArgs(Some(colon_arg), args), Some(SubExpr::Expr(l)), None) =>
+            Ok(Expr::FunctionCall(Box::new(FunctionCall::Colon(l.clone(), colon_arg.clone(), args.clone())))),
+
         (SubExpr::Dot(field), Some(SubExpr::Expr(l)), None) =>
             Ok(Expr::LValue(Box::new(LValue::Dot(l.clone(), field.clone())))),
+
         _ => Err(()),
     }
 }

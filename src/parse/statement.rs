@@ -37,10 +37,9 @@ fn parse_local_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> 
     Ok((stmt, tokens))
 }
 
-
 fn parse_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let (Expr::FunctionCall(box FunctionCall::Direct(func, args)), tokens) = parse_expr(tokens)? else { return Err(()) };
-    let stmt = Statement::FunctionCall(FunctionCall::Direct(func, args));
+    let (Expr::FunctionCall(call), tokens) = parse_expr(tokens)? else { return Err(()) };
+    let stmt = Statement::FunctionCall(*call);
     Ok((stmt, tokens))
 }
 

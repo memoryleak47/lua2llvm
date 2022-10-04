@@ -33,7 +33,15 @@ fn get_binop_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     Ok((subexpr, tokens))
 }
 
-fn get_call_args_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+fn get_call_args_subexpr(mut tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+    // parse optional :foo
+    let mut colon_arg = None;
+    if let [Token::Colon, Token::Ident(var), ts@..] = tokens {
+        tokens = ts;
+        colon_arg = Some(var.clone());
+    }
+
+    // parse (<args>)
     let [Token::LParen, tokens@..] = tokens else { return Err(()) };
     let mut tokens = tokens;
     let mut args = Vec::new();
@@ -57,7 +65,7 @@ fn get_call_args_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
         }
     }
 
-    let subexpr = SubExpr::CallArgs(args);
+    let subexpr = SubExpr::CallArgs(colon_arg, args);
     Ok((subexpr, tokens))
 }
 
