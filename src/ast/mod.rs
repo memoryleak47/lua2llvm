@@ -46,12 +46,18 @@ pub enum Literal {
 }
 
 #[derive(Debug, Clone)]
+pub enum FunctionCall {
+    Direct(Expr, Vec<Expr>),
+    Colon(Expr, String, Vec<Expr>),
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Literal),
     LValue(Box<LValue>),
     BinOp(BinOpKind, /*l: */ Box<Expr>, /*r: */ Box<Expr>),
     UnOp(UnOpKind, /*l: */ Box<Expr>),
-    FunctionCall(/*func: */ Box<Expr>, /*args: */ Vec<Expr>),
+    FunctionCall(Box<FunctionCall>),
 }
 
 #[derive(Debug, Clone)]
@@ -60,7 +66,7 @@ pub struct ElseIf(/*condition: */ Expr, /*body: */ Vec<Statement>);
 #[derive(Debug, Clone)]
 pub enum Statement {
     Assign(LValue, Expr),
-    FunctionCall(/*function: */ Expr, /*args: */ Vec<Expr>),
+    FunctionCall(FunctionCall),
     While(Expr, /*body: */ Vec<Statement>),
     If(Expr, /*if-body: */ Vec<Statement>, /*list of else-ifs: */ Vec<ElseIf>, /*else-body: */ Option<Vec<Statement>>),
     Local(/*var: */ String, /*rhs: */ Option<Expr>),

@@ -53,7 +53,7 @@ fn assemble(center: &SubExpr, l: Option<&SubExpr>, r: Option<&SubExpr>) -> Resul
         (SubExpr::UnOp(kind), None, Some(SubExpr::Expr(r))) =>
             Ok(Expr::UnOp(*kind, bc(r))),
         (SubExpr::CallArgs(args), Some(SubExpr::Expr(l)), None) =>
-            Ok(Expr::FunctionCall(bc(l), args.clone())),
+            Ok(Expr::FunctionCall(Box::new(FunctionCall::Direct(l.clone(), args.clone())))),
         _ => Err(()),
     }
 }

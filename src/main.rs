@@ -1,4 +1,5 @@
 #![feature(let_else)]
+#![feature(box_patterns)]
 
 extern crate llvm_sys as llvm;
 
