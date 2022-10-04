@@ -2,7 +2,7 @@
 
 [ ! -d .git ] && "You need to be in the repo root to execute this" && exit
 
-for file in $(find tests -type f)
+for file in $(find tests -type f | sort)
 do
     cargo r -- --exec "$file";
     if [[ ! "$?" == 0 ]]; then
