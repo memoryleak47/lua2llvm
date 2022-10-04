@@ -18,6 +18,7 @@ pub(super) fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
 #[derive(Debug)]
 enum SubExpr {
     BinOp(BinOpKind),
+    UnOp(UnOpKind),
     CallArgs(Vec<Expr>),
     Expr(Expr), // an already fully parsed Expr
 }
@@ -28,19 +29,14 @@ enum Assoc { Left, Right }
 impl SubExpr {
     // returning true means that this SubExpr needs an expression to it's left. like +, ["foo"], .field
     fn left(&self) -> bool {
-        match self {
-            SubExpr::BinOp(_) => true,
-            SubExpr::CallArgs(_) => true,
-            _ => false,
-        }
+        matches!(self,
+            SubExpr::BinOp(_) | SubExpr::CallArgs(_)
+        )
     }
 
     // analogous to right
     fn right(&self) -> bool {
-        match self {
-            SubExpr::BinOp(_) => true,
-            _ => false,
-        }
+        matches!(self, SubExpr::BinOp(_) | SubExpr::UnOp(_))
     }
 
     // the returned value describes the operator priority.
@@ -49,7 +45,7 @@ impl SubExpr {
         match self {
             SubExpr::CallArgs(_) => 1000,
             SubExpr::BinOp(Pow) => 101,
-            // SubExpr::UnOp(_) => 100,
+            SubExpr::UnOp(_) => 100,
             SubExpr::BinOp(Mul | Div | Mod) => 99,
             SubExpr::BinOp(Plus | Minus) => 98,
             SubExpr::BinOp(Concat) => 97,

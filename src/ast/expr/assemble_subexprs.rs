@@ -50,6 +50,8 @@ fn assemble(center: &SubExpr, l: Option<&SubExpr>, r: Option<&SubExpr>) -> Resul
     match (center, l, r) {
         (SubExpr::BinOp(kind), Some(SubExpr::Expr(l)), Some(SubExpr::Expr(r))) =>
             Ok(Expr::BinOp(*kind, bc(l), bc(r))),
+        (SubExpr::UnOp(kind), None, Some(SubExpr::Expr(r))) =>
+            Ok(Expr::UnOp(*kind, bc(r))),
         (SubExpr::CallArgs(args), Some(SubExpr::Expr(l)), None) =>
             Ok(Expr::FunctionCall {
                 func: bc(l),

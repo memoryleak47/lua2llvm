@@ -30,6 +30,7 @@ fn get_subexpr_pre(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
         .or_else(|_| get_lit_subexpr(tokens))
         .or_else(|_| get_function_subexpr(tokens))
         .or_else(|_| get_in_paren_subexpr(tokens))
+        .or_else(|_| get_unop_subexpr(tokens))
 }
 
 fn get_var_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
@@ -102,6 +103,17 @@ fn get_in_paren_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     let [Token::RParen, tokens@..] = tokens else { return Err(()) };
 
     let subexpr = SubExpr::Expr(expr);
+    Ok((subexpr, tokens))
+}
+
+fn get_unop_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+    let (kind, tokens) = match tokens {
+        [Token::Len, ts@..] => (UnOpKind::Len, ts),
+        [Token::Minus, ts@..] => (UnOpKind::Neg, ts),
+        [Token::Not, ts@..] => (UnOpKind::Not, ts),
+        _ => return Err(()),
+    };
+    let subexpr = SubExpr::UnOp(kind);
     Ok((subexpr, tokens))
 }
 

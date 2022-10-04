@@ -71,6 +71,7 @@ pub struct Ast {
 impl Ast {
     pub fn parse(code: &str) -> Result<Ast, ()> {
         let tokens = token::tokenize(code);
+        dbg!(&tokens);
         assemble::assemble(&tokens)
     }
 }
