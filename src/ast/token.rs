@@ -3,7 +3,7 @@ pub enum Token {
     LParen, RParen, LBracket, RBracket, LBrace, RBrace, Comma, Equals, Dot, Colon, Semicolon,
 
     // keywords
-    Function, End, Return,
+    Function, End, Return, Break, If, Else, ElseIf, Then, While, Do,
 
     // literals
     True, False, Nil,
@@ -68,6 +68,13 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                     "true" => Token::True,
                     "false" => Token::False,
                     "nil" => Token::Nil,
+                    "break" => Token::Break,
+                    "if" => Token::If,
+                    "else" => Token::Else,
+                    "elseif" => Token::ElseIf,
+                    "then" => Token::Then,
+                    "while" => Token::While,
+                    "do" => Token::Do,
                     _ => Token::Ident(ident.clone()),
                 });
                 state = Start;
