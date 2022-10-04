@@ -41,7 +41,7 @@ fn get_var_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
 
 fn get_num_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     let [Token::LiteralNum(x), tokens@..] = tokens else { return Err(()) };
-    let subexpr = SubExpr::Expr(Expr::LiteralNum(*x));
+    let subexpr = SubExpr::Expr(Expr::Literal(Literal::Num(*x)));
 
     Ok((subexpr, tokens))
 }
@@ -83,7 +83,7 @@ fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
         }
     }
 
-    let expr = Expr::Function { args, body, };
+    let expr = Expr::Literal(Literal::Function(args, body));
     let subexpr = SubExpr::Expr(expr);
     Ok((subexpr, tokens))
 }

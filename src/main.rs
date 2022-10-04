@@ -5,11 +5,12 @@ extern crate llvm_sys as llvm;
 mod ast;
 use ast::Ast;
 
-mod ir;
-use ir::IR;
+// TODO re-add
+// mod ir;
+// use ir::IR;
 
-mod exec;
-pub use exec::exec;
+// mod exec;
+// pub use exec::exec;
 
 // TODO
 // mod compile;
@@ -30,11 +31,13 @@ fn main() {
     if let [filename] = &args[..] {
         let code = std::fs::read_to_string(filename).unwrap();
         let ast = Ast::parse(&code).expect("Ast::parse failed!");
-        let ir = IR::lower(&ast);
+        dbg!(&ast);
+        // TODO
+        // let ir = IR::lower(&ast);
 
         if exec_flag {
-            exec(&ir);
-        } else { // TODO
+            // exec(&ir);
+        } else {
             // compile(&ast);
         }
     } else {

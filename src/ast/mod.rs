@@ -16,14 +16,34 @@ pub enum BinOpKind {
     Concat, Pow,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum UnOpKind {
+    Neg, Hash, Not
+}
+
+#[derive(Debug, Clone)]
+pub enum Field {
+    Expr(Expr), // 15
+    ExprToExpr(Expr, Expr), // [2+1] = 12
+    NameToExpr(String, Expr), // name = "foo"
+}
+
+#[derive(Debug, Clone)]
+pub enum Literal {
+    Num(f64),
+    Str(String),
+    Bool(bool),
+    Function(/*args: */Vec<String>, /*body: */ Vec<Statement>),
+    Table(Vec<Field>),
+    Nil,
+}
+
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Var(String), LiteralNum(f64),
+    Literal(Literal),
+    Var(String),
     BinOp(BinOpKind, Box<Expr>, Box<Expr>),
-    Function {
-        args: Vec<String>,
-        body: Vec<Statement>,
-    },
+    UnOp(UnOpKind, Box<Expr>),
     FunctionCall {
         func: Box<Expr>,
         args: Vec<Expr>

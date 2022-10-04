@@ -36,9 +36,13 @@ pub enum Var {
 }
 
 #[derive(Debug, Clone)]
+pub enum Literal {
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Var(Var),
-    LiteralNum(f64),
+    Literal(Literal),
     Function(usize), // the usize indexes into IR::fns
     FunctionCall(Box<Expr>, Vec<Expr>),
     BinOp(BinOpKind, Box<Expr>, Box<Expr>),
