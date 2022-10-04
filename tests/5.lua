@@ -1,2 +1,4 @@
 x = 20 -- right?
-print(x)
+print(x) --[[ totally right
+lorem ipsum blub
+]] print("yup!")

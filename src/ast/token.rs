@@ -26,7 +26,6 @@ enum TokenState {
     InIdent(String),
     InNum(u32),
     InStr(/*delim: */char, String),
-    InComment, // currently only supported --, and no multilines
 }
 
 fn alpha(chr: char) -> bool {
@@ -118,6 +117,14 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             }
         }
 
+        // multi-line comments
+        if matches!(chars[i..], ['-', '-', '[', '[', ..]) {
+            if let Some(j) = (0..chars[i..].len()).position(|j| matches!(chars[i..][j..], [']', ']', ..])) {
+                i += j + 2; continue;
+            } else { break; }
+        }
+
+        // single-line comments
         if matches!(chars[i..], ['-', '-', ..]) {
             if let Some(j) = chars[i..].iter().position(|&x| x == '\n') {
                 i += j + 1; continue;
