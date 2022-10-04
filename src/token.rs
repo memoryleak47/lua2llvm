@@ -81,7 +81,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                     "then" => Token::Then,
                     "while" => Token::While,
                     "do" => Token::Do,
-                    "local" => Token::Do,
+                    "local" => Token::Local,
                     _ => Token::Ident(ident.clone()),
                 });
                 state = Start;
