@@ -18,7 +18,7 @@ pub enum BinOpKind {
 
 #[derive(Debug, Clone, Copy)]
 pub enum UnOpKind {
-    Neg, Hash, Not
+    Neg, Len, Not
 }
 
 #[derive(Debug, Clone)]

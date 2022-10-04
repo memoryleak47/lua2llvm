@@ -27,7 +27,7 @@ pub(super) fn get_subexprs(mut tokens: &[Token]) -> Result<(Vec<SubExpr>, &[Toke
 fn get_subexpr_pre(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     Err(())
         .or_else(|_| get_var_subexpr(tokens))
-        .or_else(|_| get_num_subexpr(tokens))
+        .or_else(|_| get_lit_subexpr(tokens))
         .or_else(|_| get_function_subexpr(tokens))
         .or_else(|_| get_in_paren_subexpr(tokens))
 }
@@ -39,10 +39,17 @@ fn get_var_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     Ok((subexpr, tokens))
 }
 
-fn get_num_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
-    let [Token::LiteralNum(x), tokens@..] = tokens else { return Err(()) };
-    let subexpr = SubExpr::Expr(Expr::Literal(Literal::Num(*x)));
-
+// Literals in subexpressions, this does not include functions though.
+fn get_lit_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+    let (lit, tokens) = match tokens {
+        [Token::True, ts@..] => (Literal::Bool(true), ts),
+        [Token::False, ts@..] => (Literal::Bool(false), ts),
+        [Token::LiteralNum(x), ts@..] => (Literal::Num(*x), ts),
+        [Token::LiteralStr(x), ts@..] => (Literal::Str(x.clone()), ts),
+        [Token::Nil, ts@..] => (Literal::Nil, ts),
+        _ => return Err(()),
+    };
+    let subexpr = SubExpr::Expr(Expr::Literal(lit));
     Ok((subexpr, tokens))
 }
 

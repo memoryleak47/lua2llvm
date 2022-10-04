@@ -5,17 +5,20 @@ pub enum Token {
     // keywords
     Function, End, Return,
 
+    // literals
+    True, False, Nil,
+
     // ops
     Plus, Minus, Mul, Div, Mod,
     Or, And,
     Lt, Le, Gt, Ge,
     IsEqual, IsNotEqual,
     Concat, Pow,
-
-    Not, Hash,
+    Not, Len,
 
     Ident(String),
     LiteralNum(f64),
+    LiteralStr(String),
 }
 
 enum TokenState {
@@ -62,6 +65,9 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                     "or" => Token::Or,
                     "and" => Token::And,
                     "not" => Token::Not,
+                    "true" => Token::True,
+                    "false" => Token::False,
+                    "nil" => Token::Nil,
                     _ => Token::Ident(ident.clone()),
                 });
                 state = Start;
@@ -112,7 +118,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             '<' => tokens.push(Token::Lt),
             '>' => tokens.push(Token::Gt),
             '^' => tokens.push(Token::Pow),
-            '#' => tokens.push(Token::Hash),
+            '#' => tokens.push(Token::Len),
             c if alpha(c) => {
                 state = InIdent(String::from(c));
             },
