@@ -14,10 +14,10 @@ pub(super) fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]),
 }
 
 fn parse_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let [Token::Ident(var), tokens@..] = tokens else { return Err(()) };
+    let (Expr::LValue(lvalue), tokens) = parse_expr(tokens)? else { return Err(()) };
     let [Token::Equals, tokens@..] = tokens else { return Err(()) };
     let (expr, tokens) = parse_expr(tokens)?;
-    let stmt = Statement::Assign(LValue::Var(var.to_string()), expr);
+    let stmt = Statement::Assign(*lvalue, expr);
     Ok((stmt, tokens))
 }
 
