@@ -22,6 +22,7 @@ enum SubExpr {
     UnOp(UnOpKind), // eg. not _
     Index(Expr), // eg. _["wow"]
     CallArgs(Vec<Expr>), // eg. _("foo", "bar")
+    Dot(String), // eg. _.foo
     Expr(Expr), // an already fully parsed Expr
 }
 
@@ -32,7 +33,7 @@ impl SubExpr {
     // returning true means that this SubExpr needs an expression to it's left. like +, ["foo"], .field
     fn left(&self) -> bool {
         matches!(self,
-            SubExpr::BinOp(_) | SubExpr::CallArgs(_) | SubExpr::Index(_)
+            SubExpr::BinOp(_) | SubExpr::CallArgs(_) | SubExpr::Index(_) | SubExpr::Dot(_)
         )
     }
 
@@ -45,7 +46,7 @@ impl SubExpr {
     fn prio(&self) -> u32 {
         use BinOpKind::*;
         match self {
-            SubExpr::CallArgs(_) | SubExpr::Index(_) => 1000,
+            SubExpr::CallArgs(_) | SubExpr::Index(_) | SubExpr::Dot(_) => 1000,
             SubExpr::BinOp(Pow) => 101,
             SubExpr::UnOp(_) => 100,
             SubExpr::BinOp(Mul | Div | Mod) => 99,
@@ -61,6 +62,9 @@ impl SubExpr {
     // if you want 1+2+3 = (1+2)+3, then return Assoc::Left
     // if you want 1+2+3 = 1+(2+3), then return Assoc::Right
     fn assoc(&self) -> Assoc {
-        Assoc::Left
+        match self {
+            SubExpr::BinOp(BinOpKind::Pow | BinOpKind::Concat) => Assoc::Right,
+            _ => Assoc::Left,
+        }
     }
 }

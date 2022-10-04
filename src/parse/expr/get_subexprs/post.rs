@@ -5,6 +5,7 @@ pub(in crate::parse::expr) fn get_subexpr_post(tokens: &[Token]) -> Result<(SubE
         .or_else(|_| get_binop_subexpr(tokens))
         .or_else(|_| get_call_args_subexpr(tokens))
         .or_else(|_| get_index_subexpr(tokens))
+        .or_else(|_| get_dot_subexpr(tokens))
 }
 
 fn get_binop_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
@@ -66,5 +67,12 @@ fn get_index_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     let [Token::RBracket, tokens@..] = tokens else { return Err(()) };
 
     let subexpr = SubExpr::Index(expr);
+    Ok((subexpr, tokens))
+}
+
+fn get_dot_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+    let [Token::Dot, Token::Ident(field), tokens@..] = tokens else { return Err(()) };
+
+    let subexpr = SubExpr::Dot(field.clone());
     Ok((subexpr, tokens))
 }

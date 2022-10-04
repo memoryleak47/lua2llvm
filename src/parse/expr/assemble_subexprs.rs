@@ -56,6 +56,8 @@ fn assemble(center: &SubExpr, l: Option<&SubExpr>, r: Option<&SubExpr>) -> Resul
             Ok(Expr::LValue(Box::new(LValue::Index(l.clone(), expr.clone())))),
         (SubExpr::CallArgs(args), Some(SubExpr::Expr(l)), None) =>
             Ok(Expr::FunctionCall(Box::new(FunctionCall::Direct(l.clone(), args.clone())))),
+        (SubExpr::Dot(field), Some(SubExpr::Expr(l)), None) =>
+            Ok(Expr::LValue(Box::new(LValue::Dot(l.clone(), field.clone())))),
         _ => Err(()),
     }
 }
