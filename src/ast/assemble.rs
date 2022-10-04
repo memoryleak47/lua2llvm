@@ -23,7 +23,7 @@ pub(super) fn assemble_statement(tokens: &[Token]) -> Result<(Statement, &[Token
 }
 
 fn assemble_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let (Expr::FunctionCall { func, args }, tokens) = assemble_expr(tokens)? else { return Err(()) };
+    let (Expr::FunctionCall(func, args), tokens) = assemble_expr(tokens)? else { return Err(()) };
     let stmt = Statement::FunctionCall(*func, args);
     Ok((stmt, tokens))
 }

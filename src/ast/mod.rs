@@ -44,10 +44,7 @@ pub enum Expr {
     Var(String),
     BinOp(BinOpKind, Box<Expr>, Box<Expr>),
     UnOp(UnOpKind, Box<Expr>),
-    FunctionCall {
-        func: Box<Expr>,
-        args: Vec<Expr>
-    },
+    FunctionCall(Box<Expr>, Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]
