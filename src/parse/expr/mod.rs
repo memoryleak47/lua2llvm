@@ -18,9 +18,10 @@ pub(super) fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
 // partial expr, not fully parsed yet.
 #[derive(Debug)]
 enum SubExpr {
-    BinOp(BinOpKind),
-    UnOp(UnOpKind),
-    CallArgs(Vec<Expr>),
+    BinOp(BinOpKind), // eg. _ + _
+    UnOp(UnOpKind), // eg. not _
+    Index(Expr), // eg. _["wow"]
+    CallArgs(Vec<Expr>), // eg. _("foo", "bar")
     Expr(Expr), // an already fully parsed Expr
 }
 
@@ -31,7 +32,7 @@ impl SubExpr {
     // returning true means that this SubExpr needs an expression to it's left. like +, ["foo"], .field
     fn left(&self) -> bool {
         matches!(self,
-            SubExpr::BinOp(_) | SubExpr::CallArgs(_)
+            SubExpr::BinOp(_) | SubExpr::CallArgs(_) | SubExpr::Index(_)
         )
     }
 
@@ -44,7 +45,7 @@ impl SubExpr {
     fn prio(&self) -> u32 {
         use BinOpKind::*;
         match self {
-            SubExpr::CallArgs(_) => 1000,
+            SubExpr::CallArgs(_) | SubExpr::Index(_) => 1000,
             SubExpr::BinOp(Pow) => 101,
             SubExpr::UnOp(_) => 100,
             SubExpr::BinOp(Mul | Div | Mod) => 99,

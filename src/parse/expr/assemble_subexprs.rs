@@ -52,6 +52,8 @@ fn assemble(center: &SubExpr, l: Option<&SubExpr>, r: Option<&SubExpr>) -> Resul
             Ok(Expr::BinOp(*kind, bc(l), bc(r))),
         (SubExpr::UnOp(kind), None, Some(SubExpr::Expr(r))) =>
             Ok(Expr::UnOp(*kind, bc(r))),
+        (SubExpr::Index(expr), Some(SubExpr::Expr(l)), None) =>
+            Ok(Expr::LValue(Box::new(LValue::Index(l.clone(), expr.clone())))),
         (SubExpr::CallArgs(args), Some(SubExpr::Expr(l)), None) =>
             Ok(Expr::FunctionCall(Box::new(FunctionCall::Direct(l.clone(), args.clone())))),
         _ => Err(()),
