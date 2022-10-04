@@ -3,8 +3,9 @@
 
 extern crate llvm_sys as llvm;
 
+mod token;
 mod ast;
-use ast::Ast;
+mod parse;
 
 // TODO re-add
 // mod ir;
@@ -31,7 +32,8 @@ fn main() {
 
     if let [filename] = &args[..] {
         let code = std::fs::read_to_string(filename).unwrap();
-        let ast = Ast::parse(&code).expect("Ast::parse failed!");
+        let tokens = token::tokenize(&code);
+        let ast = parse::parse(&tokens).expect("Ast::parse failed!");
         dbg!(&ast);
         // TODO
         // let ir = IR::lower(&ast);

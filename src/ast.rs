@@ -1,12 +1,3 @@
-mod token;
-use token::*;
-
-mod assemble;
-use assemble::assemble_statement;
-
-mod expr;
-use expr::assemble_expr;
-
 #[derive(Debug, Clone, Copy)]
 pub enum BinOpKind {
     Plus, Minus, Mul, Div, Mod,
@@ -77,12 +68,4 @@ pub enum Statement {
 #[derive(Debug, Clone)]
 pub struct Ast {
     pub statements: Vec<Statement>,
-}
-
-impl Ast {
-    pub fn parse(code: &str) -> Result<Ast, ()> {
-        let tokens = token::tokenize(code);
-        dbg!(&tokens);
-        assemble::assemble(&tokens)
-    }
 }

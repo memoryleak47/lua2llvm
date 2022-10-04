@@ -1,4 +1,9 @@
-use super::*;
+use crate::ast::*;
+use crate::token::*;
+
+mod statement;
+use statement::{parse_statement};
+pub use statement::parse;
 
 mod get_subexprs;
 use get_subexprs::get_subexprs;
@@ -6,8 +11,8 @@ use get_subexprs::get_subexprs;
 mod assemble_subexprs;
 use assemble_subexprs::assemble_subexprs;
 
-// tries to assemble the largest-possible prefix expression within `tokens`.
-pub(super) fn assemble_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
+// tries to parse the largest-possible prefix expression within `tokens`.
+pub(super) fn parse_expr(tokens: &[Token]) -> Result<(Expr, &[Token]), ()> {
     let (subexprs, tokens) = get_subexprs(tokens)?;
     let expr = assemble_subexprs(subexprs)?;
 

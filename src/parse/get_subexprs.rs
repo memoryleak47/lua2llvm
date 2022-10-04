@@ -87,7 +87,7 @@ fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
             tokens = ts;
             break;
         } else {
-            let (stat, ts) = assemble_statement(tokens)?;
+            let (stat, ts) = parse_statement(tokens)?;
             body.push(stat);
             tokens = ts;
         }
@@ -101,7 +101,7 @@ fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
 
 fn get_in_paren_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     let [Token::LParen, tokens@..] = tokens else { return Err(()) };
-    let (expr, tokens) = assemble_expr(tokens)?;
+    let (expr, tokens) = parse_expr(tokens)?;
     let [Token::RParen, tokens@..] = tokens else { return Err(()) };
 
     let subexpr = SubExpr::Expr(expr);
@@ -161,7 +161,7 @@ fn get_call_args_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
         tokens = ts;
     } else {
         loop {
-            let (expr, ts) = assemble_expr(tokens)?;
+            let (expr, ts) = parse_expr(tokens)?;
             args.push(expr);
             match ts {
                 [Token::RParen, ts@..] => {
