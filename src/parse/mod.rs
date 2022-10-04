@@ -6,14 +6,26 @@ use statement::parse_statement;
 
 mod expr;
 
-pub fn parse(mut tokens: &[Token]) -> Result<Ast, ()> {
-    let mut ast = Ast { statements: vec![] };
+pub fn parse(tokens: &[Token]) -> Result<Ast, ()> {
+    let (body, tokens) = parse_body(tokens)?;
 
-    while !tokens.is_empty() {
-        let (st, rest) = parse_statement(tokens)?;
-        tokens = rest;
-        ast.statements.push(st);
+    if !tokens.is_empty() {
+        println!("parsing failed at: {:?}", tokens);
+        Err(())
+    } else {
+        let ast = Ast { statements: body };
+        Ok(ast)
+    }
+}
+
+// this function parses as many statements as possible, so a syntax error just yields an incomplete Vec
+// of statements. It needs to be checked when using this function!
+pub fn parse_body(mut tokens: &[Token]) -> Result<(Vec<Statement>, &[Token]), ()> {
+    let mut statements = Vec::new();
+    while let Ok((stmt, ts)) = parse_statement(tokens) {
+        tokens = ts;
+        statements.push(stmt);
     }
 
-    Ok(ast)
+    Ok((statements, tokens))
 }
