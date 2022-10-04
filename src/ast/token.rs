@@ -26,6 +26,7 @@ enum TokenState {
     InIdent(String),
     InNum(u32),
     InStr(/*delim: */char, String),
+    InComment, // currently only supported --, and no multilines
 }
 
 fn alpha(chr: char) -> bool {
@@ -115,6 +116,12 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                 s.push(chr);
                 i += 1; continue;
             }
+        }
+
+        if matches!(chars[i..], ['-', '-', ..]) {
+            if let Some(j) = chars[i..].iter().position(|&x| x == '\n') {
+                i += j + 1; continue;
+            } else { break; }
         }
 
         let opttok = match chars[i..] {
