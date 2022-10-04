@@ -1,16 +1,6 @@
-use super::*;
-
-pub fn parse(mut tokens: &[Token]) -> Result<Ast, ()> {
-    let mut ast = Ast { statements: vec![] };
-
-    while !tokens.is_empty() {
-        let (st, rest) = parse_statement(tokens)?;
-        tokens = rest;
-        ast.statements.push(st);
-    }
-
-    Ok(ast)
-}
+use crate::parse::expr::parse_expr;
+use crate::ast::*;
+use crate::token::Token;
 
 // parse_statement
 
