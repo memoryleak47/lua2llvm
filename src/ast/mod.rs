@@ -47,8 +47,8 @@ pub enum Literal {
 
 #[derive(Debug, Clone)]
 pub enum FunctionCall {
-    Direct(Expr, Vec<Expr>),
-    Colon(Expr, String, Vec<Expr>),
+    Direct(/*expr: */Expr, /*args: */ Vec<Expr>), // <expr>(<args>)
+    Colon(/*expr: */ Expr, /*func: */ String, /*args: */Vec<Expr>), // <expr>:func(<args>)
 }
 
 #[derive(Debug, Clone)]
