@@ -21,10 +21,15 @@ pub enum Token {
     LiteralStr(String),
 }
 
+enum NumState {
+    PreDot(Vec<u32>), // 20 would be [2, 0]
+    PostDot(Vec<u32>, Vec<u32>), // 20.03 would be PostDot([2, 0], [0, 3])
+}
+
 enum TokenState {
     Start,
     InIdent(String),
-    InNum(u32),
+    InNum(NumState),
     InStr(/*delim: */char, String),
 }
 
@@ -83,13 +88,46 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             }
         }
 
-        if let InNum(num) = &mut state {
-            if let Some(digit) = numeric(chr) {
-                *num = 10 * *num + digit;
-                i += 1; continue;
-            } else {
-                tokens.push(Token::LiteralNum(*num as f64));
-                state = Start;
+        // num
+        {
+            let numfn = |predigits: &[u32], postdigits: &[u32]| -> f64 {
+                let mut num: f64 = 0.0;
+                let n = predigits.len();
+                for i in 0..n {
+                    num += 10f64.powf((n - i - 1) as f64) * predigits[i] as f64;
+                }
+
+                let n = postdigits.len();
+                for i in 0..n {
+                    num += (10f64).powf(-((i+1) as f64)) * postdigits[i] as f64;
+                }
+
+                num
+            };
+
+            if let InNum(NumState::PreDot(digits)) = &mut state {
+                if let Some(digit) = numeric(chr) {
+                    digits.push(digit);
+                    i += 1; continue;
+                } else if chr == '.' {
+                    state = InNum(NumState::PostDot(digits.clone(), Vec::new()));
+                    i += 1; continue;
+                } else {
+                    let num = numfn(digits, &[]);
+                    tokens.push(Token::LiteralNum(num));
+                    state = Start;
+                }
+            }
+
+            if let InNum(NumState::PostDot(predigits, postdigits)) = &mut state {
+                if let Some(digit) = numeric(chr) {
+                    postdigits.push(digit);
+                    i += 1; continue;
+                } else {
+                    let num = numfn(predigits, postdigits);
+                    tokens.push(Token::LiteralNum(num));
+                    state = Start;
+                }
             }
         }
 
@@ -176,7 +214,8 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                 state = InIdent(String::from(c));
             },
             c if numeric(c).is_some() => {
-                state = InNum(numeric(c).unwrap());
+                let digit = numeric(c).unwrap();
+                state = InNum(NumState::PreDot(vec![digit]));
             },
             c if whitespace(c) => {},
             _ => panic!("cannot tokenize!"),
