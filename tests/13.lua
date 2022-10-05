@@ -1,4 +1,4 @@
-while true
-do
-print("ok")
+while true do
+    print("ok");
+    break
 end

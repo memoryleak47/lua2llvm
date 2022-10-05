@@ -61,7 +61,7 @@ fn parse_return_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()>
 }
 
 fn parse_break_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let [Token::Return, tokens@..] = tokens else { return Err(()) };
+    let [Token::Break, tokens@..] = tokens else { return Err(()) };
     let stmt = Statement::Break;
     Ok((stmt, tokens))
 }

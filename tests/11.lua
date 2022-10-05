@@ -1,2 +1,3 @@
+x = {}
 x.y = "ok"
-print(x.y.z)
+print(x.y)
