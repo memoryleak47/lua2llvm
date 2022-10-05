@@ -73,27 +73,7 @@ fn exec_body(body: &[Statement], active_args: &mut HashMap<String, Value>, ctxt:
     for st in body {
         match st {
             Statement::Assign(lvalue, expr) => exec_statement_assign(lvalue, expr, active_args, ctxt),
-            Statement::FunctionCall(call) => match &*call {
-                FunctionCall::Direct(func, args) => {
-                    let func = exec_expr(func, active_args, ctxt);
-                    let argvals: Vec<_> = args.iter().map(|x| exec_expr(x, active_args, ctxt)).collect();
-                    exec_fn_val(func, argvals, ctxt);
-                },
-                FunctionCall::Colon(expr, field, args) => {
-                    // eval table
-                    let ptrval = exec_expr(expr, active_args, ctxt);
-                    let Value::TablePtr(ptr) = ptrval else { panic!("using a:b() even though a is no table!") };
-
-                    // eval func
-                    let func = table_get(ptr, Value::Str(field.clone()), ctxt);
-
-                    // eval args
-                    let mut argvals = vec![ptrval];
-                    argvals.extend(args.iter().map(|x| exec_expr(x, active_args, ctxt)));
-
-                    exec_fn_val(func, argvals, ctxt);
-                },
-            },
+            Statement::FunctionCall(call) => { exec_function_call(call, active_args, ctxt); },
             _ => todo!()
         }
     }
@@ -101,7 +81,30 @@ fn exec_body(body: &[Statement], active_args: &mut HashMap<String, Value>, ctxt:
     ControlFlow::End
 }
 
-fn exec_fn_val(func: Value, argvals: Vec<Value>, ctxt: &mut Ctxt) -> Value {
+fn exec_function_call(call: &FunctionCall, active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
+    let (func, argvals) = match call {
+        FunctionCall::Direct(func, args) => {
+            let func = exec_expr(func, active_args, ctxt);
+            let argvals: Vec<_> = args.iter().map(|x| exec_expr(x, active_args, ctxt)).collect();
+
+            (func, argvals)
+        },
+        FunctionCall::Colon(expr, field, args) => {
+            // eval table
+            let ptrval = exec_expr(expr, active_args, ctxt);
+            let Value::TablePtr(ptr) = ptrval else { panic!("using a:b() even though a is no table!") };
+
+            // eval func
+            let func = table_get(ptr, Value::Str(field.clone()), ctxt);
+
+            // eval args
+            let mut argvals = vec![ptrval];
+            argvals.extend(args.iter().map(|x| exec_expr(x, active_args, ctxt)));
+
+            (func, argvals)
+        },
+    };
+
     match func {
         Value::LuaFn(args, body) => {
             let mut active_args: HashMap<String, Value> = HashMap::new();
@@ -228,6 +231,6 @@ fn exec_expr(expr: &Expr, active_args: &mut HashMap<String, Value>, ctxt: &mut C
         },
         Expr::BinOp(kind, l, r) => todo!(),
         Expr::UnOp(kind, r) => todo!(),
-        Expr::FunctionCall(call) => todo!(),
+        Expr::FunctionCall(call) => exec_function_call(call, active_args, ctxt),
     }
 }
