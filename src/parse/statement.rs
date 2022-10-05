@@ -22,27 +22,60 @@ pub(super) fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]),
     Ok((stmt, tokens))
 }
 
+// parses comma separated expression lists for this usecase:
+// [local] <expr-list> = <expr-list>
+fn parse_expr_list(tokens: &[Token]) -> Result<(Vec<Expr>, &[Token]), ()> {
+    let mut exprs = Vec::new();
+
+    let (expr, mut tokens) = parse_expr(tokens)?;
+    exprs.push(expr);
+
+    while let [Token::Comma, ts@..] = tokens {
+        let (expr, ts) = parse_expr(ts)?;
+        exprs.push(expr);
+        tokens = ts;
+    }
+
+    Ok((exprs, tokens))
+}
+
+fn parse_lvalue_list(tokens: &[Token]) -> Result<(Vec<LValue>, &[Token]), ()> {
+    let (exprs, tokens) = parse_expr_list(tokens)?;
+    let mut lvalues = Vec::new();
+    for val in exprs {
+        let Expr::LValue(lvalue) = val else { return Err(()) };
+        lvalues.push(*lvalue);
+    }
+    Ok((lvalues, tokens))
+}
+
+fn parse_ident_list(tokens: &[Token]) -> Result<(Vec<String>, &[Token]), ()> {
+    let (lvalues, tokens) = parse_lvalue_list(tokens)?;
+    let mut idents = Vec::new();
+    for lvalue in lvalues {
+        let LValue::Var(ident) = lvalue else { return Err(()) };
+        idents.push(ident);
+    }
+    Ok((idents, tokens))
+}
+
 fn parse_assign_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let (Expr::LValue(lvalue), tokens) = parse_expr(tokens)? else { return Err(()) };
+    let (lhs, tokens) = parse_lvalue_list(tokens)?;
     let [Token::Equals, tokens@..] = tokens else { return Err(()) };
-    let (expr, tokens) = parse_expr(tokens)?;
-    let stmt = Statement::Assign(*lvalue, expr);
+    let (rhs, tokens) = parse_expr_list(tokens)?;
+    let stmt = Statement::Assign(lhs, rhs);
     Ok((stmt, tokens))
 }
 
 fn parse_local_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    let [Token::Local, Token::Ident(var), tokens@..] = tokens else { return Err(()) };
-
-    let mut tokens = tokens;
-    let mut opt: Option<Expr> = None;
-
-    if let [Token::Equals, ts@..] = tokens {
-        let (expr, ts) = parse_expr(ts)?;
-        opt = Some(expr);
-        tokens = ts;
-    }
-
-    let stmt = Statement::Local(var.clone(), opt);
+    let [Token::Local, tokens@..] = tokens else { return Err(()) };
+    let (idents, tokens) = parse_ident_list(tokens)?;
+    let [Token::Equals, tokens@..] = tokens else {
+        let stmt = Statement::Local(idents, Vec::new());
+        return Ok((stmt, tokens))
+    };
+    let (rhs, tokens) = parse_expr_list(tokens)?;
+    let stmt = Statement::Local(idents, rhs);
     Ok((stmt, tokens))
 }
 
@@ -52,11 +85,11 @@ fn parse_function_call_statement(tokens: &[Token]) -> Result<(Statement, &[Token
     Ok((stmt, tokens))
 }
 
-
 fn parse_return_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
     let [Token::Return, tokens@..] = tokens else { return Err(()) };
-    let (expr, tokens) = parse_expr(tokens)?;
-    let stmt = Statement::Return(expr);
+    let (exprs, tokens) = parse_expr_list(tokens)
+                        .unwrap_or_else(|()| (Vec::new(), tokens));
+    let stmt = Statement::Return(exprs);
     Ok((stmt, tokens))
 }
 

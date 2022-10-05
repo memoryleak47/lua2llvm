@@ -7,8 +7,8 @@ mod token;
 mod ast;
 mod parse;
 
-mod exec;
-pub use exec::exec;
+// mod exec;
+// pub use exec::exec;
 
 // TODO re-add
 // mod ir;
@@ -38,7 +38,7 @@ fn main() {
         let ast = parse::parse(&tokens).expect("Ast::parse failed!");
 
         if exec_flag {
-            exec(&ast);
+            // exec(&ast);
         } else {
             // TODO
             // let ir = IR::lower(&ast);

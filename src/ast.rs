@@ -44,6 +44,7 @@ pub enum FunctionCall {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    Ellipsis,
     Literal(Literal),
     LValue(Box<LValue>),
     BinOp(BinOpKind, /*l: */ Box<Expr>, /*r: */ Box<Expr>),
@@ -56,14 +57,14 @@ pub struct IfBlock(pub /*condition: */ Expr, pub /*body: */ Vec<Statement>);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
-    Assign(LValue, Expr),
+    Assign(Vec<LValue>, Vec<Expr>),
     FunctionCall(FunctionCall),
     While(Expr, /*body: */ Vec<Statement>),
 
     // each if and elseif corresponds to a entry in the Vec<IfBlock>
     If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>),
-    Local(/*var: */ String, /*rhs: */ Option<Expr>),
-    Return(Expr),
+    Local(/*vars: */ Vec<String>, /*rhs: */ Vec<Expr>),
+    Return(Vec<Expr>),
     Break,
 }
 

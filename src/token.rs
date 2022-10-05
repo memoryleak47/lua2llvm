@@ -1,9 +1,9 @@
 #[derive(Debug, PartialEq)]
 pub enum Token {
-    LParen, RParen, LBracket, RBracket, LBrace, RBrace, Comma, Equals, Dot, Colon, Semicolon,
+    LParen, RParen, LBracket, RBracket, LBrace, RBrace, Comma, Equals, Dot, Colon, Semicolon, Ellipsis,
 
     // keywords
-    Function, End, Return, Break, If, Else, ElseIf, Then, While, Do, Local,
+    Function, End, Return, Break, If, Else, ElseIf, Then, While, Do, Local, Repeat, Until, For, In,
 
     // literals
     True, False, Nil,
@@ -65,7 +65,14 @@ pub fn tokenize(code: &str) -> Vec<Token> {
             } else { break; }
         }
 
-        // multi-char special tokens
+        // three-char special tokens
+        if let ['.', '.', '.', ..] = chars[i..] {
+            tokens.push(Token::Ellipsis);
+            i += 3;
+            continue;
+        }
+
+        // two-char special tokens
         {
             let opttok = match chars[i..] {
                 ['<', '=', ..] => Some(Token::Le),
@@ -175,6 +182,10 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                 "while" => Token::While,
                 "do" => Token::Do,
                 "local" => Token::Local,
+                "repeat" => Token::Repeat,
+                "until" => Token::Until,
+                "for" => Token::For,
+                "in" => Token::In,
                 _ => Token::Ident(s),
             });
 
