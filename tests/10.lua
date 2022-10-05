@@ -1,6 +1,7 @@
+wupsi = function() print("wupsidupsi") end
 x = {
-    foo = function() return {foo = print} end,
-    bar = {foo = print}
+    foo = function() return {foo = wupsi} end,
+    bar = {foo = wupsi}
 }
 
 x:foo()

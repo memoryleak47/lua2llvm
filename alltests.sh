@@ -4,9 +4,17 @@
 
 for i in $(find tests -type f | cut -d "/" -f 2 | cut -d "." -f 1 | sort -h)
 do
-    cargo r -- --exec "tests/${i}.lua";
+    res1=$(cargo r -- --exec "tests/${i}.lua")
     if [[ ! "$?" == 0 ]]; then
         echo error!
         exit
+    fi
+    res2=$(lua "tests/${i}.lua")
+    if [[ ! "$res1" == "$res2" ]]; then
+        echo different output:
+        echo lua2llvm:
+        echo $res1
+        echo lua:
+        echo $res2
     fi
 done
