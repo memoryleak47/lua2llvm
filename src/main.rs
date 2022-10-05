@@ -7,12 +7,12 @@ mod token;
 mod ast;
 mod parse;
 
+mod exec;
+pub use exec::exec;
+
 // TODO re-add
 // mod ir;
 // use ir::IR;
-
-// mod exec;
-// pub use exec::exec;
 
 // TODO
 // mod compile;
@@ -34,13 +34,12 @@ fn main() {
         let code = std::fs::read_to_string(filename).unwrap();
         let tokens = token::tokenize(&code);
         let ast = parse::parse(&tokens).expect("Ast::parse failed!");
-        dbg!(&ast);
-        // TODO
-        // let ir = IR::lower(&ast);
 
         if exec_flag {
-            // exec(&ir);
+            exec(&ast);
         } else {
+            // TODO
+            // let ir = IR::lower(&ast);
             // compile(&ast);
         }
     } else {

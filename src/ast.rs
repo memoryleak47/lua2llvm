@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOpKind {
     Plus, Minus, Mul, Div, Mod,
     And, Or,
@@ -7,26 +7,26 @@ pub enum BinOpKind {
     Concat, Pow,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnOpKind {
     Neg, Len, Not
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Field {
     Expr(Expr), // 15
     ExprToExpr(Expr, Expr), // [2+1] = 12
     NameToExpr(String, Expr), // name = "foo"
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LValue {
     Var(String), // foo
     Dot(Expr, String), // foo.bar
     Index(Expr, Expr), // thingy[2]
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Num(f64),
     Str(String),
@@ -36,13 +36,13 @@ pub enum Literal {
     Nil,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FunctionCall {
     Direct(/*expr: */Expr, /*args: */ Vec<Expr>), // <expr>(<args>)
     Colon(/*expr: */ Expr, /*func: */ String, /*args: */Vec<Expr>), // <expr>:func(<args>)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal(Literal),
     LValue(Box<LValue>),
@@ -51,10 +51,10 @@ pub enum Expr {
     FunctionCall(Box<FunctionCall>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IfBlock(pub /*condition: */ Expr, pub /*body: */ Vec<Statement>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Assign(LValue, Expr),
     FunctionCall(FunctionCall),
