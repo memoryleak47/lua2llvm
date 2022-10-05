@@ -33,7 +33,7 @@ fn numeric(chr: char) -> Option<u32> { // returns the digit
 
 // the chars valid in the middle of an ident
 fn inident(chr: char) -> bool {
-    alpha(chr) || numeric(chr).is_some() || chr == '_'
+    alpha(chr) || numeric(chr).is_some()
 }
 
 fn whitespace(chr: char) -> bool {
