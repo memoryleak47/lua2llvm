@@ -39,7 +39,7 @@ pub fn exec(ast: &Ast) {
                 match arg {
                     Value::Nil => println!("nil"),
                     Value::Bool(b) => println!("{}", b),
-                    Value::Str(s) => println!("\"{}\"", s),
+                    Value::Str(s) => println!("{}", s),
                     Value::TablePtr(ptr) => println!("table {}", ptr),
                     Value::NativeFn(_) => println!("<native-fn>"),
                     Value::LuaFn(..) => println!("<lua-fn>"),
@@ -211,7 +211,21 @@ fn exec_expr(expr: &Expr, active_args: &mut HashMap<String, Value>, ctxt: &mut C
             Literal::Table(fields) => construct_table(fields, active_args, ctxt),
             Literal::Nil => Value::Nil,
         },
-        Expr::LValue(lvalue) => todo!(),
+        Expr::LValue(lvalue) => match &**lvalue {
+            LValue::Var(var) => {
+                if let Some(x) = active_args.get(var) { return x.clone(); }
+                ctxt.globals.get(var).cloned().unwrap_or(Value::Nil)
+            },
+            LValue::Dot(expr, field) => {
+                let Value::TablePtr(ptr) = exec_expr(expr, active_args, ctxt) else { panic!("trying a.b on non-table a!") };
+                table_get(ptr, Value::Str(field.clone()), ctxt)
+            },
+            LValue::Index(expr, idx) => {
+                let Value::TablePtr(ptr) = exec_expr(expr, active_args, ctxt) else { panic!("trying a[b] on non-table a!") };
+                let idx = exec_expr(idx, active_args, ctxt);
+                table_get(ptr, idx, ctxt)
+            },
+        },
         Expr::BinOp(kind, l, r) => todo!(),
         Expr::UnOp(kind, r) => todo!(),
         Expr::FunctionCall(call) => todo!(),
