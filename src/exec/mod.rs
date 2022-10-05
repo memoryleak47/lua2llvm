@@ -286,8 +286,8 @@ fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
                 }
                 ellipsis_args.reverse();
                 opt_ellipsis_args = Some(ellipsis_args);
-                std::mem::swap(&mut opt_ellipsis_args, &mut ctxt.ellipsis_args);
             }
+            std::mem::swap(&mut opt_ellipsis_args, &mut ctxt.ellipsis_args);
             
             // swap locals stack
             let mut map: HashMap<String, Value> = HashMap::new();
@@ -301,9 +301,7 @@ fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
 
             // swap back
             ctxt.locals = stack;
-            if variadic == Variadic::Yes {
-                ctxt.ellipsis_args = opt_ellipsis_args;
-            }
+            ctxt.ellipsis_args = opt_ellipsis_args;
 
             match flow {
                 ControlFlow::Return(v) => v,
