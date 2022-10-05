@@ -19,7 +19,7 @@ enum ControlFlow {
 
 type TablePtr = usize;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 enum Value {
     Nil,
     Bool(bool),
@@ -67,9 +67,15 @@ fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
 }
 
 fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
+    if idx == Value::Nil {
+        panic!("setting index with nil is forbidden in lua!");
+    }
+
     let data: &mut TableData = ctxt.heap.get_mut(&ptr).expect("table_set got dangling pointer!");
     data.retain(|(x, _)| *x != idx);
-    data.push((idx, val));
+    if val != Value::Nil { // Value::Nil means it's not there, so just don't add it!
+        data.push((idx, val));
+    }
 }
 
 // exec body of function / if / while
@@ -260,16 +266,6 @@ fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], locals: &mut HashMa
 }
 
 fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
-    fn lowest_free_table_idx(d: &TableData) -> Value {
-        for i in 1.. {
-            let v = Value::Num(i as f64);
-            if d.iter().all(|(x, _)| *x != v) {
-                return v;
-            }
-        }
-        unreachable!()
-    }
-
     fn lowest_free_tableptr(ctxt: &Ctxt) -> TablePtr {
         for i in 1.. {
             if !ctxt.heap.contains_key(&i) {
@@ -282,20 +278,9 @@ fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: 
     let ptr = lowest_free_tableptr(ctxt);
     ctxt.heap.insert(ptr, TableData::new());
 
-    for (i, f) in fields.iter().enumerate() {
+    for f in fields.iter() {
         match f {
-            Field::Expr(expr) => {
-                let vals;
-                if i == fields.len() - 1 {
-                    vals = exec_expr(expr, locals, ctxt);
-                } else {
-                    vals = vec![exec_expr1(expr, locals, ctxt)];
-                }
-                for v in vals {
-                    let idx = lowest_free_table_idx(&ctxt.heap[&ptr]);
-                    table_set(ptr, idx, v, ctxt);
-                }
-            },
+            Field::Expr(_) => { /* ignore for now, handle later */},
             Field::NameToExpr(name, expr) => {
                 let val = exec_expr1(expr, locals, ctxt);
                 let idx = Value::Str(name.clone());
@@ -306,6 +291,25 @@ fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: 
                 let val = exec_expr1(val, locals, ctxt);
                 table_set(ptr, idx, val, ctxt);
             },
+        }
+    }
+
+    for (i, f) in fields.iter().enumerate() {
+        match f {
+            Field::Expr(expr) => {
+                let vals;
+                if i == fields.len() - 1 {
+                    vals = exec_expr(expr, locals, ctxt);
+                } else {
+                    vals = vec![exec_expr1(expr, locals, ctxt)];
+                }
+
+                for (j, v) in vals.into_iter().enumerate() {
+                    let idx = Value::Num((i+1+j) as f64);
+                    table_set(ptr, idx, v, ctxt);
+                }
+            },
+            _ => {/* were already handled before */},
         }
     }
 
@@ -341,7 +345,25 @@ fn exec_unop(kind: UnOpKind, r: Value, ctxt: &Ctxt) -> Value {
     use UnOpKind::*;
     match (kind, r) {
         (Neg, Value::Num(x)) => Value::Num(-x),
-        (Len, Value::TablePtr(ptr)) => Value::Num(ctxt.heap[&ptr].len() as f64),
+        (Len, Value::TablePtr(ptr)) => {
+            let nums: Vec<f64> = ctxt.heap[&ptr]
+                        .iter()
+                        .filter_map(|(key, _)| {
+                            match key {
+                                Value::Num(x) => Some(*x),
+                                _ => None,
+                            }
+                        }).collect();
+
+            for i in 1.. {
+                let f = i as f64;
+                if !nums.contains(&f) {
+                    let l = i-1;
+                    return Value::Num(l as f64);
+                }
+            }
+            unreachable!()
+        }
         (Len, Value::Str(s)) => Value::Num(s.len() as f64),
         (Not, l) if truthy(&l) => Value::Bool(false),
         (Not, _) => Value::Bool(true),
