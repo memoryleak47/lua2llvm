@@ -7,6 +7,7 @@ struct Ctxt {
     globals: HashMap<String, Value>,
     heap: HashMap<TablePtr, TableData>,
     native_fns: Vec<fn(Vec<Value>) -> Vec<Value>>,
+    locals: Vec<HashMap<String, Value>>,
 }
 
 enum ControlFlow {
@@ -40,6 +41,7 @@ fn truthy(v: &Value) -> bool {
 
 pub fn exec(ast: &Ast) {
     let mut ctxt = Ctxt::default();
+    ctxt.locals.push(Default::default());
 
     { // add print
         let print = |vals: Vec<Value>| -> Vec<Value> {
@@ -60,7 +62,7 @@ pub fn exec(ast: &Ast) {
         ctxt.globals.insert("print".to_string(), Value::NativeFn(0));
     }
 
-    exec_body(&ast.statements, &mut HashMap::new(), &mut ctxt);
+    exec_body(&ast.statements, &mut ctxt);
 }
 
 fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
@@ -96,20 +98,20 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
 }
 
 // exec body of function / if / while
-fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> ControlFlow {
+fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
     for st in body {
         match st {
-            Statement::Assign(lvalues, exprs) => exec_statement_assign(lvalues, exprs, locals, ctxt),
-            Statement::FunctionCall(call) => { exec_function_call(call, locals, ctxt); },
+            Statement::Assign(lvalues, exprs) => exec_statement_assign(lvalues, exprs, ctxt),
+            Statement::FunctionCall(call) => { exec_function_call(call, ctxt); },
             Statement::Local(vars, exprs) => {
                 let mut vals = Vec::new();
 
                 if let Some(expr) = exprs.last() {
                     for expr in exprs[..exprs.len()-1].iter() {
-                        let val = exec_expr1(expr, locals, ctxt);
+                        let val = exec_expr1(expr, ctxt);
                         vals.push(val);
                     }
-                    let resvals = exec_expr(expr, locals, ctxt);
+                    let resvals = exec_expr(expr, ctxt);
                     vals.extend(resvals);
                 }
 
@@ -117,47 +119,55 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
                     vals.push(Value::Nil);
                 }
                 for (var, val) in vars.iter().zip(vals.into_iter()) {
-                    locals.insert(var.clone(), val);
+                    ctxt.locals.last_mut()
+                        .unwrap()
+                        .insert(var.clone(), val);
                 }
             },
             Statement::Return(exprs) => {
                 let mut vals = Vec::new();
                 if let Some(expr) = exprs.last() {
                     for expr in exprs[..exprs.len()-1].iter() {
-                        let val = exec_expr1(expr, locals, ctxt);
+                        let val = exec_expr1(expr, ctxt);
                         vals.push(val);
                     }
-                    let resvals = exec_expr(expr, locals, ctxt);
+                    let resvals = exec_expr(expr, ctxt);
                     vals.extend(resvals);
                 }
                 return ControlFlow::Return(vals);
             }
             Statement::Block(body) => {
-                let mut locals = locals.clone();
-                match exec_body(body, &mut locals, ctxt) {
+                ctxt.locals.push(Default::default());
+                let flow = exec_body(body, ctxt);
+                ctxt.locals.pop();
+                match flow {
                     ControlFlow::End => {},
                     ret => return ret,
                 }
             },
             Statement::While(cond, body) => {
-                let mut condval = exec_expr1(cond, locals, ctxt);
+                let mut condval = exec_expr1(cond, ctxt);
                 while truthy(&condval) {
-                    let mut body_locals = locals.clone();
-                    match exec_body(body, &mut body_locals, ctxt) {
+                    ctxt.locals.push(Default::default());
+                    let flow = exec_body(body, ctxt);
+                    ctxt.locals.pop();
+                    match flow {
                         ControlFlow::Break => break,
                         ret@ControlFlow::Return(_) => return ret,
                         ControlFlow::End => {},
                     }
-                    condval = exec_expr1(cond, locals, ctxt);
+                    condval = exec_expr1(cond, ctxt);
                 }
             }
             Statement::If(ifblocks, optelse) => {
                 let mut done = false;
                 for IfBlock(cond, body) in ifblocks {
-                    let condval = exec_expr1(cond, locals, ctxt);
+                    let condval = exec_expr1(cond, ctxt);
                     if truthy(&condval) {
-                        let mut body_locals = locals.clone();
-                        match exec_body(body, &mut body_locals, ctxt) {
+                        ctxt.locals.push(Default::default());
+                        let flow = exec_body(body, ctxt);
+                        ctxt.locals.pop();
+                        match flow {
                             ControlFlow::End => {},
                             flow => return flow,
                         }
@@ -169,8 +179,10 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
 
                 if let Some(body) = optelse {
                     if !done {
-                        let mut body_locals = locals.clone();
-                        match exec_body(body, &mut body_locals, ctxt) {
+                        ctxt.locals.push(Default::default());
+                        let flow = exec_body(body, ctxt);
+                        ctxt.locals.pop();
+                        match flow {
                             ControlFlow::End => {},
                             flow => return flow,
                         }
@@ -184,17 +196,17 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
     ControlFlow::End
 }
 
-fn exec_function_call(call: &FunctionCall, locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Vec<Value> {
+fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
     let (func, argvals) = match call {
         FunctionCall::Direct(func, args) => {
-            let func = exec_expr1(func, locals, ctxt);
+            let func = exec_expr1(func, ctxt);
             let mut argvals = Vec::new();
             if let Some(arg) = args.last() {
                 for arg in args[..args.len()-1].iter() {
-                    let val = exec_expr1(arg, locals, ctxt);
+                    let val = exec_expr1(arg, ctxt);
                     argvals.push(val);
                 }
-                let vals = exec_expr(arg, locals, ctxt);
+                let vals = exec_expr(arg, ctxt);
                 argvals.extend(vals);
             }
 
@@ -202,7 +214,7 @@ fn exec_function_call(call: &FunctionCall, locals: &mut HashMap<String, Value>, 
         },
         FunctionCall::Colon(expr, field, args) => {
             // eval table
-            let ptrval = exec_expr1(expr, locals, ctxt);
+            let ptrval = exec_expr1(expr, ctxt);
             let Value::TablePtr(ptr) = ptrval else { panic!("using a:b() even though a is no table!") };
 
             // eval func
@@ -212,10 +224,10 @@ fn exec_function_call(call: &FunctionCall, locals: &mut HashMap<String, Value>, 
             let mut argvals = vec![ptrval];
             if let Some(arg) = args.last() {
                 for arg in args[..args.len()-1].iter() {
-                    let val = exec_expr1(arg, locals, ctxt);
+                    let val = exec_expr1(arg, ctxt);
                     argvals.push(val);
                 }
-                let vals = exec_expr(arg, locals, ctxt);
+                let vals = exec_expr(arg, ctxt);
                 argvals.extend(vals);
             }
 
@@ -229,7 +241,10 @@ fn exec_function_call(call: &FunctionCall, locals: &mut HashMap<String, Value>, 
             for (k, v) in args.into_iter().zip(argvals.into_iter()) {
                 locals.insert(k, v);
             }
-            match exec_body(&body, &mut locals, ctxt) {
+            ctxt.locals.push(locals);
+            let flow = exec_body(&body, ctxt);
+            ctxt.locals.pop();
+            match flow {
                 ControlFlow::Return(v) => v,
                 ControlFlow::Break => panic!("cannot break out of a function"),
                 ControlFlow::End => Vec::new(),
@@ -243,7 +258,7 @@ fn exec_function_call(call: &FunctionCall, locals: &mut HashMap<String, Value>, 
     }
 }
 
-fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) {
+fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], ctxt: &mut Ctxt) {
     enum LValueRef {
         Var(String),
         TableIdx(TablePtr, Value),
@@ -253,13 +268,13 @@ fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], locals: &mut HashMa
         let vref = match lvalue {
             LValue::Var(x) => LValueRef::Var(x.clone()),
             LValue::Dot(expr, field) => {
-                let Value::TablePtr(ptr) = exec_expr1(expr, locals, ctxt) else { panic!("executing a.b where a is not a table") };
+                let Value::TablePtr(ptr) = exec_expr1(expr, ctxt) else { panic!("executing a.b where a is not a table") };
                 let idx = Value::Str(field.clone());
                 LValueRef::TableIdx(ptr, idx)
             },
             LValue::Index(expr, idx_expr) => {
-                let Value::TablePtr(ptr) = exec_expr1(expr, locals, ctxt) else { panic!("executing a.b where a is not a table") };
-                let idx = exec_expr1(idx_expr, locals, ctxt);
+                let Value::TablePtr(ptr) = exec_expr1(expr, ctxt) else { panic!("executing a.b where a is not a table") };
+                let idx = exec_expr1(idx_expr, ctxt);
                 LValueRef::TableIdx(ptr, idx)
             }
         };
@@ -268,10 +283,10 @@ fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], locals: &mut HashMa
 
     let mut values = Vec::new();
     for exp in exprs[..exprs.len()-1].iter() {
-        let val = exec_expr1(exp, locals, ctxt);
+        let val = exec_expr1(exp, ctxt);
         values.push(val);
     }
-    let lastvalues = exec_expr(exprs.last().unwrap(), locals, ctxt);
+    let lastvalues = exec_expr(exprs.last().unwrap(), ctxt);
     values.extend(lastvalues);
 
     while values.len() < valuerefs.len() {
@@ -281,9 +296,15 @@ fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], locals: &mut HashMa
     for (vref, v) in valuerefs.into_iter().zip(values.into_iter()) {
         match vref {
             LValueRef::Var(x) => {
-                if let Some(vptr) = locals.get_mut(&x) {
-                    *vptr = v;
-                } else {
+                let mut done = false;
+                for map in ctxt.locals.iter_mut().rev() {
+                    if let Some(vptr) = map.get_mut(&x) {
+                        *vptr = v.clone();
+                        done = true;
+                        break;
+                    }
+                }
+                if !done {
                     ctxt.globals.insert(x, v);
                 }
             },
@@ -292,7 +313,7 @@ fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], locals: &mut HashMa
     }
 }
 
-fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
+fn construct_table(fields: &[Field], ctxt: &mut Ctxt) -> Value {
     fn lowest_free_tableptr(ctxt: &Ctxt) -> TablePtr {
         for i in 1.. {
             if !ctxt.heap.contains_key(&i) {
@@ -311,9 +332,9 @@ fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: 
             Field::Expr(expr) => {
                 let vals;
                 if i == fields.len() - 1 {
-                    vals = exec_expr(expr, locals, ctxt);
+                    vals = exec_expr(expr, ctxt);
                 } else {
-                    vals = vec![exec_expr1(expr, locals, ctxt)];
+                    vals = vec![exec_expr1(expr, ctxt)];
                 }
 
                 for v in vals.into_iter() {
@@ -332,13 +353,13 @@ fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: 
                 }
             },
             Field::NameToExpr(name, expr) => {
-                let val = exec_expr1(expr, locals, ctxt);
+                let val = exec_expr1(expr, ctxt);
                 let idx = Value::Str(name.clone());
                 table_set(ptr, idx, val, ctxt);
             },
             Field::ExprToExpr(idx, val) => {
-                let idx = exec_expr1(idx, locals, ctxt);
-                let val = exec_expr1(val, locals, ctxt);
+                let idx = exec_expr1(idx, ctxt);
+                let val = exec_expr1(val, ctxt);
                 table_set(ptr, idx, val, ctxt);
             },
         }
@@ -384,50 +405,52 @@ fn exec_unop(kind: UnOpKind, r: Value, ctxt: &Ctxt) -> Value {
     }
 }
 
-fn exec_expr(expr: &Expr, locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Vec<Value> {
+fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Vec<Value> {
     match expr {
         Expr::Literal(lit) => vec![match lit {
             Literal::Num(x) => Value::Num(*x),
             Literal::Str(s) => Value::Str(s.clone()),
             Literal::Bool(b) => Value::Bool(*b),
             Literal::Function(args, body) => Value::LuaFn(args.clone(), body.clone()),
-            Literal::Table(fields) => construct_table(fields, locals, ctxt),
+            Literal::Table(fields) => construct_table(fields, ctxt),
             Literal::Nil => Value::Nil,
         }],
         Expr::LValue(lvalue) => match &**lvalue {
             LValue::Var(var) => {
-                if let Some(x) = locals.get(var) { return vec![x.clone()]; }
+                for map in ctxt.locals.iter().rev() {
+                    if let Some(x) = map.get(var) { return vec![x.clone()]; }
+                }
                 vec![ctxt.globals.get(var).cloned().unwrap_or(Value::Nil)]
             },
             LValue::Dot(expr, field) => {
-                let Value::TablePtr(ptr) = exec_expr1(expr, locals, ctxt) else { panic!("trying a.b on non-table a!") };
+                let Value::TablePtr(ptr) = exec_expr1(expr, ctxt) else { panic!("trying a.b on non-table a!") };
                 vec![table_get(ptr, Value::Str(field.clone()), ctxt)]
             },
             LValue::Index(expr, idx) => {
-                let Value::TablePtr(ptr) = exec_expr1(expr, locals, ctxt) else { panic!("trying a[b] on non-table a!") };
-                let idx = exec_expr1(idx, locals, ctxt);
+                let Value::TablePtr(ptr) = exec_expr1(expr, ctxt) else { panic!("trying a[b] on non-table a!") };
+                let idx = exec_expr1(idx, ctxt);
                 vec![table_get(ptr, idx, ctxt)]
             },
         },
         Expr::BinOp(kind, l, r) => {
-            let l = exec_expr1(l, locals, ctxt);
-            let r = exec_expr1(r, locals, ctxt);
+            let l = exec_expr1(l, ctxt);
+            let r = exec_expr1(r, ctxt);
 
             vec![exec_binop(*kind, l, r)]
         },
         Expr::UnOp(kind, r) => {
-            let r = exec_expr1(r, locals, ctxt);
+            let r = exec_expr1(r, ctxt);
 
             vec![exec_unop(*kind, r, ctxt)]
         },
-        Expr::FunctionCall(call) => exec_function_call(call, locals, ctxt),
+        Expr::FunctionCall(call) => exec_function_call(call, ctxt),
         Expr::Ellipsis => todo!(),
     }
 }
 
 // exec_expr but shortened to one value
-fn exec_expr1(expr: &Expr, locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
-    exec_expr(expr, locals, ctxt)
+fn exec_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Value {
+    exec_expr(expr, ctxt)
         .first()
         .cloned()
         .unwrap_or(Value::Nil)
