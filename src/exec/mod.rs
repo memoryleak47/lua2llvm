@@ -30,6 +30,10 @@ enum Value {
     Num(f64),
 }
 
+fn truthy(v: &Value) -> bool {
+    !matches!(v, Value::Bool(false) | Value::Nil)
+}
+
 pub fn exec(ast: &Ast) {
     let mut ctxt = Ctxt::default();
 
@@ -230,8 +234,12 @@ fn exec_binop(kind: BinOpKind, l: Value, r: Value) -> Value {
         (IsEqual, l, r) => Value::Bool(l == r),
         (IsNotEqual, l, r) => Value::Bool(l != r),
         (Concat, Value::Str(l), Value::Str(r)) => Value::Str(format!("{}{}", l, r)),
+
+        (And, l, r) if truthy(&l) => r,
+        (And, _, _r) => Value::Bool(false),
+        (Or, l, _r) if truthy(&l) => Value::Bool(true),
+        (Or, _, r) => r,
         _ => panic!("type error!"),
-        // TODO add and & or
     }
 }
 
@@ -241,9 +249,10 @@ fn exec_unop(kind: UnOpKind, r: Value, ctxt: &Ctxt) -> Value {
         (Neg, Value::Num(x)) => Value::Num(-x),
         (Len, Value::TablePtr(ptr)) => Value::Num(ctxt.heap[&ptr].len() as f64),
         (Len, Value::Str(s)) => Value::Num(s.len() as f64),
+        (Not, l) if truthy(&l) => Value::Bool(false),
+        (Not, _) => Value::Bool(true),
         _ => panic!("type error!"),
     }
-    // TODO add not
 }
 
 fn exec_expr(expr: &Expr, locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
