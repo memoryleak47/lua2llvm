@@ -295,6 +295,7 @@ fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: 
     let ptr = lowest_free_tableptr(ctxt);
     ctxt.heap.insert(ptr, TableData::default());
 
+    let mut counter = 1; // the next Field::Expr id.
     for (i, f) in fields.iter().enumerate() {
         match f {
             Field::Expr(expr) => {
@@ -305,19 +306,19 @@ fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: 
                     vals = vec![exec_expr1(expr, locals, ctxt)];
                 }
 
-                for (j, v) in vals.into_iter().enumerate() {
-                    let idx = i+1+j;
-                    let idxval = Value::Num(idx as f64);
+                for v in vals.into_iter() {
+                    let idxval = Value::Num(counter as f64);
                     table_set(ptr, idxval, v.clone(), ctxt);
 
                     // this is here to account for a weird Lua quirk.
                     // namely that #{1, nil, 3} is actually 3, not 1.
                     if v != Value::Nil {
                         let data = ctxt.heap.get_mut(&ptr).unwrap();
-                        if data.length < idx {
-                            data.length = idx;
+                        if data.length < counter {
+                            data.length = counter;
                         }
                     }
+                    counter += 1;
                 }
             },
             Field::NameToExpr(name, expr) => {
