@@ -1,14 +1,23 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+mod upvalue;
 
 use crate::ast::*;
+
+#[derive(Clone, Debug)]
+enum VarValue {
+    Value(Value),
+    Upvalue(usize), // usize indexes into Ctxt::upvalues
+}
 
 #[derive(Default)]
 struct Ctxt {
     globals: HashMap<String, Value>,
     heap: HashMap<TablePtr, TableData>,
     native_fns: Vec<fn(Vec<Value>) -> Vec<Value>>,
-    locals: Vec<HashMap<String, Value>>,
+    locals: Vec<HashMap<String, VarValue>>,
     ellipsis_args: Option<Vec<Value>>, // is None for non-variadic functions.
+    upvalues: Vec<Value>,
 }
 
 enum ControlFlow {
@@ -32,7 +41,7 @@ enum Value {
     TablePtr(TablePtr),
     Str(String),
     NativeFn(usize), // usize indexes in Ctxt::native_fns
-    LuaFn(/*args: */ Vec<String>, Variadic, /*body: */ Vec<Statement>),
+    LuaFn(/*args: */ Vec<String>, Variadic, /*body: */ Vec<Statement>, /*upvalues: */ HashMap<String, usize>),
     Num(f64),
 }
 
@@ -121,7 +130,7 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 for (var, val) in vars.iter().zip(vals.into_iter()) {
                     ctxt.locals.last_mut()
                         .unwrap()
-                        .insert(var.clone(), val);
+                        .insert(var.clone(), VarValue::Value(val));
                 }
             },
             Statement::Return(exprs) => {
@@ -185,8 +194,8 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 }
                 let mut cnt = start;
                 while cnt <= stop {
-                    let mut map: HashMap<String, Value> = Default::default();
-                    map.insert(var.clone(), Value::Num(cnt));
+                    let mut map: HashMap<String, VarValue> = Default::default();
+                    map.insert(var.clone(), VarValue::Value(Value::Num(cnt)));
                     ctxt.locals.push(map);
                     let flow = exec_body(body, ctxt);
                     ctxt.locals.pop();
@@ -276,7 +285,7 @@ fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
     };
 
     match func {
-        Value::LuaFn(args, variadic, body) => {
+        Value::LuaFn(args, variadic, body, upvaluemap) => {
             // swap ellipsis stack
             let mut opt_ellipsis_args = None;
             if variadic == Variadic::Yes {
@@ -288,11 +297,14 @@ fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
                 opt_ellipsis_args = Some(ellipsis_args);
             }
             std::mem::swap(&mut opt_ellipsis_args, &mut ctxt.ellipsis_args);
-            
+
             // swap locals stack
-            let mut map: HashMap<String, Value> = HashMap::new();
-            for (k, v) in args.into_iter().zip(argvals.into_iter()) {
-                map.insert(k, v);
+            let mut map: HashMap<String, VarValue> = HashMap::new();
+            for (var, v) in args.into_iter().zip(argvals.into_iter()) {
+                map.insert(var, VarValue::Value(v));
+            }
+            for (var, upv_idx) in upvaluemap {
+                map.insert(var, VarValue::Upvalue(upv_idx));
             }
             let mut stack = vec![map];
             std::mem::swap(&mut stack, &mut ctxt.locals);
@@ -358,7 +370,7 @@ fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], ctxt: &mut Ctxt) {
                 let mut done = false;
                 for map in ctxt.locals.iter_mut().rev() {
                     if let Some(vptr) = map.get_mut(&x) {
-                        *vptr = v.clone();
+                        *vptr = VarValue::Value(v.clone());
                         done = true;
                         break;
                     }
@@ -427,6 +439,39 @@ fn construct_table(fields: &[Field], ctxt: &mut Ctxt) -> Value {
     Value::TablePtr(ptr)
 }
 
+fn construct_function(args: &Vec<String>, variadic: &Variadic, body: &Vec<Statement>, ctxt: &mut Ctxt) -> Value {
+    let mut cvars: HashSet<String> = Default::default();
+    for map in &ctxt.locals {
+        cvars.extend(map.keys().cloned());
+    }
+    for arg in args {
+        cvars.remove(arg);
+    }
+
+    let mut upvaluemap: HashMap<String, usize> = HashMap::new();
+    for candidate in upvalue::candidates(body, cvars) {
+        for map in ctxt.locals.iter_mut().rev() {
+            match map.get_mut(&candidate) {
+                Some(VarValue::Value(v)) => {
+                    let i = ctxt.upvalues.len();
+                    ctxt.upvalues.push(v.clone());
+                    map.insert(candidate.to_string(), VarValue::Upvalue(i));
+                    upvaluemap.insert(candidate.to_string(), i);
+                    break;
+                },
+                Some(VarValue::Upvalue(i)) => {
+                    upvaluemap.insert(candidate.to_string(), *i);
+                    break;
+                },
+                None => {},
+            }
+        }
+        assert!(upvaluemap.contains_key(&candidate)); // if not, then we didn't find the upvalue..
+    }
+
+    Value::LuaFn(args.clone(), variadic.clone(), body.clone(), upvaluemap)
+}
+
 fn exec_binop(kind: BinOpKind, l: Value, r: Value) -> Value {
     use BinOpKind::*;
     match (kind, l, r) {
@@ -470,14 +515,18 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Vec<Value> {
             Literal::Num(x) => Value::Num(*x),
             Literal::Str(s) => Value::Str(s.clone()),
             Literal::Bool(b) => Value::Bool(*b),
-            Literal::Function(args, variadic, body) => Value::LuaFn(args.clone(), variadic.clone(), body.clone()),
+            Literal::Function(args, variadic, body) => construct_function(args, variadic, body, ctxt),
             Literal::Table(fields) => construct_table(fields, ctxt),
             Literal::Nil => Value::Nil,
         }],
         Expr::LValue(lvalue) => match &**lvalue {
             LValue::Var(var) => {
                 for map in ctxt.locals.iter().rev() {
-                    if let Some(x) = map.get(var) { return vec![x.clone()]; }
+                    match map.get(var) {
+                        Some(VarValue::Upvalue(i)) => return vec![ctxt.upvalues[*i].clone()],
+                        Some(VarValue::Value(v)) => return vec![v.clone()],
+                        _ => {},
+                    }
                 }
                 vec![ctxt.globals.get(var).cloned().unwrap_or(Value::Nil)]
             },
