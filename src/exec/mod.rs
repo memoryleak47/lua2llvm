@@ -158,6 +158,22 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                     }
                     condval = exec_expr1(cond, ctxt);
                 }
+            },
+            Statement::Repeat(body, cond) => {
+                loop {
+                    ctxt.locals.push(Default::default());
+                    let flow = exec_body(body, ctxt);
+                    ctxt.locals.pop();
+                    match flow {
+                        ControlFlow::Break => break,
+                        ret@ControlFlow::Return(_) => return ret,
+                        ControlFlow::End => {},
+                    }
+                    let condval = exec_expr1(cond, ctxt);
+                    if truthy(&condval) {
+                        break;
+                    }
+                }
             }
             Statement::If(ifblocks, optelse) => {
                 let mut done = false;

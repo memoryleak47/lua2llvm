@@ -60,6 +60,7 @@ pub enum Statement {
     Assign(Vec<LValue>, Vec<Expr>),
     FunctionCall(FunctionCall),
     While(Expr, /*body: */ Vec<Statement>),
+    Repeat(/*body: */ Vec<Statement>, Expr),
 
     // each if and elseif corresponds to a entry in the Vec<IfBlock>
     If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>),

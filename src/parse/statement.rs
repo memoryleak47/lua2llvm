@@ -13,6 +13,7 @@ pub(super) fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]),
         .or_else(|_| parse_block_statement(tokens))
         .or_else(|_| parse_break_statement(tokens))
         .or_else(|_| parse_while_statement(tokens))
+        .or_else(|_| parse_repeat_statement(tokens))
         .or_else(|_| parse_if_statement(tokens))?;
 
     // optional semicolon.
@@ -117,6 +118,17 @@ fn parse_while_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> 
     let [Token::End, tokens@..] = tokens else { return Err(()) };
 
     let stmt = Statement::While(cond, body);
+    Ok((stmt, tokens))
+}
+
+
+fn parse_repeat_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+    let [Token::Repeat, tokens@..] = tokens else { return Err(()) };
+    let (body, tokens) = parse_body(tokens)?;
+    let [Token::Until, tokens@..] = tokens else { return Err(()) };
+    let (cond, tokens) = parse_expr(tokens)?;
+
+    let stmt = Statement::Repeat(body, cond);
     Ok((stmt, tokens))
 }
 
