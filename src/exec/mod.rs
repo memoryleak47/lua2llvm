@@ -86,8 +86,41 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
                 let val = exec_expr(expr, locals, ctxt);
                 return ControlFlow::Return(val);
             }
-            Statement::While(cond, body) => todo!(),
-            Statement::If(ifblocks, optelse) => todo!(),
+            Statement::While(cond, body) => {
+                let mut condval = exec_expr(cond, locals, ctxt);
+                while truthy(&condval) {
+                    match exec_body(body, locals, ctxt) {
+                        ControlFlow::Break => break,
+                        ret@ControlFlow::Return(_) => return ret,
+                        ControlFlow::End => {},
+                    }
+                    condval = exec_expr(cond, locals, ctxt);
+                }
+            }
+            Statement::If(ifblocks, optelse) => {
+                let mut done = false;
+                for IfBlock(cond, body) in ifblocks {
+                    let condval = exec_expr(cond, locals, ctxt);
+                    if truthy(&condval) {
+                        match exec_body(body, locals, ctxt) {
+                            ControlFlow::End => {},
+                            flow => return flow,
+                        }
+
+                        done = true;
+                        break;
+                    }
+                }
+
+                if let Some(body) = optelse {
+                    if !done {
+                        match exec_body(body, locals, ctxt) {
+                            ControlFlow::End => {},
+                            flow => return flow,
+                        }
+                    }
+                }
+            }
             Statement::Break => return ControlFlow::Break,
         }
     }
