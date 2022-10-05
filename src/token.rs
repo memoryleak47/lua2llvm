@@ -132,6 +132,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                             'r' => s.push('\r'),
                             _ => panic!("invalid \\<char> sequence!"),
                         }
+                        i += 1;
                     }
                     c if c == terminator => {
                         tokens.push(Token::LiteralStr(s));
