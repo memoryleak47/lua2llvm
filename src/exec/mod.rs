@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use crate::ast::*;
 
-type TableData = Vec<(Value, Value)>;
-
 #[derive(Default)]
 struct Ctxt {
     globals: HashMap<String, Value>,
@@ -18,6 +16,12 @@ enum ControlFlow {
 }
 
 type TablePtr = usize;
+
+#[derive(Default)]
+struct TableData {
+    entries: Vec<(Value, Value)>,
+    length: usize,
+}
 
 #[derive(Clone, PartialEq, Debug)]
 enum Value {
@@ -60,7 +64,7 @@ pub fn exec(ast: &Ast) {
 }
 
 fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
-    ctxt.heap[&ptr].iter()
+    ctxt.heap[&ptr].entries.iter()
         .find(|(x, _)| *x == idx)
         .map(|(_, v)| v.clone())
         .unwrap_or(Value::Nil)
@@ -72,9 +76,22 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
     }
 
     let data: &mut TableData = ctxt.heap.get_mut(&ptr).expect("table_set got dangling pointer!");
-    data.retain(|(x, _)| *x != idx);
-    if val != Value::Nil { // Value::Nil means it's not there, so just don't add it!
-        data.push((idx, val));
+    data.entries.retain(|(x, _)| *x != idx);
+    if val == Value::Nil { // Value::Nil means it's not there, so just don't add it!
+        if idx == Value::Num((data.length) as f64) {
+            // recalculate length (lua does it the same way)
+            for i in 1.. {
+                if data.entries.iter().any(|(x, _)| x == &Value::Num(i as f64)) {
+                    data.length = i;
+                } else { break; }
+            }
+        }
+    } else {
+        if idx == Value::Num((data.length+1) as f64) { // the next entry
+            data.length += 1;
+        }
+        data.entries.push((idx, val));
+        
     }
 }
 
@@ -276,23 +293,7 @@ fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: 
     }
 
     let ptr = lowest_free_tableptr(ctxt);
-    ctxt.heap.insert(ptr, TableData::new());
-
-    for f in fields.iter() {
-        match f {
-            Field::Expr(_) => { /* ignore for now, handle later */},
-            Field::NameToExpr(name, expr) => {
-                let val = exec_expr1(expr, locals, ctxt);
-                let idx = Value::Str(name.clone());
-                table_set(ptr, idx, val, ctxt);
-            },
-            Field::ExprToExpr(idx, val) => {
-                let idx = exec_expr1(idx, locals, ctxt);
-                let val = exec_expr1(val, locals, ctxt);
-                table_set(ptr, idx, val, ctxt);
-            },
-        }
-    }
+    ctxt.heap.insert(ptr, TableData::default());
 
     for (i, f) in fields.iter().enumerate() {
         match f {
@@ -305,11 +306,30 @@ fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: 
                 }
 
                 for (j, v) in vals.into_iter().enumerate() {
-                    let idx = Value::Num((i+1+j) as f64);
-                    table_set(ptr, idx, v, ctxt);
+                    let idx = i+1+j;
+                    let idxval = Value::Num(idx as f64);
+                    table_set(ptr, idxval, v.clone(), ctxt);
+
+                    // this is here to account for a weird Lua quirk.
+                    // namely that #{1, nil, 3} is actually 3, not 1.
+                    if v != Value::Nil {
+                        let data = ctxt.heap.get_mut(&ptr).unwrap();
+                        if data.length < idx {
+                            data.length = idx;
+                        }
+                    }
                 }
             },
-            _ => {/* were already handled before */},
+            Field::NameToExpr(name, expr) => {
+                let val = exec_expr1(expr, locals, ctxt);
+                let idx = Value::Str(name.clone());
+                table_set(ptr, idx, val, ctxt);
+            },
+            Field::ExprToExpr(idx, val) => {
+                let idx = exec_expr1(idx, locals, ctxt);
+                let val = exec_expr1(val, locals, ctxt);
+                table_set(ptr, idx, val, ctxt);
+            },
         }
     }
 
@@ -345,25 +365,7 @@ fn exec_unop(kind: UnOpKind, r: Value, ctxt: &Ctxt) -> Value {
     use UnOpKind::*;
     match (kind, r) {
         (Neg, Value::Num(x)) => Value::Num(-x),
-        (Len, Value::TablePtr(ptr)) => {
-            let nums: Vec<f64> = ctxt.heap[&ptr]
-                        .iter()
-                        .filter_map(|(key, _)| {
-                            match key {
-                                Value::Num(x) => Some(*x),
-                                _ => None,
-                            }
-                        }).collect();
-
-            for i in 1.. {
-                let f = i as f64;
-                if !nums.contains(&f) {
-                    let l = i-1;
-                    return Value::Num(l as f64);
-                }
-            }
-            unreachable!()
-        }
+        (Len, Value::TablePtr(ptr)) => Value::Num(ctxt.heap[&ptr].length as f64),
         (Len, Value::Str(s)) => Value::Num(s.len() as f64),
         (Not, l) if truthy(&l) => Value::Bool(false),
         (Not, _) => Value::Bool(true),
