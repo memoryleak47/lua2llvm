@@ -103,8 +103,67 @@ fn exec_statement_assign(lvalue: &LValue, expr: &Expr, active_args: &mut HashMap
     }
 }
 
+fn construct_table(fields: &[Field], active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
+    fn lowest_free_table_idx(d: &TableData) -> Value {
+        for i in 1.. {
+            let v = Value::Num(i as f64);
+            if d.iter().all(|(x, _)| *x != v) {
+                return v;
+            }
+        }
+        unreachable!()
+    }
+
+    fn lowest_free_tableptr(ctxt: &Ctxt) -> TablePtr {
+        for i in 1.. {
+            if !ctxt.heap.contains_key(&i) {
+                return i;
+            }
+        }
+        unreachable!()
+    }
+
+    let mut data = TableData::new();
+    for f in fields {
+        match f {
+            Field::Expr(expr) => {
+                let val = exec_expr(expr, active_args, ctxt);
+                let idx = lowest_free_table_idx(&data);
+                data.push((idx, val));
+            },
+            Field::NameToExpr(name, expr) => {
+                let val = exec_expr(expr, active_args, ctxt);
+                let idx = Value::Str(name.clone());
+                data.retain(|(x, _)| *x != idx);
+                data.push((idx, val));
+            },
+            Field::ExprToExpr(idx, val) => {
+                let idx = exec_expr(idx, active_args, ctxt);
+                let val = exec_expr(val, active_args, ctxt);
+                data.retain(|(x, _)| *x != idx);
+                data.push((idx, val));
+            },
+        }
+    }
+
+    let ptr = lowest_free_tableptr(ctxt);
+    ctxt.heap.insert(ptr, data);
+    Value::TablePtr(ptr)
+}
+
 fn exec_expr(expr: &Expr, active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
     match expr {
-         _ => todo!(),
+        Expr::Literal(lit) => match lit {
+            Literal::Num(x) => Value::Num(*x),
+            Literal::Str(s) => Value::Str(s.clone()),
+            Literal::Bool(b) => Value::Bool(*b),
+            Literal::Function(args, body) => Value::LuaFn(args.clone(), body.clone()),
+            Literal::Table(fields) => construct_table(fields, active_args, ctxt),
+            Literal::Nil => Value::Nil,
+        },
+        Expr::LValue(lvalue) => todo!(),
+        Expr::BinOp(kind, l, r) => todo!(),
+        Expr::UnOp(kind, r) => todo!(),
+        Expr::FunctionCall(call) => todo!(),
     }
 }
