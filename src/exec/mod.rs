@@ -78,6 +78,10 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
                 let val = optexpr.as_ref().map(|x| exec_expr(x, locals, ctxt)).unwrap_or(Value::Nil);
                 locals.insert(var.clone(), val);
             },
+            Statement::Return(expr) => {
+                let val = exec_expr(expr, locals, ctxt);
+                return ControlFlow::Return(val);
+            }
             _ => todo!()
         }
     }
