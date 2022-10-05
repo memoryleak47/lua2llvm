@@ -237,13 +237,14 @@ fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
 
     match func {
         Value::LuaFn(args, body) => {
-            let mut locals: HashMap<String, Value> = HashMap::new();
+            let mut map: HashMap<String, Value> = HashMap::new();
             for (k, v) in args.into_iter().zip(argvals.into_iter()) {
-                locals.insert(k, v);
+                map.insert(k, v);
             }
-            ctxt.locals.push(locals);
+            let mut stack = vec![map];
+            std::mem::swap(&mut stack, &mut ctxt.locals); // swap forward
             let flow = exec_body(&body, ctxt);
-            ctxt.locals.pop();
+            ctxt.locals = stack; // swap back
             match flow {
                 ControlFlow::Return(v) => v,
                 ControlFlow::Break => panic!("cannot break out of a function"),
