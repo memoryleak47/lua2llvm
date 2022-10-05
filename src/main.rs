@@ -20,14 +20,16 @@ pub use exec::exec;
 
 fn main() {
     let mut exec_flag = false;
-    let args: Vec<String> = std::env::args().skip(1).map(|x| {
+    let args: Vec<String> = std::env::args()
+                                .skip(1)
+                                .filter_map(|x| {
         if x == "--exec" {
             exec_flag = true;
             None
         } else {
             Some(x)
         }
-    }).flatten()
+    })
     .collect();
 
     if let [filename] = &args[..] {

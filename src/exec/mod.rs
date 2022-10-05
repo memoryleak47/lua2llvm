@@ -82,7 +82,9 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
                 let val = exec_expr(expr, locals, ctxt);
                 return ControlFlow::Return(val);
             }
-            _ => todo!()
+            Statement::While(cond, body) => todo!(),
+            Statement::If(ifblocks, optelse) => todo!(),
+            Statement::Break => return ControlFlow::Break,
         }
     }
 
