@@ -204,6 +204,38 @@ fn construct_table(fields: &[Field], active_args: &mut HashMap<String, Value>, c
     Value::TablePtr(ptr)
 }
 
+fn exec_binop(kind: BinOpKind, l: Value, r: Value) -> Value {
+    use BinOpKind::*;
+    match (kind, l, r) {
+        (Plus, Value::Num(l), Value::Num(r)) => Value::Num(l + r),
+        (Minus, Value::Num(l), Value::Num(r)) => Value::Num(l - r),
+        (Mul, Value::Num(l), Value::Num(r)) => Value::Num(l * r),
+        (Div, Value::Num(l), Value::Num(r)) => Value::Num(l / r),
+        (Mod, Value::Num(l), Value::Num(r)) => Value::Num(l % r),
+        (Pow, Value::Num(l), Value::Num(r)) => Value::Num(l.powf(r)),
+        (Lt, Value::Num(l), Value::Num(r)) => Value::Bool(l < r),
+        (Le, Value::Num(l), Value::Num(r)) => Value::Bool(l <= r),
+        (Gt, Value::Num(l), Value::Num(r)) => Value::Bool(l > r),
+        (Ge, Value::Num(l), Value::Num(r)) => Value::Bool(l >= r),
+        (IsEqual, l, r) => Value::Bool(l == r),
+        (IsNotEqual, l, r) => Value::Bool(l != r),
+        (Concat, Value::Str(l), Value::Str(r)) => Value::Str(format!("{}{}", l, r)),
+        _ => panic!("type error!"),
+        // TODO add and & or
+    }
+}
+
+fn exec_unop(kind: UnOpKind, r: Value, ctxt: &Ctxt) -> Value {
+    use UnOpKind::*;
+    match (kind, r) {
+        (Neg, Value::Num(x)) => Value::Num(-x),
+        (Len, Value::TablePtr(ptr)) => Value::Num(ctxt.heap[&ptr].len() as f64),
+        (Len, Value::Str(s)) => Value::Num(s.len() as f64),
+        _ => panic!("type error!"),
+    }
+    // TODO add not
+}
+
 fn exec_expr(expr: &Expr, active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::Literal(lit) => match lit {
@@ -229,8 +261,17 @@ fn exec_expr(expr: &Expr, active_args: &mut HashMap<String, Value>, ctxt: &mut C
                 table_get(ptr, idx, ctxt)
             },
         },
-        Expr::BinOp(kind, l, r) => todo!(),
-        Expr::UnOp(kind, r) => todo!(),
+        Expr::BinOp(kind, l, r) => {
+            let l = exec_expr(l, active_args, ctxt);
+            let r = exec_expr(r, active_args, ctxt);
+
+            exec_binop(*kind, l, r)
+        },
+        Expr::UnOp(kind, r) => {
+            let r = exec_expr(r, active_args, ctxt);
+
+            exec_unop(*kind, r, ctxt)
+        },
         Expr::FunctionCall(call) => exec_function_call(call, active_args, ctxt),
     }
 }
