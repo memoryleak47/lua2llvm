@@ -28,6 +28,7 @@ pub(super) fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]),
 
 // parses comma separated expression lists for this usecase:
 // [local] <expr-list> = <expr-list>
+// at least one expr required
 fn parse_expr_list(tokens: &[Token]) -> Result<(Vec<Expr>, &[Token]), ()> {
     let mut exprs = Vec::new();
 
@@ -43,6 +44,7 @@ fn parse_expr_list(tokens: &[Token]) -> Result<(Vec<Expr>, &[Token]), ()> {
     Ok((exprs, tokens))
 }
 
+// at least one lvalue required
 fn parse_lvalue_list(tokens: &[Token]) -> Result<(Vec<LValue>, &[Token]), ()> {
     let (exprs, tokens) = parse_expr_list(tokens)?;
     let mut lvalues = Vec::new();
@@ -53,12 +55,17 @@ fn parse_lvalue_list(tokens: &[Token]) -> Result<(Vec<LValue>, &[Token]), ()> {
     Ok((lvalues, tokens))
 }
 
+// at least one ident required
 fn parse_ident_list(tokens: &[Token]) -> Result<(Vec<String>, &[Token]), ()> {
-    let (lvalues, tokens) = parse_lvalue_list(tokens)?;
     let mut idents = Vec::new();
-    for lvalue in lvalues {
-        let LValue::Var(ident) = lvalue else { return Err(()) };
-        idents.push(ident);
+    let [Token::Ident(ident), tokens@..] = tokens else { return Err(()) };
+    idents.push(ident.clone());
+
+    let mut tokens = tokens;
+    while let [Token::Comma, ts@..] = tokens {
+        let [Token::Ident(ident), ts@..] = ts else { return Err(()) };
+        idents.push(ident.clone());
+        tokens = ts;
     }
     Ok((idents, tokens))
 }
@@ -155,7 +162,16 @@ fn parse_numeric_for_statement(tokens: &[Token]) -> Result<(Statement, &[Token])
 }
 
 fn parse_generic_for_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
-    Err(()) // TODO
+    let [Token::For, tokens@..] = tokens else { return Err(()) };
+    let (idents, tokens) = parse_ident_list(tokens)?;
+    let [Token::In, tokens@..] = tokens else { return Err(()) };
+    let (exprs, tokens) = parse_expr_list(tokens)?;
+    let [Token::Do, tokens@..] = tokens else { return Err(()) };
+    let (body, tokens) = parse_body(tokens)?;
+    let [Token::End, tokens@..] = tokens else { return Err(()) };
+
+    let stmt = Statement::GenericFor(idents, exprs, body);
+    Ok((stmt, tokens))
 }
 
 fn parse_if_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
