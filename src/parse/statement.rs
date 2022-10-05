@@ -15,6 +15,7 @@ pub(super) fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]),
         .or_else(|_| parse_while_statement(tokens))
         .or_else(|_| parse_repeat_statement(tokens))
         .or_else(|_| parse_numeric_for_statement(tokens))
+        .or_else(|_| parse_generic_for_statement(tokens))
         .or_else(|_| parse_if_statement(tokens))?;
 
     // optional semicolon.
@@ -151,6 +152,10 @@ fn parse_numeric_for_statement(tokens: &[Token]) -> Result<(Statement, &[Token])
 
     let stmt = Statement::NumericFor(var.clone(), start, stop, optstep, body);
     Ok((stmt, tokens))
+}
+
+fn parse_generic_for_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+    Err(()) // TODO
 }
 
 fn parse_if_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {

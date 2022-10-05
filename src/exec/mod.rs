@@ -197,6 +197,7 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                     cnt += step;
                 }
             }
+            Statement::GenericFor(vars, exprs, body) => todo!(),
             Statement::If(ifblocks, optelse) => {
                 let mut done = false;
                 for IfBlock(cond, body) in ifblocks {
