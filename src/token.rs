@@ -21,20 +21,8 @@ pub enum Token {
     LiteralStr(String),
 }
 
-enum NumState {
-    PreDot(Vec<u32>), // 20 would be [2, 0]
-    PostDot(Vec<u32>, Vec<u32>), // 20.03 would be PostDot([2, 0], [0, 3])
-}
-
-enum TokenState {
-    Start,
-    InIdent(String),
-    InNum(NumState),
-    InStr(/*delim: */char, String),
-}
-
 fn alpha(chr: char) -> bool {
-   ('a'..='z').contains(&chr) || chr == '_'
+   ('A'..='Z').contains(&chr) || ('a'..='z').contains(&chr) || chr == '_'
 }
 
 fn numeric(chr: char) -> Option<u32> { // returns the digit
@@ -43,15 +31,17 @@ fn numeric(chr: char) -> Option<u32> { // returns the digit
    } else { None }
 }
 
+// the chars valid in the middle of an ident
+fn inident(chr: char) -> bool {
+    alpha(chr) || numeric(chr).is_some() || chr == '_'
+}
+
 fn whitespace(chr: char) -> bool {
     chr == ' ' || chr == '\n' || chr == '\t'
 }
 
 pub fn tokenize(code: &str) -> Vec<Token> {
-    use TokenState::*;
-
     let mut tokens = Vec::new();
-    let mut state = TokenState::Start;
 
     let chars: Vec<_> = code.chars().collect();
 
@@ -59,167 +49,161 @@ pub fn tokenize(code: &str) -> Vec<Token> {
     while i < chars.len() {
         let chr = chars[i];
 
-        if let InIdent(ident) = &mut state {
-            if alpha(chr) {
-                ident.push(chr);
-                i += 1; continue;
-            } else {
-                tokens.push(match &**ident {
-                    "function" => Token::Function,
-                    "end" => Token::End,
-                    "return" => Token::Return,
-                    "or" => Token::Or,
-                    "and" => Token::And,
-                    "not" => Token::Not,
-                    "true" => Token::True,
-                    "false" => Token::False,
-                    "nil" => Token::Nil,
-                    "break" => Token::Break,
-                    "if" => Token::If,
-                    "else" => Token::Else,
-                    "elseif" => Token::ElseIf,
-                    "then" => Token::Then,
-                    "while" => Token::While,
-                    "do" => Token::Do,
-                    "local" => Token::Local,
-                    _ => Token::Ident(ident.clone()),
-                });
-                state = Start;
-            }
-        }
-
-        // num
-        {
-            let numfn = |predigits: &[u32], postdigits: &[u32]| -> f64 {
-                let mut num: f64 = 0.0;
-                let n = predigits.len();
-                for i in 0..n {
-                    num += 10f64.powf((n - i - 1) as f64) * predigits[i] as f64;
-                }
-
-                let n = postdigits.len();
-                for i in 0..n {
-                    num += (10f64).powf(-((i+1) as f64)) * postdigits[i] as f64;
-                }
-
-                num
-            };
-
-            if let InNum(NumState::PreDot(digits)) = &mut state {
-                if let Some(digit) = numeric(chr) {
-                    digits.push(digit);
-                    i += 1; continue;
-                } else if chr == '.' {
-                    state = InNum(NumState::PostDot(digits.clone(), Vec::new()));
-                    i += 1; continue;
-                } else {
-                    let num = numfn(digits, &[]);
-                    tokens.push(Token::LiteralNum(num));
-                    state = Start;
-                }
-            }
-
-            if let InNum(NumState::PostDot(predigits, postdigits)) = &mut state {
-                if let Some(digit) = numeric(chr) {
-                    postdigits.push(digit);
-                    i += 1; continue;
-                } else {
-                    let num = numfn(predigits, postdigits);
-                    tokens.push(Token::LiteralNum(num));
-                    state = Start;
-                }
-            }
-        }
-
-        if let InStr(d, s) = &mut state {
-            let optchr = match chars[i..] {
-                ['\\', '\\', ..] => Some('\\'),
-                ['\\', 't', ..] => Some('\t'),
-                ['\\', 'r', ..] => Some('\r'),
-                ['\\', 'n', ..] => Some('\n'),
-                ['\\', del, ..] if *d == del => Some(*d),
-                _ => None,
-            };
-            if let Some(c) = optchr {
-                s.push(c);
-                i += 2; continue;
-            }
-
-            if chr == *d {
-                tokens.push(Token::LiteralStr(s.clone()));
-                state = Start;
-                i += 1; continue;
-            } else {
-                s.push(chr);
-                i += 1; continue;
-            }
-        }
-
         // multi-line comments
         if matches!(chars[i..], ['-', '-', '[', '[', ..]) {
             if let Some(j) = (0..chars[i..].len()).position(|j| matches!(chars[i..][j..], [']', ']', ..])) {
-                i += j + 2; continue;
-            } else { break; }
+                i += j + 2;
+                continue;
+            } else { panic!("unclosed multi-line comment") }
         }
 
         // single-line comments
         if matches!(chars[i..], ['-', '-', ..]) {
             if let Some(j) = chars[i..].iter().position(|&x| x == '\n') {
-                i += j + 1; continue;
+                i += j + 1;
+                continue;
             } else { break; }
         }
 
-        let opttok = match chars[i..] {
-            ['<', '=', ..] => Some(Token::Le),
-            ['>', '=', ..] => Some(Token::Ge),
-            ['=', '=', ..] => Some(Token::IsEqual),
-            ['~', '=', ..] => Some(Token::IsNotEqual),
-            ['.', '.', ..] => Some(Token::Concat),
-            _ => None,
-        };
+        // multi-char special tokens
+        {
+            let opttok = match chars[i..] {
+                ['<', '=', ..] => Some(Token::Le),
+                ['>', '=', ..] => Some(Token::Ge),
+                ['=', '=', ..] => Some(Token::IsEqual),
+                ['~', '=', ..] => Some(Token::IsNotEqual),
+                ['.', '.', ..] => Some(Token::Concat),
+                _ => None,
+            };
 
-        if let Some(tok) = opttok {
-            tokens.push(tok);
-            i += 2; continue;
+            if let Some(tok) = opttok {
+                tokens.push(tok);
+                i += 2;
+                continue;
+            }
         }
 
-        match chr {
-            '(' => tokens.push(Token::LParen),
-            ')' => tokens.push(Token::RParen),
-            '[' => tokens.push(Token::LBracket),
-            ']' => tokens.push(Token::RBracket),
-            '{' => tokens.push(Token::LBrace),
-            '}' => tokens.push(Token::RBrace),
-            '.' => tokens.push(Token::Dot),
-            ':' => tokens.push(Token::Colon),
-            ';' => tokens.push(Token::Semicolon),
-            '=' => tokens.push(Token::Equals),
-            ',' => tokens.push(Token::Comma),
-            '+' => tokens.push(Token::Plus),
-            '-' => tokens.push(Token::Minus),
-            '*' => tokens.push(Token::Mul),
-            '/' => tokens.push(Token::Div),
-            '%' => tokens.push(Token::Mod),
-            '<' => tokens.push(Token::Lt),
-            '>' => tokens.push(Token::Gt),
-            '^' => tokens.push(Token::Pow),
-            '#' => tokens.push(Token::Len),
-            '"' => {
-                state = InStr('"', String::new());
-            },
-            '\'' => {
-                state = InStr('\'', String::new());
-            },
-            c if alpha(c) => {
-                state = InIdent(String::from(c));
-            },
-            c if numeric(c).is_some() => {
-                let digit = numeric(c).unwrap();
-                state = InNum(NumState::PreDot(vec![digit]));
-            },
-            c if whitespace(c) => {},
-            _ => panic!("cannot tokenize!"),
+        // single-char special tokens
+        {
+            let opttok = match chr {
+                '(' => Some(Token::LParen),
+                ')' => Some(Token::RParen),
+                '[' => Some(Token::LBracket),
+                ']' => Some(Token::RBracket),
+                '{' => Some(Token::LBrace),
+                '}' => Some(Token::RBrace),
+                '.' => Some(Token::Dot),
+                ':' => Some(Token::Colon),
+                ';' => Some(Token::Semicolon),
+                '=' => Some(Token::Equals),
+                ',' => Some(Token::Comma),
+                '+' => Some(Token::Plus),
+                '-' => Some(Token::Minus),
+                '*' => Some(Token::Mul),
+                '/' => Some(Token::Div),
+                '%' => Some(Token::Mod),
+                '<' => Some(Token::Lt),
+                '>' => Some(Token::Gt),
+                '^' => Some(Token::Pow),
+                '#' => Some(Token::Len),
+                _ => None,
+            };
+
+            if let Some(tok) = opttok {
+                tokens.push(tok);
+                i += 1;
+                continue;
+            }
         }
+
+        // strings
+        if let '"' | '\'' = chr {
+            let terminator = chr;
+            let mut s = String::new();
+            i += 1;
+            loop {
+                match chars[i] {
+                    '\\' => {
+                        i += 1;
+                        match chars[i] {
+                            '\\' => s.push('\\'),
+                            'n' => s.push('\n'),
+                            't' => s.push('\t'),
+                            'r' => s.push('\r'),
+                            _ => panic!("invalid \\<char> sequence!"),
+                        }
+                    }
+                    c if c == terminator => {
+                        tokens.push(Token::LiteralStr(s));
+                        i += 1;
+                        break;
+                    },
+                    c => {
+                        s.push(c);
+                        i += 1;
+                    },
+                }
+            }
+            continue;
+        }
+
+        // idents and keywords
+        if alpha(chr) {
+            let mut s = String::from(chr);
+            i += 1;
+            while inident(chars[i]) {
+                s.push(chars[i]);
+                i += 1;
+            }
+
+            tokens.push(match &*s {
+                "function" => Token::Function,
+                "end" => Token::End,
+                "return" => Token::Return,
+                "or" => Token::Or,
+                "and" => Token::And,
+                "not" => Token::Not,
+                "true" => Token::True,
+                "false" => Token::False,
+                "nil" => Token::Nil,
+                "break" => Token::Break,
+                "if" => Token::If,
+                "else" => Token::Else,
+                "elseif" => Token::ElseIf,
+                "then" => Token::Then,
+                "while" => Token::While,
+                "do" => Token::Do,
+                "local" => Token::Local,
+                _ => Token::Ident(s),
+            });
+
+            continue;
+        }
+
+        // numbers
+        if let Some(digit) = numeric(chr) {
+            let mut num = digit as f64;
+            i += 1;
+
+            while let Some(d) = numeric(chars[i]) {
+                num = num * 10.0 + d as f64;
+                i += 1;
+            }
+            if chars[i] == '.' {
+                i += 1;
+                let mut fac = 1.0;
+                while let Some(d) = numeric(chars[i]) {
+                    fac /= 10.0;
+                    num += fac * d as f64;
+                    i += 1;
+                }
+            }
+
+            tokens.push(Token::LiteralNum(num));
+            continue;
+        }
+
+        if !whitespace(chr) { panic!("cannot tokenize!") }
 
         i += 1;
     }
