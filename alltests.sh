@@ -13,8 +13,8 @@ do
     if [[ ! "$res1" == "$res2" ]]; then
         echo different output:
         echo lua2llvm:
-        echo $res1
+        echo "'$res1'"
         echo lua:
-        echo $res2
+        echo "'$res2'"
     fi
 done
