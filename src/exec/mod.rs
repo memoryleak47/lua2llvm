@@ -69,11 +69,15 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
 }
 
 // exec body of function / if / while
-fn exec_body(body: &[Statement], active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> ControlFlow {
+fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> ControlFlow {
     for st in body {
         match st {
-            Statement::Assign(lvalue, expr) => exec_statement_assign(lvalue, expr, active_args, ctxt),
-            Statement::FunctionCall(call) => { exec_function_call(call, active_args, ctxt); },
+            Statement::Assign(lvalue, expr) => exec_statement_assign(lvalue, expr, locals, ctxt),
+            Statement::FunctionCall(call) => { exec_function_call(call, locals, ctxt); },
+            Statement::Local(var, optexpr) => {
+                let val = optexpr.as_ref().map(|x| exec_expr(x, locals, ctxt)).unwrap_or(Value::Nil);
+                locals.insert(var.clone(), val);
+            },
             _ => todo!()
         }
     }
@@ -81,17 +85,17 @@ fn exec_body(body: &[Statement], active_args: &mut HashMap<String, Value>, ctxt:
     ControlFlow::End
 }
 
-fn exec_function_call(call: &FunctionCall, active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
+fn exec_function_call(call: &FunctionCall, locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
     let (func, argvals) = match call {
         FunctionCall::Direct(func, args) => {
-            let func = exec_expr(func, active_args, ctxt);
-            let argvals: Vec<_> = args.iter().map(|x| exec_expr(x, active_args, ctxt)).collect();
+            let func = exec_expr(func, locals, ctxt);
+            let argvals: Vec<_> = args.iter().map(|x| exec_expr(x, locals, ctxt)).collect();
 
             (func, argvals)
         },
         FunctionCall::Colon(expr, field, args) => {
             // eval table
-            let ptrval = exec_expr(expr, active_args, ctxt);
+            let ptrval = exec_expr(expr, locals, ctxt);
             let Value::TablePtr(ptr) = ptrval else { panic!("using a:b() even though a is no table!") };
 
             // eval func
@@ -99,7 +103,7 @@ fn exec_function_call(call: &FunctionCall, active_args: &mut HashMap<String, Val
 
             // eval args
             let mut argvals = vec![ptrval];
-            argvals.extend(args.iter().map(|x| exec_expr(x, active_args, ctxt)));
+            argvals.extend(args.iter().map(|x| exec_expr(x, locals, ctxt)));
 
             (func, argvals)
         },
@@ -107,11 +111,11 @@ fn exec_function_call(call: &FunctionCall, active_args: &mut HashMap<String, Val
 
     match func {
         Value::LuaFn(args, body) => {
-            let mut active_args: HashMap<String, Value> = HashMap::new();
+            let mut locals: HashMap<String, Value> = HashMap::new();
             for (k, v) in args.into_iter().zip(argvals.into_iter()) {
-                active_args.insert(k, v);
+                locals.insert(k, v);
             }
-            match exec_body(&body, &mut active_args, ctxt) {
+            match exec_body(&body, &mut locals, ctxt) {
                 ControlFlow::Return(v) => v,
                 ControlFlow::Break => panic!("cannot break out of a function"),
                 ControlFlow::End => Value::Nil,
@@ -125,7 +129,7 @@ fn exec_function_call(call: &FunctionCall, active_args: &mut HashMap<String, Val
     }
 }
 
-fn exec_statement_assign(lvalue: &LValue, expr: &Expr, active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) {
+fn exec_statement_assign(lvalue: &LValue, expr: &Expr, locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) {
     enum LValueRef {
         Var(String),
         TableIdx(TablePtr, Value),
@@ -133,22 +137,22 @@ fn exec_statement_assign(lvalue: &LValue, expr: &Expr, active_args: &mut HashMap
     let vref = match lvalue {
         LValue::Var(x) => LValueRef::Var(x.clone()),
         LValue::Dot(expr, field) => {
-            let Value::TablePtr(ptr) = exec_expr(expr, active_args, ctxt) else { panic!("executing a.b where a is not a table") };
+            let Value::TablePtr(ptr) = exec_expr(expr, locals, ctxt) else { panic!("executing a.b where a is not a table") };
             let idx = Value::Str(field.clone());
             LValueRef::TableIdx(ptr, idx)
         },
         LValue::Index(expr, idx_expr) => {
-            let Value::TablePtr(ptr) = exec_expr(expr, active_args, ctxt) else { panic!("executing a.b where a is not a table") };
-            let idx = exec_expr(idx_expr, active_args, ctxt);
+            let Value::TablePtr(ptr) = exec_expr(expr, locals, ctxt) else { panic!("executing a.b where a is not a table") };
+            let idx = exec_expr(idx_expr, locals, ctxt);
             LValueRef::TableIdx(ptr, idx)
         }
     };
 
-    let res = exec_expr(expr, active_args, ctxt);
+    let res = exec_expr(expr, locals, ctxt);
 
     match vref {
         LValueRef::Var(x) => {
-            if let Some(v) = active_args.get_mut(&x) {
+            if let Some(v) = locals.get_mut(&x) {
                 *v = res;
             } else {
                 ctxt.globals.insert(x, res);
@@ -158,7 +162,7 @@ fn exec_statement_assign(lvalue: &LValue, expr: &Expr, active_args: &mut HashMap
     }
 }
 
-fn construct_table(fields: &[Field], active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
+fn construct_table(fields: &[Field], locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
     fn lowest_free_table_idx(d: &TableData) -> Value {
         for i in 1.. {
             let v = Value::Num(i as f64);
@@ -184,18 +188,18 @@ fn construct_table(fields: &[Field], active_args: &mut HashMap<String, Value>, c
     for f in fields {
         match f {
             Field::Expr(expr) => {
-                let val = exec_expr(expr, active_args, ctxt);
+                let val = exec_expr(expr, locals, ctxt);
                 let idx = lowest_free_table_idx(&ctxt.heap[&ptr]);
                 table_set(ptr, idx, val, ctxt);
             },
             Field::NameToExpr(name, expr) => {
-                let val = exec_expr(expr, active_args, ctxt);
+                let val = exec_expr(expr, locals, ctxt);
                 let idx = Value::Str(name.clone());
                 table_set(ptr, idx, val, ctxt);
             },
             Field::ExprToExpr(idx, val) => {
-                let idx = exec_expr(idx, active_args, ctxt);
-                let val = exec_expr(val, active_args, ctxt);
+                let idx = exec_expr(idx, locals, ctxt);
+                let val = exec_expr(val, locals, ctxt);
                 table_set(ptr, idx, val, ctxt);
             },
         }
@@ -236,42 +240,42 @@ fn exec_unop(kind: UnOpKind, r: Value, ctxt: &Ctxt) -> Value {
     // TODO add not
 }
 
-fn exec_expr(expr: &Expr, active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
+fn exec_expr(expr: &Expr, locals: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::Literal(lit) => match lit {
             Literal::Num(x) => Value::Num(*x),
             Literal::Str(s) => Value::Str(s.clone()),
             Literal::Bool(b) => Value::Bool(*b),
             Literal::Function(args, body) => Value::LuaFn(args.clone(), body.clone()),
-            Literal::Table(fields) => construct_table(fields, active_args, ctxt),
+            Literal::Table(fields) => construct_table(fields, locals, ctxt),
             Literal::Nil => Value::Nil,
         },
         Expr::LValue(lvalue) => match &**lvalue {
             LValue::Var(var) => {
-                if let Some(x) = active_args.get(var) { return x.clone(); }
+                if let Some(x) = locals.get(var) { return x.clone(); }
                 ctxt.globals.get(var).cloned().unwrap_or(Value::Nil)
             },
             LValue::Dot(expr, field) => {
-                let Value::TablePtr(ptr) = exec_expr(expr, active_args, ctxt) else { panic!("trying a.b on non-table a!") };
+                let Value::TablePtr(ptr) = exec_expr(expr, locals, ctxt) else { panic!("trying a.b on non-table a!") };
                 table_get(ptr, Value::Str(field.clone()), ctxt)
             },
             LValue::Index(expr, idx) => {
-                let Value::TablePtr(ptr) = exec_expr(expr, active_args, ctxt) else { panic!("trying a[b] on non-table a!") };
-                let idx = exec_expr(idx, active_args, ctxt);
+                let Value::TablePtr(ptr) = exec_expr(expr, locals, ctxt) else { panic!("trying a[b] on non-table a!") };
+                let idx = exec_expr(idx, locals, ctxt);
                 table_get(ptr, idx, ctxt)
             },
         },
         Expr::BinOp(kind, l, r) => {
-            let l = exec_expr(l, active_args, ctxt);
-            let r = exec_expr(r, active_args, ctxt);
+            let l = exec_expr(l, locals, ctxt);
+            let r = exec_expr(r, locals, ctxt);
 
             exec_binop(*kind, l, r)
         },
         Expr::UnOp(kind, r) => {
-            let r = exec_expr(r, active_args, ctxt);
+            let r = exec_expr(r, locals, ctxt);
 
             exec_unop(*kind, r, ctxt)
         },
-        Expr::FunctionCall(call) => exec_function_call(call, active_args, ctxt),
+        Expr::FunctionCall(call) => exec_function_call(call, locals, ctxt),
     }
 }
