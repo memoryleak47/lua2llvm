@@ -8,7 +8,7 @@ type TableData = Vec<(Value, Value)>;
 struct Ctxt {
     globals: HashMap<String, Value>,
     heap: HashMap<TablePtr, TableData>,
-    native_fns: Vec<fn(&[Value])>,
+    native_fns: Vec<fn(Vec<Value>) -> Value>,
 }
 
 enum ControlFlow {
@@ -34,7 +34,7 @@ pub fn exec(ast: &Ast) {
     let mut ctxt = Ctxt::default();
 
     { // add print
-        let print = |vals: &[Value]| {
+        let print = |vals: Vec<Value>| {
             for arg in vals {
                 match arg {
                     Value::Nil => println!("nil"),
@@ -46,6 +46,7 @@ pub fn exec(ast: &Ast) {
                     Value::Num(x) => println!("{}", x),
                 }
             }
+            Value::Nil
         };
         ctxt.native_fns.push(print);
         ctxt.globals.insert("print".to_string(), Value::NativeFn(0));
@@ -54,16 +55,71 @@ pub fn exec(ast: &Ast) {
     exec_body(&ast.statements, &mut HashMap::new(), &mut ctxt);
 }
 
+fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
+    ctxt.heap[&ptr].iter()
+        .find(|(x, _)| *x == idx)
+        .map(|(_, v)| v.clone())
+        .unwrap_or(Value::Nil)
+}
+
+fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
+    let data: &mut TableData = ctxt.heap.get_mut(&ptr).expect("table_set got dangling pointer!");
+    data.retain(|(x, _)| *x != idx);
+    data.push((idx, val));
+}
+
 // exec body of function / if / while
 fn exec_body(body: &[Statement], active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) -> ControlFlow {
     for st in body {
         match st {
             Statement::Assign(lvalue, expr) => exec_statement_assign(lvalue, expr, active_args, ctxt),
+            Statement::FunctionCall(call) => match &*call {
+                FunctionCall::Direct(func, args) => {
+                    let func = exec_expr(func, active_args, ctxt);
+                    let argvals: Vec<_> = args.iter().map(|x| exec_expr(x, active_args, ctxt)).collect();
+                    exec_fn_val(func, argvals, ctxt);
+                },
+                FunctionCall::Colon(expr, field, args) => {
+                    // eval table
+                    let ptrval = exec_expr(expr, active_args, ctxt);
+                    let Value::TablePtr(ptr) = ptrval else { panic!("using a:b() even though a is no table!") };
+
+                    // eval func
+                    let func = table_get(ptr, Value::Str(field.clone()), ctxt);
+
+                    // eval args
+                    let mut argvals = vec![ptrval];
+                    argvals.extend(args.iter().map(|x| exec_expr(x, active_args, ctxt)));
+
+                    exec_fn_val(func, argvals, ctxt);
+                },
+            },
             _ => todo!()
         }
     }
 
     ControlFlow::End
+}
+
+fn exec_fn_val(func: Value, argvals: Vec<Value>, ctxt: &mut Ctxt) -> Value {
+    match func {
+        Value::LuaFn(args, body) => {
+            let mut active_args: HashMap<String, Value> = HashMap::new();
+            for (k, v) in args.into_iter().zip(argvals.into_iter()) {
+                active_args.insert(k, v);
+            }
+            match exec_body(&body, &mut active_args, ctxt) {
+                ControlFlow::Return(v) => v,
+                ControlFlow::Break => panic!("cannot break out of a function"),
+                ControlFlow::End => Value::Nil,
+            }
+        },
+        Value::NativeFn(i) => {
+            let f = ctxt.native_fns[i];
+            f(argvals)
+        },
+        _ => panic!("trying to call non-function"),
+    }
 }
 
 fn exec_statement_assign(lvalue: &LValue, expr: &Expr, active_args: &mut HashMap<String, Value>, ctxt: &mut Ctxt) {
@@ -95,11 +151,7 @@ fn exec_statement_assign(lvalue: &LValue, expr: &Expr, active_args: &mut HashMap
                 ctxt.globals.insert(x, res);
             }
         },
-        LValueRef::TableIdx(ptr, idx) => {
-            let data = &mut ctxt.heap.get_mut(&ptr).expect("dangling pointer!");
-            data.retain(|(x, _)| *x != idx);
-            data.push((idx, res));
-        }
+        LValueRef::TableIdx(ptr, idx) => table_set(ptr, idx, res, ctxt),
     }
 }
 
@@ -123,31 +175,29 @@ fn construct_table(fields: &[Field], active_args: &mut HashMap<String, Value>, c
         unreachable!()
     }
 
-    let mut data = TableData::new();
+    let ptr = lowest_free_tableptr(ctxt);
+    ctxt.heap.insert(ptr, TableData::new());
+
     for f in fields {
         match f {
             Field::Expr(expr) => {
                 let val = exec_expr(expr, active_args, ctxt);
-                let idx = lowest_free_table_idx(&data);
-                data.push((idx, val));
+                let idx = lowest_free_table_idx(&ctxt.heap[&ptr]);
+                table_set(ptr, idx, val, ctxt);
             },
             Field::NameToExpr(name, expr) => {
                 let val = exec_expr(expr, active_args, ctxt);
                 let idx = Value::Str(name.clone());
-                data.retain(|(x, _)| *x != idx);
-                data.push((idx, val));
+                table_set(ptr, idx, val, ctxt);
             },
             Field::ExprToExpr(idx, val) => {
                 let idx = exec_expr(idx, active_args, ctxt);
                 let val = exec_expr(val, active_args, ctxt);
-                data.retain(|(x, _)| *x != idx);
-                data.push((idx, val));
+                table_set(ptr, idx, val, ctxt);
             },
         }
     }
 
-    let ptr = lowest_free_tableptr(ctxt);
-    ctxt.heap.insert(ptr, data);
     Value::TablePtr(ptr)
 }
 
