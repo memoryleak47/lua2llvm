@@ -93,7 +93,6 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
             data.length += 1;
         }
         data.entries.push((idx, val));
-        
     }
 }
 
@@ -173,6 +172,29 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                     if truthy(&condval) {
                         break;
                     }
+                }
+            }
+            Statement::NumericFor(var, start, stop, optstep, body) => {
+                let Value::Num(start) = exec_expr1(start, ctxt) else { panic!("non-numeric start value in for loop!") };
+                let Value::Num(stop) = exec_expr1(stop, ctxt) else { panic!("non-numeric stop value in for loop!") };
+                let mut step = 1.0;
+                if let Some(s) = optstep {
+                    let Value::Num(s) = exec_expr1(s, ctxt) else { panic!("non-numeric step value in for loop!") };
+                    step = s;
+                }
+                let mut cnt = start;
+                while cnt <= stop {
+                    let mut map: HashMap<String, Value> = Default::default();
+                    map.insert(var.clone(), Value::Num(cnt));
+                    ctxt.locals.push(map);
+                    let flow = exec_body(body, ctxt);
+                    ctxt.locals.pop();
+                    match flow {
+                        ControlFlow::Break => break,
+                        ret@ControlFlow::Return(_) => return ret,
+                        ControlFlow::End => {},
+                    }
+                    cnt += step;
                 }
             }
             Statement::If(ifblocks, optelse) => {

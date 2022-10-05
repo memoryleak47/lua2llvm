@@ -61,6 +61,7 @@ pub enum Statement {
     FunctionCall(FunctionCall),
     While(Expr, /*body: */ Vec<Statement>),
     Repeat(/*body: */ Vec<Statement>, Expr),
+    NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>),
 
     // each if and elseif corresponds to a entry in the Vec<IfBlock>
     If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>),
