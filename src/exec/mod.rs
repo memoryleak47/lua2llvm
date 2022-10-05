@@ -132,6 +132,12 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
                 }
                 return ControlFlow::Return(vals);
             }
+            Statement::Block(body) => {
+                match exec_body(body, locals, ctxt) {
+                    ControlFlow::End => {},
+                    ret => return ret,
+                }
+            },
             Statement::While(cond, body) => {
                 let mut condval = exec_expr1(cond, locals, ctxt);
                 while truthy(&condval) {

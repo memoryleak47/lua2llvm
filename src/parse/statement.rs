@@ -10,6 +10,7 @@ pub(super) fn parse_statement(tokens: &[Token]) -> Result<(Statement, &[Token]),
         .or_else(|_| parse_local_statement(tokens))
         .or_else(|_| parse_function_call_statement(tokens))
         .or_else(|_| parse_return_statement(tokens))
+        .or_else(|_| parse_block_statement(tokens))
         .or_else(|_| parse_break_statement(tokens))
         .or_else(|_| parse_while_statement(tokens))
         .or_else(|_| parse_if_statement(tokens))?;
@@ -96,6 +97,15 @@ fn parse_return_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()>
 fn parse_break_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
     let [Token::Break, tokens@..] = tokens else { return Err(()) };
     let stmt = Statement::Break;
+    Ok((stmt, tokens))
+}
+
+fn parse_block_statement(tokens: &[Token]) -> Result<(Statement, &[Token]), ()> {
+    let [Token::Do, tokens@..] = tokens else { return Err(()) };
+    let (body, tokens) = parse_body(tokens)?;
+    let [Token::End, tokens@..] = tokens else { return Err(()) };
+
+    let stmt = Statement::Block(body);
     Ok((stmt, tokens))
 }
 

@@ -65,6 +65,7 @@ pub enum Statement {
     If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>),
     Local(/*vars: */ Vec<String>, /*rhs: */ Vec<Expr>),
     Return(Vec<Expr>),
+    Block(Vec<Statement>),
     Break,
 }
 
