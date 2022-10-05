@@ -27,11 +27,14 @@ pub enum LValue {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum Variadic { Yes, No }
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Num(f64),
     Str(String),
     Bool(bool),
-    Function(/*args: */Vec<String>, /*body: */ Vec<Statement>),
+    Function(/*args: */Vec<String>, Variadic, /*body: */ Vec<Statement>),
     Table(Vec<Field>),
     Nil,
 }

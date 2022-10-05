@@ -4,6 +4,7 @@ pub(in crate::parse::expr) fn get_subexpr_pre(tokens: &[Token]) -> Result<(SubEx
     Err(())
         .or_else(|_| get_var_subexpr(tokens))
         .or_else(|_| get_lit_subexpr(tokens))
+        .or_else(|_| get_ellipsis_subexpr(tokens))
         .or_else(|_| get_function_subexpr(tokens))
         .or_else(|_| get_table_subexpr(tokens))
         .or_else(|_| get_in_paren_subexpr(tokens))
@@ -33,11 +34,18 @@ fn get_lit_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     Ok((subexpr, tokens))
 }
 
+fn get_ellipsis_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
+    let [Token::Ellipsis, tokens@..] = tokens else { return Err(()) };
+    let subexpr = SubExpr::Expr(Expr::Ellipsis);
+    Ok((subexpr, tokens))
+}
+
 fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
     let [Token::Function, Token::LParen, tokens@..] = tokens else { return Err(()) };
     let mut tokens = tokens;
 
     let mut args = Vec::new();
+    let mut variadic = Variadic::No;
 
     if let [Token::RParen, ts@..] = tokens {
         tokens = ts;
@@ -50,6 +58,11 @@ fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
                 },
                 [Token::Ident(ident), Token::RParen, ts@..] => {
                     args.push(ident.clone());
+                    tokens = ts;
+                    break;
+                },
+                [Token::Ellipsis, Token::RParen, ts@..] => {
+                    variadic = Variadic::Yes;
                     tokens = ts;
                     break;
                 },
@@ -70,7 +83,7 @@ fn get_function_subexpr(tokens: &[Token]) -> Result<(SubExpr, &[Token]), ()> {
         }
     }
 
-    let expr = Expr::Literal(Literal::Function(args, body));
+    let expr = Expr::Literal(Literal::Function(args, variadic, body));
     let subexpr = SubExpr::Expr(expr);
     Ok((subexpr, tokens))
 }

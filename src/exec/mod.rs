@@ -8,6 +8,7 @@ struct Ctxt {
     heap: HashMap<TablePtr, TableData>,
     native_fns: Vec<fn(Vec<Value>) -> Vec<Value>>,
     locals: Vec<HashMap<String, Value>>,
+    ellipsis_args: Option<Vec<Value>>, // is None for non-variadic functions.
 }
 
 enum ControlFlow {
@@ -31,7 +32,7 @@ enum Value {
     TablePtr(TablePtr),
     Str(String),
     NativeFn(usize), // usize indexes in Ctxt::native_fns
-    LuaFn(/*args: */ Vec<String>, /*body: */ Vec<Statement>),
+    LuaFn(/*args: */ Vec<String>, Variadic, /*body: */ Vec<Statement>),
     Num(f64),
 }
 
@@ -197,7 +198,7 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                     cnt += step;
                 }
             }
-            Statement::GenericFor(vars, exprs, body) => {}, // TODO
+            Statement::GenericFor(_vars, _exprs, _body) => {}, // TODO
             Statement::If(ifblocks, optelse) => {
                 let mut done = false;
                 for IfBlock(cond, body) in ifblocks {
@@ -236,7 +237,7 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
 }
 
 fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
-    let (func, argvals) = match call {
+    let (func, mut argvals) = match call {
         FunctionCall::Direct(func, args) => {
             let func = exec_expr1(func, ctxt);
             let mut argvals = Vec::new();
@@ -275,15 +276,35 @@ fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
     };
 
     match func {
-        Value::LuaFn(args, body) => {
+        Value::LuaFn(args, variadic, body) => {
+            // swap ellipsis stack
+            let mut opt_ellipsis_args = None;
+            if variadic == Variadic::Yes {
+                let mut ellipsis_args = Vec::new();
+                while argvals.len() > args.len() {
+                    ellipsis_args.push(argvals.pop().unwrap());
+                }
+                ellipsis_args.reverse();
+                opt_ellipsis_args = Some(ellipsis_args);
+                std::mem::swap(&mut opt_ellipsis_args, &mut ctxt.ellipsis_args);
+            }
+            
+            // swap locals stack
             let mut map: HashMap<String, Value> = HashMap::new();
             for (k, v) in args.into_iter().zip(argvals.into_iter()) {
                 map.insert(k, v);
             }
             let mut stack = vec![map];
-            std::mem::swap(&mut stack, &mut ctxt.locals); // swap forward
+            std::mem::swap(&mut stack, &mut ctxt.locals);
+
             let flow = exec_body(&body, ctxt);
-            ctxt.locals = stack; // swap back
+
+            // swap back
+            ctxt.locals = stack;
+            if variadic == Variadic::Yes {
+                ctxt.ellipsis_args = opt_ellipsis_args;
+            }
+
             match flow {
                 ControlFlow::Return(v) => v,
                 ControlFlow::Break => panic!("cannot break out of a function"),
@@ -451,7 +472,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Vec<Value> {
             Literal::Num(x) => Value::Num(*x),
             Literal::Str(s) => Value::Str(s.clone()),
             Literal::Bool(b) => Value::Bool(*b),
-            Literal::Function(args, body) => Value::LuaFn(args.clone(), body.clone()),
+            Literal::Function(args, variadic, body) => Value::LuaFn(args.clone(), variadic.clone(), body.clone()),
             Literal::Table(fields) => construct_table(fields, ctxt),
             Literal::Nil => Value::Nil,
         }],
@@ -484,7 +505,9 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Vec<Value> {
             vec![exec_unop(*kind, r, ctxt)]
         },
         Expr::FunctionCall(call) => exec_function_call(call, ctxt),
-        Expr::Ellipsis => todo!(),
+        Expr::Ellipsis => ctxt.ellipsis_args
+                            .clone()
+                            .expect("used Ellipsis in non-variadic function"),
     }
 }
 
