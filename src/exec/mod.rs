@@ -133,7 +133,8 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
                 return ControlFlow::Return(vals);
             }
             Statement::Block(body) => {
-                match exec_body(body, locals, ctxt) {
+                let mut locals = locals.clone();
+                match exec_body(body, &mut locals, ctxt) {
                     ControlFlow::End => {},
                     ret => return ret,
                 }
@@ -141,7 +142,8 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
             Statement::While(cond, body) => {
                 let mut condval = exec_expr1(cond, locals, ctxt);
                 while truthy(&condval) {
-                    match exec_body(body, locals, ctxt) {
+                    let mut body_locals = locals.clone();
+                    match exec_body(body, &mut body_locals, ctxt) {
                         ControlFlow::Break => break,
                         ret@ControlFlow::Return(_) => return ret,
                         ControlFlow::End => {},
@@ -154,7 +156,8 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
                 for IfBlock(cond, body) in ifblocks {
                     let condval = exec_expr1(cond, locals, ctxt);
                     if truthy(&condval) {
-                        match exec_body(body, locals, ctxt) {
+                        let mut body_locals = locals.clone();
+                        match exec_body(body, &mut body_locals, ctxt) {
                             ControlFlow::End => {},
                             flow => return flow,
                         }
@@ -166,7 +169,8 @@ fn exec_body(body: &[Statement], locals: &mut HashMap<String, Value>, ctxt: &mut
 
                 if let Some(body) = optelse {
                     if !done {
-                        match exec_body(body, locals, ctxt) {
+                        let mut body_locals = locals.clone();
+                        match exec_body(body, &mut body_locals, ctxt) {
                             ControlFlow::End => {},
                             flow => return flow,
                         }
