@@ -91,6 +91,26 @@ pub fn exec(ast: &Ast) {
         ctxt.globals.insert("pairs".to_string(), Value::NativeFn(2));
     }
 
+    { // add type 
+        let type_ = |vals: Vec<Value>, _ctxt: &mut Ctxt| -> Vec<Value> {
+            // he will not autofill with Nil!
+            let arg = vals.get(0).cloned().expect("argument to type expected");
+            let string = match arg {
+                Value::Nil => "nil",
+                Value::Bool(_) => "boolean",
+                Value::TablePtr(_) => "table",
+                Value::Str(_) => "string",
+                Value::NativeFn(_) => "function",
+                Value::LuaFn(..) => "function",
+                Value::Num(_) => "number",
+            };
+            vec![Value::Str(String::from(string))]
+        };
+        ctxt.native_fns.push(type_);
+        ctxt.globals.insert("type".to_string(), Value::NativeFn(3));
+    }
+
+
     exec_body(&ast.statements, &mut ctxt);
 }
 

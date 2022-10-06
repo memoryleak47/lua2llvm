@@ -1,0 +1,5 @@
+print(type({}))
+print(type(true))
+print(type(nil))
+print(type("ok"))
+print(type(pairs))
