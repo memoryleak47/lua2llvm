@@ -207,7 +207,41 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                     cnt += step;
                 }
             }
-            Statement::GenericFor(_vars, _exprs, _body) => {}, // TODO
+            Statement::GenericFor(vars, exprs, body) => {
+                let mut values = Vec::new();
+                for exp in exprs[..exprs.len()-1].iter() {
+                    let val = exec_expr1(exp, ctxt);
+                    values.push(val);
+                }
+                let lastvalues = exec_expr(exprs.last().unwrap(), ctxt);
+                values.extend(lastvalues);
+                while values.len() < 3 {
+                    values.push(Value::Nil);
+                }
+                // variables named as in https://www.lua.org/manual/5.1/manual.html#2.4.5
+                let f = values.get(0).cloned().unwrap_or(Value::Nil);
+                let s = values.get(1).cloned().unwrap_or(Value::Nil);
+                let var = values.get(2).cloned().unwrap_or(Value::Nil);
+                loop {
+                    let varvals = exec_function_call_by_vals(f.clone(), vec![s.clone(), var.clone()], ctxt);
+                    if varvals.get(0).unwrap_or(&Value::Nil) == &Value::Nil {
+                        break;
+                    }
+
+                    let mut map: HashMap<String, VarValue> = Default::default();
+                    for (var, val) in vars.iter().zip(varvals) {
+                        map.insert(var.clone(), VarValue::Value(val.clone()));
+                    }
+                    ctxt.locals.push(map);
+                    let flow = exec_body(body, ctxt);
+                    ctxt.locals.pop();
+                    match flow {
+                        ControlFlow::End => {},
+                        ControlFlow::Break => break,
+                        ret@ControlFlow::Return(_) => return ret,
+                    }
+                }
+            },
             Statement::If(ifblocks, optelse) => {
                 let mut done = false;
                 for IfBlock(cond, body) in ifblocks {
@@ -246,7 +280,7 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
 }
 
 fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
-    let (func, mut argvals) = match call {
+    let (func, argvals) = match call {
         FunctionCall::Direct(func, args) => {
             let func = exec_expr1(func, ctxt);
             let mut argvals = Vec::new();
@@ -284,6 +318,10 @@ fn exec_function_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Vec<Value> {
         },
     };
 
+    exec_function_call_by_vals(func, argvals, ctxt)
+}
+
+fn exec_function_call_by_vals(func: Value, mut argvals: Vec<Value>, ctxt: &mut Ctxt) -> Vec<Value> {
     match func {
         Value::LuaFn(args, variadic, body, upvaluemap) => {
             // swap ellipsis stack
