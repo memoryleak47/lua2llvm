@@ -221,12 +221,11 @@ fn exec_body(body: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 // variables named as in https://www.lua.org/manual/5.1/manual.html#2.4.5
                 let f = values.get(0).cloned().unwrap_or(Value::Nil);
                 let s = values.get(1).cloned().unwrap_or(Value::Nil);
-                let var = values.get(2).cloned().unwrap_or(Value::Nil);
+                let mut var = values.get(2).cloned().unwrap_or(Value::Nil);
                 loop {
                     let varvals = exec_function_call_by_vals(f.clone(), vec![s.clone(), var.clone()], ctxt);
-                    if varvals.get(0).unwrap_or(&Value::Nil) == &Value::Nil {
-                        break;
-                    }
+                    var = varvals.get(0).cloned().unwrap_or(Value::Nil);
+                    if var == Value::Nil { break; }
 
                     let mut map: HashMap<String, VarValue> = Default::default();
                     for (var, val) in vars.iter().zip(varvals) {
