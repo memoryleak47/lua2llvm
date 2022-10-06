@@ -88,7 +88,7 @@ pub fn exec(ast: &Ast) {
             vec![Value::NativeFn(1), vals.get(0).cloned().unwrap_or(Value::Nil), Value::Nil]
         };
         ctxt.native_fns.push(pairs);
-        ctxt.globals.insert("pairs".to_string(), Value::NativeFn(1));
+        ctxt.globals.insert("pairs".to_string(), Value::NativeFn(2));
     }
 
     exec_body(&ast.statements, &mut ctxt);
