@@ -14,7 +14,7 @@ enum VarValue {
 struct Ctxt {
     globals: HashMap<String, Value>,
     heap: HashMap<TablePtr, TableData>,
-    native_fns: Vec<fn(Vec<Value>) -> Vec<Value>>,
+    native_fns: Vec<fn(Vec<Value>, &mut Ctxt) -> Vec<Value>>,
     locals: Vec<HashMap<String, VarValue>>,
     ellipsis_args: Option<Vec<Value>>, // is None for non-variadic functions.
     upvalues: Vec<Value>,
@@ -54,7 +54,7 @@ pub fn exec(ast: &Ast) {
     ctxt.locals.push(Default::default());
 
     { // add print
-        let print = |vals: Vec<Value>| -> Vec<Value> {
+        let print = |vals: Vec<Value>, _ctxt: &mut Ctxt| -> Vec<Value> {
             for arg in vals {
                 match arg {
                     Value::Nil => println!("nil"),
@@ -72,7 +72,43 @@ pub fn exec(ast: &Ast) {
         ctxt.globals.insert("print".to_string(), Value::NativeFn(0));
     }
 
+    { // add next
+        let next = |vals: Vec<Value>, ctxt: &mut Ctxt| -> Vec<Value> {
+            let Value::TablePtr(ptr) = vals[0] else { panic!("got non-table argument to next!") };
+            let idx = vals.get(1).cloned().unwrap_or(Value::Nil);
+
+            table_next(ptr, idx, ctxt)
+        };
+        ctxt.native_fns.push(next);
+        ctxt.globals.insert("next".to_string(), Value::NativeFn(1));
+    }
+
+    { // add pairs
+        let pairs = |vals: Vec<Value>, _ctxt: &mut Ctxt| -> Vec<Value> {
+            vec![Value::NativeFn(1), vals.get(0).cloned().unwrap_or(Value::Nil), Value::Nil]
+        };
+        ctxt.native_fns.push(pairs);
+        ctxt.globals.insert("pairs".to_string(), Value::NativeFn(1));
+    }
+
     exec_body(&ast.statements, &mut ctxt);
+}
+
+fn table_next(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Vec<Value> {
+    let data = &ctxt.heap[&ptr];
+    if idx == Value::Nil {
+        match data.entries.get(0) {
+            Some((k, v)) => vec![k.clone(), v.clone()],
+            None => Vec::new(),
+        }
+    } else {
+        let i = data.entries.iter().position(|(i, _)| *i == idx).expect("invalid key to next!");
+        if let Some((k, v)) = data.entries.get(i+1) {
+            vec![k.clone(), v.clone()]
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
@@ -360,9 +396,9 @@ fn exec_function_call_by_vals(func: Value, mut argvals: Vec<Value>, ctxt: &mut C
         },
         Value::NativeFn(i) => {
             let f = ctxt.native_fns[i];
-            f(argvals)
+            f(argvals, ctxt)
         },
-        _ => panic!("trying to call non-function"),
+        v => panic!("trying to call non-function {:?}", v),
     }
 }
 
