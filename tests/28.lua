@@ -1,10 +1,9 @@
-mkref = function()
+mktwo = function()
     local x = 2
-    local setter = function(y) x=y end
-    local getter = function() return x end
-    return setter, getter
+    local f = function() return x end
+    x = 40
+    return f
 end
 
-s, g = mkref()
-s(20)
-print(g())
+local two = mktwo()
+print(two())

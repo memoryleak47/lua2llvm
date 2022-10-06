@@ -370,7 +370,14 @@ fn exec_statement_assign(lvalues: &[LValue], exprs: &[Expr], ctxt: &mut Ctxt) {
                 let mut done = false;
                 for map in ctxt.locals.iter_mut().rev() {
                     if let Some(vptr) = map.get_mut(&x) {
-                        *vptr = VarValue::Value(v.clone());
+                        match vptr {
+                            VarValue::Upvalue(i) => {
+                                ctxt.upvalues[*i] = v.clone();
+                            },
+                            VarValue::Value(vptr) => {
+                                *vptr = v.clone();
+                            },
+                        }
                         done = true;
                         break;
                     }
