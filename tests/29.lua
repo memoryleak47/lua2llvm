@@ -9,3 +9,7 @@ s, g = mkref()
 print(g())
 s(20)
 print(g())
+
+s2, g2 = mkref()
+print(g2())
+print(g())

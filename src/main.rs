@@ -10,9 +10,8 @@ mod parse;
 mod exec;
 pub use exec::exec;
 
-// TODO re-add
-// mod ir;
-// use ir::IR;
+mod ir;
+use ir::IR;
 
 // TODO
 // mod compile;
