@@ -15,7 +15,9 @@ use crate::ast::*;
 // - Assign(ls, rs): each recursive Expr within ls / rs is a a local variable.
 // - Assign(ls, rs): each recursive Expr within ls / rs is a a local variable.
 // - Local(ls, rs): rs.len() == 0 && ls.len() == 1.
+// - Return(exprs): exprs.len() == 1 && exprs == [local variable]
 // - FunctionCall is FunctionCall::Direct(l, [r]) where both l and r are local variables.
+// - Expr::Literal(Literal::Table(fields)): fields.len() == 0
 
 struct Ctxt {
     id_counter: usize,
@@ -95,8 +97,21 @@ fn simplify_statement(st: &Statement, statements: &mut Vec<Statement>, ctxt: &mu
                 statements.push(st);
             }
         },
-        Statement::FunctionCall(call) => {
-            todo!()
+        Statement::FunctionCall(FunctionCall::Direct(l, args)) => {
+            let l = simplify_expr1(l, statements, ctxt);
+            let fields: Vec<_> = args.iter().cloned().map(Field::Expr).collect();
+            let r = Expr::Literal(Literal::Table(fields));
+            let r = simplify_expr1(&r, statements, ctxt);
+
+            let st = Statement::FunctionCall(FunctionCall::Direct(l, vec![r]));
+            statements.push(st);
+        },
+        Statement::Return(exprs) => {
+            let fields: Vec<_> = exprs.iter().cloned().map(Field::Expr).collect();
+            let ret = Expr::Literal(Literal::Table(fields));
+            let ret = simplify_expr1(&ret, statements, ctxt);
+            let st = Statement::Return(vec![ret]);
+            statements.push(st);
         },
         _ => todo!(),
     /*
@@ -105,7 +120,6 @@ fn simplify_statement(st: &Statement, statements: &mut Vec<Statement>, ctxt: &mu
         Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>),
         Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>),
         Statement::If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>),
-        Statement::Return(Vec<Expr>),
         Statement::Block(Vec<Statement>),
     */
     }
@@ -159,6 +173,9 @@ fn simplify_expr(expr: &Expr, statements: &mut Vec<Statement>, ctxt: &mut Ctxt) 
             let lvalue = simplify_lvalue(lvalue, statements, ctxt);
 
             Expr::LValue(Box::new(lvalue))
+        },
+        Expr::Literal(Literal::Table(fields)) => {
+            todo!() // TODO
         },
         _ => todo!(),
 /*
