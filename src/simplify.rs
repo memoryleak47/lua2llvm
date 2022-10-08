@@ -13,10 +13,75 @@ use crate::ast::*;
 // constraints:
 // - Assign(ls, rs): ls.len() == 1 && rs.len() == 1.
 // - Assign(ls, rs): each recursive Expr within ls / rs is a a local variable.
+// - Assign(ls, rs): each recursive Expr within ls / rs is a a local variable.
+// - Local(ls, rs): rs.len() == 0 && ls.len() == 1.
 // - FunctionCall is FunctionCall::Direct(l, [r]) where both l and r are local variables.
 
 struct Ctxt {
     id_counter: usize,
+}
+
+fn simplify_assign_statement(ls: &[LValue], rs: &[Expr], ctxt: &mut Ctxt) -> Vec<Statement> {
+    let mut statements = Vec::new();
+
+    let mut ls2 = Vec::new();
+    for l in ls {
+        let (l2, sts) = simplify_lvalue(l, ctxt);
+        statements.extend(sts);
+        ls2.push(l2);
+    }
+
+    // rs2 are the boring single (i.e. non-tabled) rhs values.
+    let mut rs2 = Vec::new();
+    for r in rs[..rs.len()-1].iter() {
+        let (r2, sts) = simplify_expr1(r, ctxt);
+        statements.extend(sts);
+        rs2.push(r2);
+    }
+
+    let last = rs.last().unwrap();
+    let (last, tabled, sts) = simplify_expr(last, ctxt);
+    statements.extend(sts);
+
+    if !tabled {
+        rs2.push(last.clone());
+    }
+
+    for (lval, rval) in ls2.iter().zip(rs2.iter()) {
+        let st = Statement::Assign(vec![lval.clone()], vec![rval.clone()]);
+        statements.push(st);
+    }
+    let min = rs2.len();
+    let max = ls2.len();
+    for idx in min..max {
+        let expr = if tabled {
+                let x = idx - min + 1; // starting with 1
+                let x = Expr::Literal(Literal::Num(x as f64));
+                let x = LValue::Index(last.clone(), x);
+                let x = Expr::LValue(Box::new(x));
+                let (x, sts) = simplify_expr1(&x, ctxt);
+                statements.extend(sts);
+
+                x
+            } else {
+                Expr::Literal(Literal::Nil)
+            };
+        let st = Statement::Assign(vec![ls2[idx].clone()], vec![expr]);
+        statements.push(st);
+    }
+
+    statements
+}
+
+fn mk_tmp(stmts: &mut Vec<Statement>, ctxt: &mut Ctxt) -> LValue {
+    let s = format!("${}", ctxt.id_counter);
+
+    let st = Statement::Local(vec![s.clone()], Vec::new());
+    stmts.push(st);
+
+    ctxt.id_counter += 1;
+
+    LValue::Var(s)
 }
 
 fn simplify_statement(st: &Statement, ctxt: &mut Ctxt) -> Vec<Statement> {
@@ -26,61 +91,33 @@ fn simplify_statement(st: &Statement, ctxt: &mut Ctxt) -> Vec<Statement> {
             statements.push(Statement::Break);
         },
         Statement::Assign(ls, rs) => {
-            let mut ls2 = Vec::new();
-            for l in ls {
-                let (l2, sts) = simplify_lvalue(l, ctxt);
-                statements.extend(sts);
-                ls2.push(l2);
+            statements.extend(simplify_assign_statement(ls, rs, ctxt));
+        },
+        Statement::Local(vars, rs) => {
+            let mut tmps = Vec::new();
+            for _ in vars {
+                tmps.push(mk_tmp(&mut statements, ctxt));
             }
-
-            // rs2 are the boring single (i.e. non-tabled) rhs values.
-            let mut rs2 = Vec::new();
-            for r in rs[..rs.len()-1].iter() {
-                let (r2, sts) = simplify_expr1(r, ctxt);
-                statements.extend(sts);
-                rs2.push(r2);
-            }
-
-            let last = rs.last().unwrap();
-            let (last, tabled, sts) = simplify_expr(last, ctxt);
-            statements.extend(sts);
-
-            if !tabled {
-                rs2.push(last.clone());
-            }
-
-            for (lval, rval) in ls2.iter().zip(rs2.iter()) {
-                let st = Statement::Assign(vec![lval.clone()], vec![rval.clone()]);
+            statements.extend(simplify_assign_statement(&tmps, rs, ctxt));
+            for (i, l) in vars.iter().enumerate() {
+                let st = Statement::Local(vec![l.clone()], Vec::new());
                 statements.push(st);
-            }
-            let min = rs2.len();
-            let max = ls2.len();
-            for idx in min..max {
-                let expr = if tabled {
-                        let x = idx - min + 1; // starting with 1
-                        let x = Expr::Literal(Literal::Num(x as f64));
-                        let x = LValue::Index(last.clone(), x);
-                        let x = Expr::LValue(Box::new(x));
-                        let (x, sts) = simplify_expr1(&x, ctxt);
-                        statements.extend(sts);
-
-                        x
-                    } else {
-                        Expr::Literal(Literal::Nil)
-                    };
-                let st = Statement::Assign(vec![ls2[idx].clone()], vec![expr]);
+                let lval = LValue::Var(l.clone());
+                let expr = Expr::LValue(Box::new(tmps[i].clone()));
+                let st = Statement::Assign(vec![lval], vec![expr]);
                 statements.push(st);
             }
         },
+        Statement::FunctionCall(call) => {
+            todo!()
+        },
         _ => todo!(),
     /*
-        Statement::FunctionCall(FunctionCall),
         Statement::While(Expr, /*body: */ Vec<Statement>),
         Statement::Repeat(/*body: */ Vec<Statement>, Expr),
         Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>),
         Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>),
         Statement::If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>),
-        Statement::Local(/*vars: */ Vec<String>, /*rhs: */ Vec<Expr>),
         Statement::Return(Vec<Expr>),
         Statement::Block(Vec<Statement>),
     */
@@ -136,17 +173,32 @@ fn simplify_expr1(expr: &Expr, ctxt: &mut Ctxt) -> (Expr, Vec<Statement>) {
 // if expr is a multi-argument object, like ... or a function call, this expr has been tabled,
 // and the bool "tabled" will be true.
 fn simplify_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Expr, /*tabled: */ bool, Vec<Statement>) {
-    match expr {
+    let mut statements = Vec::new();
+    let mut tabled = false;
+
+    let expr = match expr {
+        expr@Expr::Literal(Literal::Num(i)) => expr.clone(),
+        Expr::LValue(lvalue) => {
+            let (lvalue, sts) = simplify_lvalue(lvalue, ctxt);
+            statements.extend(sts);
+
+            Expr::LValue(Box::new(lvalue))
+        },
         _ => todo!(),
 /*
         Expr::Ellipsis,
-        Expr::Literal(Literal),
-        Expr::LValue(Box<LValue>),
         Expr::BinOp(BinOpKind, /*l: */ Box<Expr>, /*r: */ Box<Expr>),
         Expr::UnOp(UnOpKind, /*r: */ Box<Expr>),
         Expr::FunctionCall(Box<FunctionCall>),
 */
-    }
+    };
+
+    let l = mk_tmp(&mut statements, ctxt);
+    let st = Statement::Assign(vec![l.clone()], vec![expr]);
+    statements.push(st);
+
+    let e = Expr::LValue(Box::new(l));
+    (e, tabled, statements)
 }
 
 pub fn simplify(ast: &Ast) -> Ast {
