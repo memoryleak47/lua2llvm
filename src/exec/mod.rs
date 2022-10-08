@@ -574,6 +574,11 @@ fn construct_function(args: &Vec<String>, variadic: &Variadic, body: &Vec<Statem
 
 fn exec_binop(kind: BinOpKind, l: Value, r: Value) -> Value {
     use BinOpKind::*;
+
+    // And + Or are covered elsewhere, as they cannot get r as a Value, but need it as expr!
+    assert!(kind != And);
+    assert!(kind != Or);
+
     match (kind, l, r) {
         (Plus, Value::Num(l), Value::Num(r)) => Value::Num(l + r),
         (Minus, Value::Num(l), Value::Num(r)) => Value::Num(l - r),
@@ -588,11 +593,6 @@ fn exec_binop(kind: BinOpKind, l: Value, r: Value) -> Value {
         (IsEqual, l, r) => Value::Bool(l == r),
         (IsNotEqual, l, r) => Value::Bool(l != r),
         (Concat, Value::Str(l), Value::Str(r)) => Value::Str(format!("{}{}", l, r)),
-
-        (And, l, r) if truthy(&l) => r,
-        (And, _, _r) => Value::Bool(false),
-        (Or, l, _r) if truthy(&l) => Value::Bool(true),
-        (Or, _, r) => r,
         _ => panic!("type error!"),
     }
 }
@@ -639,6 +639,20 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Vec<Value> {
                 let idx = exec_expr1(idx, ctxt);
                 vec![table_get(ptr, idx, ctxt)]
             },
+        },
+        Expr::BinOp(BinOpKind::And, l, r) => {
+            let mut ret = exec_expr1(l, ctxt);
+            if truthy(&ret) {
+                ret = exec_expr1(r, ctxt);
+            }
+            vec![ret]
+        },
+        Expr::BinOp(BinOpKind::Or, l, r) => {
+            let mut ret = exec_expr1(l, ctxt);
+            if !truthy(&ret) {
+                ret = exec_expr1(r, ctxt);
+            }
+            vec![ret]
         },
         Expr::BinOp(kind, l, r) => {
             let l = exec_expr1(l, ctxt);
