@@ -60,7 +60,7 @@ fn main() {
     let mut ast = parse::parse(&tokens).expect("Ast::parse failed!");
 
     if let Mode::Simp = mode {
-        simplify(&mut ast);
+        ast = simplify(&ast);
     }
     exec(&ast);
 }
