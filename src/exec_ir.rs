@@ -64,7 +64,12 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
         Expr::LValue(_) => todo!(),
         Expr::Argtable => todo!(),
         Expr::FnCall(n1, n2) => todo!(),
-        Expr::NewTable => todo!(),
+        Expr::NewTable => {
+            let i = ctxt.heap.len();
+            ctxt.heap.push(TableData::default());
+
+            Value::TablePtr(i)
+        },
         Expr::LitFunction(fnid) => todo!(),
         Expr::BinOp(kind, l, r) => todo!(),
         Expr::UnOp(kind, r) => todo!(),
