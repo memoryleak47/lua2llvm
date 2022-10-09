@@ -238,6 +238,10 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 }
             },
             Statement::FunctionCall(call) => { lower_fn_call(call, ctxt); },
+            Statement::Return(exprs) => {
+                let t = table_wrap_exprlist(exprs, ctxt);
+                push_st(ir::Statement::ReturnTable(t), ctxt);
+            },
             _ => todo!(),
     /*
             Statement::While(Expr, /*body: */ Vec<Statement>) => todo!(),
@@ -245,7 +249,6 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>) => todo!(),
-            Statement::Return(Vec<Expr>) => todo!(),
             Statement::Block(Vec<Statement>) => todo!(),
             Statement::Break => todo!(),
     */
