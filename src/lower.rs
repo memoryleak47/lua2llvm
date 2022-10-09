@@ -60,7 +60,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
     let (val, tabled) = lower_expr(expr, ctxt);
     if tabled {
         // `orig_t_len = #t`
-        let orig_t_len = {
+        let orig_t_len: Node = {
             let orig_len = counter-1;
             let orig_len = Literal::Num(orig_len as f64);
             let orig_len = Expr::Literal(orig_len);
@@ -69,7 +69,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         };
 
         // `len = val[0]`
-        let len = {
+        let len: Node = {
             let idx = Literal::Num(0.0);
             let idx = Expr::Literal(idx);
             let idx = lower_expr1(&idx, ctxt);
@@ -82,7 +82,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
 
         // `local i`
         let i_var = mk_local(ctxt);
-        let i_var = ir::LValue::Local(i_var);
+        let i_var: ir::LValue = ir::LValue::Local(i_var);
 
         // `i = 1`
         let one = Literal::Num(1.0);
@@ -94,6 +94,13 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         // `loop {`
         {
             // `if i > len: break`
+            let i = ir::Expr::LValue(i_var.clone());
+            let i = mk_compute(i, ctxt);
+            let cond = ir::Expr::BinOp(ir::BinOpKind::Gt, i, len);
+            let cond = mk_compute(cond, ctxt);
+            let brk = ir::Statement::Break;
+            let if_st = ir::Statement::If(cond, vec![brk], Vec::new());
+            push_st(if_st, ctxt);
 
             // `t[i+orig_t_len] = val[i]`
 
