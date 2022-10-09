@@ -72,6 +72,13 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::LValue(LValue::Local(lid)) => ctxt.locals[*lid].clone(),
         Expr::LValue(LValue::Global(gid)) => ctxt.globals[*gid].clone(),
+        Expr::LValue(LValue::Index(t, idx)) => {
+            let t = ctxt.nodes[*t].clone();
+            let idx = ctxt.nodes[*idx].clone();
+
+            let Value::TablePtr(t) = t else { panic!("indexing into non-table!") };
+            table_get(t, idx, ctxt)
+        },
         Expr::LValue(_) => todo!(),
         Expr::Argtable => Value::TablePtr(ctxt.argtable),
         Expr::FnCall(f, argt) => {
@@ -91,7 +98,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
 
             Value::TablePtr(i)
         },
-        Expr::LitFunction(fnid) => todo!(),
+        Expr::LitFunction(fnid) => Value::LuaFn(*fnid),
         Expr::BinOp(kind, l, r) => {
             let l = ctxt.nodes[*l].clone();
             let r = ctxt.nodes[*r].clone();
