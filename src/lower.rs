@@ -162,7 +162,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     ctxt.ir.fns.push(dummy_lit_fn);
 
     let mut current_fn = fid;
-    let mut locals = Vec::new();
+    let mut locals = vec![HashMap::new()];
     let mut body = Vec::new();
     let mut next_node = 0;
     let mut upvalues = ctxt.upvalues.clone();
