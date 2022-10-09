@@ -31,6 +31,14 @@ fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
         .unwrap_or(Value::Nil)
 }
 
+fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
+    let entries = &mut ctxt.heap[ptr].entries;
+
+    entries.retain(|(k, _)| *k != idx);
+    if idx != Value::Nil {
+        entries.push((idx, val));
+    }
+}
 
 #[derive(Clone, PartialEq, Debug)]
 enum Value {
@@ -105,7 +113,10 @@ pub fn exec(ir: &IR) {
                 match lval {
                     Local(lid) => { ctxt.locals[*lid] = val; },
                     Global(gid) => { ctxt.globals[*gid] = val; },
-                    Index(t, idx) => todo!(),
+                    Index(t, idx) => {
+                        let idx = ctxt.nodes[*idx].clone();
+                        table_set(*t, idx, val, &mut ctxt);
+                    },
                     Upvalue(fnid, lid) => todo!(),
                 }
             },
