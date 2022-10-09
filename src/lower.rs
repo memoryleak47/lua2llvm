@@ -55,6 +55,38 @@ fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
     }
 }
 
+fn lower_table(fields: &[Field], ctxt: &mut Ctxt) -> Node {
+    let t = mk_compute(ir::Expr::NewTable, ctxt);
+
+    let mut counter = 1; // the next Field::Expr id.
+    for (i, f) in fields.iter().enumerate() {
+        match f {
+            Field::Expr(expr) => {
+                todo!()
+            },
+            Field::NameToExpr(name, expr) => {
+                let idx = Literal::Str(name.clone());
+                let idx = Expr::Literal(idx);
+                let idx = lower_expr1(&idx, ctxt);
+
+                let val = lower_expr1(expr, ctxt);
+
+                let lval = ir::LValue::Index(t, idx);
+                push_st(ir::Statement::Store(lval, val), ctxt);
+            },
+            Field::ExprToExpr(idx, val) => {
+                let idx = lower_expr1(idx, ctxt);
+                let val = lower_expr1(val, ctxt);
+
+                let lval = ir::LValue::Index(t, idx);
+                push_st(ir::Statement::Store(lval, val), ctxt);
+            },
+        }
+    }
+
+    t
+}
+
 // "tabled" is true for function calls and ellipsis expressions.
 // which return tables after transforming them.
 fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
@@ -67,7 +99,7 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
 
             mk_compute(x, ctxt)
         },
-        Expr::Literal(Literal::Table(_fields)) => todo!(),
+        Expr::Literal(Literal::Table(fields)) => lower_table(fields, ctxt),
         Expr::LValue(lval) => {
             let x = lower_lvalue(lval, ctxt);
             let x = ir::Expr::LValue(x);
@@ -78,8 +110,9 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
         Expr::UnOp(_kind, _r) => todo!(),
         Expr::FunctionCall(call) => {
             tabled = true;
+
             lower_fn_call(call, ctxt)
-        }
+        },
 
         // literals
         Expr::Literal(Literal::Num(i)) => mk_compute(ir::Expr::Num(*i), ctxt),
@@ -204,14 +237,11 @@ fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
     }
 }
 
+// should return a table from the expressions.
+// table[0] should be the length of this table.
 fn table_wrap_exprlist(exprs: &[Expr], ctxt: &mut Ctxt) -> Node {
-    let fields: Vec<_> = exprs.iter()
-                     .cloned()
-                     .map(Field::Expr)
-                     .collect();
-    let arg = Expr::Literal(Literal::Table(fields));
-
-    lower_expr1(&arg, ctxt)
+    // should not call lower_table. It's too different.
+    todo!()
 }
 
 fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
