@@ -56,23 +56,77 @@ fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
 }
 
 // pushes expr to the table as the last element of a table constructor.
-fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, ctxt: &mut Ctxt) -> /*length-expr:*/ ir::Expr {
+fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool, ctxt: &mut Ctxt) -> /*length-node: */ Option<Node> {
     let (val, tabled) = lower_expr(expr, ctxt);
     if tabled {
-        todo!()
+        // `orig_t_len = #t`
+        let orig_t_len = {
+            let orig_len = counter-1;
+            let orig_len = Literal::Num(orig_len as f64);
+            let orig_len = Expr::Literal(orig_len);
+
+            lower_expr1(&orig_len, ctxt)
+        };
+
+        // `len = val[0]`
+        let len = {
+            let idx = Literal::Num(0.0);
+            let idx = Expr::Literal(idx);
+            let idx = lower_expr1(&idx, ctxt);
+
+            let lval = ir::LValue::Index(val, idx);
+            let lval = ir::Expr::LValue(lval);
+
+            mk_compute(lval, ctxt)
+        };
+
+        // `local i`
+        let i_var = mk_local(ctxt);
+        let i_var = ir::LValue::Local(i_var);
+
+        // `i = 1`
+        let one = Literal::Num(1.0);
+        let one = Expr::Literal(one);
+        let one = lower_expr1(&one, ctxt);
+        push_st(ir::Statement::Store(i_var.clone(), one), ctxt);
+
+        let mut loop_body = Vec::new();
+        // `loop {`
+        {
+            // `if i > len: break`
+
+            // `t[i+orig_t_len] = val[i]`
+
+            // `i = i + 1`
+        }
+        // `}`
+
+        push_st(ir::Statement::Loop(loop_body), ctxt);
+
+        if calc_length {
+            // `outlength = i - 1 + orig_t_len`
+
+            Some(todo!())
+        } else { None }
     } else {
         let idx = Literal::Num(counter as f64);
         let idx = Expr::Literal(idx);
         let idx = lower_expr1(&idx, ctxt);
 
-        let lval = ir::LValue::Index(t, idx);
-        push_st(ir::Statement::Store(lval, val), ctxt);
+        if calc_length {
+            let lval = ir::LValue::Index(t, idx);
+            push_st(ir::Statement::Store(lval, val), ctxt);
+            let node = mk_compute(ir::Expr::Num(counter as f64), ctxt);
 
-        ir::Expr::Num(counter as f64)
+            Some(node)
+        } else {
+            None
+        }
     }
 }
 
-fn lower_table(fields: &[Field], ctxt: &mut Ctxt) -> (/*table: */ Node, /*length-expr: */ Option<ir::Expr>) {
+// will only calc length if it ends in a Field::Expr.
+fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table: */ Node, /*length-node: */ Option<Node>) {
     let t = mk_compute(ir::Expr::NewTable, ctxt);
 
     let mut counter = 1; // the next Field::Expr id.
@@ -80,8 +134,8 @@ fn lower_table(fields: &[Field], ctxt: &mut Ctxt) -> (/*table: */ Node, /*length
         match f {
             Field::Expr(expr) => {
                 if i == fields.len() - 1 {
-                    let len = push_last_table_expr(t, counter, expr, ctxt);
-                    return (t, Some(len));
+                    let opt = push_last_table_expr(t, counter, expr, calc_length, ctxt);
+                    return (t, opt);
                 } else {
                     let idx = Literal::Num(counter as f64);
                     let idx = Expr::Literal(idx);
@@ -129,7 +183,7 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
             mk_compute(x, ctxt)
         },
         Expr::Literal(Literal::Table(fields)) => {
-            let (t, _) = lower_table(fields, ctxt);
+            let (t, _) = lower_table(fields, /*calc-length: */ false, ctxt);
 
             t
         },
@@ -277,14 +331,14 @@ fn table_wrap_exprlist(exprs: &[Expr], ctxt: &mut Ctxt) -> Node {
                       .cloned()
                       .map(Field::Expr)
                       .collect();
-    let (t, len) = lower_table(&fields, ctxt);
+    let (t, len) = lower_table(&fields, /*calc-length: */ true, ctxt);
     let len = len.unwrap();
+
     let idx = Literal::Num(0 as f64);
     let idx = Expr::Literal(idx);
     let idx = lower_expr1(&idx, ctxt);
 
     let lval = ir::LValue::Index(t, idx);
-    let len = mk_compute(len, ctxt);
     push_st(ir::Statement::Store(lval, len), ctxt);
 
     t
