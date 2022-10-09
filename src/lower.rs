@@ -129,6 +129,7 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
     }
 }
 
+// does not add the local to ctxt.locals!
 fn declare_local(name: String, ctxt: &mut Ctxt) -> LocalId {
     let optmax: Option<LocalId> = ctxt.locals.iter()
                     .flat_map(|map| map.values())
@@ -138,10 +139,6 @@ fn declare_local(name: String, ctxt: &mut Ctxt) -> LocalId {
         Some(max) => max+1,
         None => 0,
     };
-    ctxt.locals
-        .last_mut()
-        .unwrap()
-        .insert(name, free_lid);
 
     push_st(ir::Statement::Local(free_lid), ctxt);
 
@@ -191,11 +188,18 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 lower_assign(&lvalues, exprs, ctxt);
             },
             Statement::Local(vars, exprs) => {
-                let mut lvalues: Vec<_> = vars.iter()
-                                    .map(|x| declare_local(x.clone(), ctxt))
-                                    .map(ir::LValue::Local)
-                                    .collect();
+                let mut lids: Vec<_> = vars.iter()
+                                           .map(|x| declare_local(x.clone(), ctxt))
+                                           .collect();
+                let mut lvalues: Vec<_> = lids.iter()
+                                              .copied()
+                                              .map(ir::LValue::Local)
+                                              .collect();
                 lower_assign(&lvalues, exprs, ctxt);
+                let mut map: &mut HashMap<_, _> = ctxt.locals.last_mut().unwrap();
+                for (var, lid) in vars.iter().zip(lids.iter()) {
+                    map.insert(var.clone(), *lid);
+                }
             },
             Statement::FunctionCall(call) => todo!(),
             _ => todo!(),
@@ -256,6 +260,9 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
             let node = mk_compute(idx, ctxt);
             let lvalue = ir::LValue::Local(lid);
             push_st(ir::Statement::Store(lvalue, node), ctxt);
+
+            let mut map = ctxt.locals.last_mut().unwrap();
+            map.insert(arg.clone(), lid);
         }
 
         if *variadic == Variadic::Yes {
