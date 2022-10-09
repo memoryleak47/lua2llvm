@@ -76,9 +76,9 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
         },
         Expr::BinOp(_kind, _l, _r) => todo!(),
         Expr::UnOp(_kind, _r) => todo!(),
-        Expr::FunctionCall(_call) => {
+        Expr::FunctionCall(call) => {
             tabled = true;
-            todo!()
+            lower_fn_call(call, ctxt)
         }
 
         // literals
@@ -178,6 +178,42 @@ fn lower_assign(lvalues: &[ir::LValue], exprs: &[Expr], ctxt: &mut Ctxt) {
     }
 }
 
+// result is always tabled = true.
+fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
+    match call {
+        FunctionCall::Direct(f, args) => {
+            let f = lower_expr1(f, ctxt);
+            let fields: Vec<_> = args.iter()
+                             .cloned()
+                             .map(Field::Expr)
+                             .collect();
+            let arg = Expr::Literal(Literal::Table(fields));
+            let arg = lower_expr1(&arg, ctxt);
+
+            mk_compute(ir::Expr::FnCall(f, arg), ctxt)
+        },
+        FunctionCall::Colon(t, idx, args) => {
+            let t = lower_expr1(t, ctxt);
+
+            let idx = ir::Expr::Str(idx.clone());
+            let idx = mk_compute(idx, ctxt);
+
+            let f = ir::LValue::Index(t, idx);
+            let f = ir::Expr::LValue(f);
+            let f = mk_compute(f, ctxt);
+
+            let fields: Vec<_> = args.iter()
+                             .cloned()
+                             .map(Field::Expr)
+                             .collect();
+            let arg = Expr::Literal(Literal::Table(fields));
+            let arg = lower_expr1(&arg, ctxt);
+
+            mk_compute(ir::Expr::FnCall(f, arg), ctxt)
+        },
+    }
+}
+
 fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
     for st in statements {
         match st {
@@ -201,7 +237,7 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                     map.insert(var.clone(), *lid);
                 }
             },
-            Statement::FunctionCall(call) => todo!(),
+            Statement::FunctionCall(call) => { lower_fn_call(call, ctxt); },
             _ => todo!(),
     /*
             Statement::While(Expr, /*body: */ Vec<Statement>) => todo!(),
