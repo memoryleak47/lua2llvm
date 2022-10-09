@@ -122,9 +122,16 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         push_st(ir::Statement::Loop(body), ctxt);
 
         if calc_length {
-            // `outlength = i - 1 + orig_t_len`
+            // `outlength = i + (orig_t_len - 1)`
+            let i = ir::Expr::LValue(i_var.clone());
+            let i: Node = mk_compute(i, ctxt);
 
-            Some(todo!())
+            let r = ir::Expr::Num(counter as f64 - 2.0);
+            let r: Node = mk_compute(r, ctxt);
+            let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, r);
+            let x = mk_compute(x, ctxt);
+
+            Some(x)
         } else { None }
     } else {
         let idx = Literal::Num(counter as f64);
