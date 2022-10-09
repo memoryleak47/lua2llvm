@@ -196,7 +196,7 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
 }
 
 // does not add the local to ctxt.locals!
-fn declare_local(name: String, ctxt: &mut Ctxt) -> LocalId {
+fn mk_local(ctxt: &mut Ctxt) -> LocalId {
     let optmax: Option<LocalId> = ctxt.locals.iter()
                     .flat_map(|map| map.values())
                     .copied()
@@ -301,7 +301,7 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             },
             Statement::Local(vars, exprs) => {
                 let mut lids: Vec<_> = vars.iter()
-                                           .map(|x| declare_local(x.clone(), ctxt))
+                                           .map(|x| mk_local(ctxt))
                                            .collect();
                 let mut lvalues: Vec<_> = lids.iter()
                                               .copied()
@@ -365,7 +365,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
         let argtable = mk_compute(ir::Expr::Argtable, ctxt);
 
         for (i, arg) in args.iter().enumerate() {
-            let lid = declare_local(arg.clone(), ctxt);
+            let lid = mk_local(ctxt);
             // lua tables start with 1, not 0.
             let i = i + 1;
             let i = ir::Expr::Num(i as f64);
