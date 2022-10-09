@@ -183,12 +183,7 @@ fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
     match call {
         FunctionCall::Direct(f, args) => {
             let f = lower_expr1(f, ctxt);
-            let fields: Vec<_> = args.iter()
-                             .cloned()
-                             .map(Field::Expr)
-                             .collect();
-            let arg = Expr::Literal(Literal::Table(fields));
-            let arg = lower_expr1(&arg, ctxt);
+            let arg = table_wrap_exprlist(args, ctxt);
 
             mk_compute(ir::Expr::FnCall(f, arg), ctxt)
         },
@@ -202,16 +197,21 @@ fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
             let f = ir::Expr::LValue(f);
             let f = mk_compute(f, ctxt);
 
-            let fields: Vec<_> = args.iter()
-                             .cloned()
-                             .map(Field::Expr)
-                             .collect();
-            let arg = Expr::Literal(Literal::Table(fields));
-            let arg = lower_expr1(&arg, ctxt);
+            let arg = table_wrap_exprlist(args, ctxt);
 
             mk_compute(ir::Expr::FnCall(f, arg), ctxt)
         },
     }
+}
+
+fn table_wrap_exprlist(exprs: &[Expr], ctxt: &mut Ctxt) -> Node {
+    let fields: Vec<_> = exprs.iter()
+                     .cloned()
+                     .map(Field::Expr)
+                     .collect();
+    let arg = Expr::Literal(Literal::Table(fields));
+
+    lower_expr1(&arg, ctxt)
 }
 
 fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
