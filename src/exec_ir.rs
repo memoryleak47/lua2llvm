@@ -18,7 +18,13 @@ fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
         Value::Num(x) => println!("{}", x),
     }
 
-    alloc_table(ctxt)
+    empty(ctxt)
+}
+
+enum ControlFlow {
+    Break,
+    ReturnTable(TablePtr),
+    End,
 }
 
 fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
@@ -149,17 +155,8 @@ fn truthy(v: &Value) -> bool {
     !matches!(v, Value::Bool(false) | Value::Nil)
 }
 
-fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
-    let mut locals = Vec::new();
-    let mut nodes = Vec::new();
-
-    let mut opt_retptr: Option<TablePtr> = None;
-
-    std::mem::swap(&mut locals, &mut ctxt.locals);
-    std::mem::swap(&mut nodes, &mut ctxt.nodes);
-    std::mem::swap(&mut argtable, &mut ctxt.argtable);
-
-    for st in &ctxt.ir.fns[f].body {
+fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
+    for st in statements {
         use Statement::*;
         match st {
             Local(lid) => {
@@ -192,24 +189,45 @@ fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
             ReturnTable(t) => {
                 let t = ctxt.nodes[*t].clone();
                 let Value::TablePtr(t) = t else { panic!("returning non-table!") };
-                opt_retptr = Some(t);
-                break;
+                return ControlFlow::ReturnTable(t);
             },
             If(n, then, els) => todo!(),
             Loop(body) => todo!(),
-            Break => todo!(),
+            Break => return ControlFlow::Break,
         }
     }
+
+    ControlFlow::End
+}
+
+fn exec_fn(f: FnId, argtable: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
+    let mut locals = Vec::new();
+    let mut nodes = Vec::new();
+    let mut argtable = argtable;
 
     std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut argtable, &mut ctxt.argtable);
 
-    if let Some(retptr) = opt_retptr {
-        return retptr;
-    } else {
-        alloc_table(ctxt)
+    let flow = exec_body(&ctxt.ir.fns[f].body, ctxt);
+
+    std::mem::swap(&mut locals, &mut ctxt.locals);
+    std::mem::swap(&mut nodes, &mut ctxt.nodes);
+    std::mem::swap(&mut argtable, &mut ctxt.argtable);
+
+    match flow {
+        ControlFlow::Break => panic!("cannot break, if you are not in a loop!"),
+        ControlFlow::ReturnTable(t) => t,
+        ControlFlow::End => empty(ctxt),
     }
+}
+
+// returns a new table with only the special "length" field 0 set to 0, otherwise there is nothing.
+fn empty(ctxt: &mut Ctxt) -> TablePtr {
+    let t = alloc_table(ctxt);
+    table_set(t, Value::Num(0.0), Value::Num(0.0), ctxt);
+
+    t
 }
 
 fn alloc_table(ctxt: &mut Ctxt) -> TablePtr {
@@ -233,8 +251,7 @@ pub fn exec(ir: &IR) {
         ctxt.globals[i] = Value::NativeFn(0);
     }
 
-    let argtable = alloc_table(&mut ctxt);
-    table_set(argtable, Value::Num(0.0), Value::Num(0.0), &mut ctxt);
+    let argtable = empty(&mut ctxt);
 
     exec_fn(ir.main_fn, argtable, &mut ctxt);
 }
