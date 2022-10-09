@@ -189,7 +189,12 @@ fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
                     Upvalue(fnid, lid) => todo!(),
                 }
             },
-            ReturnTable(n) => todo!(),
+            ReturnTable(t) => {
+                let t = ctxt.nodes[*t].clone();
+                let Value::TablePtr(t) = t else { panic!("returning non-table!") };
+                opt_retptr = Some(t);
+                break;
+            },
             If(n, then, els) => todo!(),
             Loop(body) => todo!(),
             Break => todo!(),
