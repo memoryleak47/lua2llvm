@@ -1,4 +1,4 @@
-use crate::ir::{FnId, IR, Statement, Expr, LValue};
+use crate::ir::{FnId, IR, Statement, Expr, LValue, BinOpKind, UnOpKind};
 
 type TablePtr = usize;
 
@@ -92,13 +92,60 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             Value::TablePtr(i)
         },
         Expr::LitFunction(fnid) => todo!(),
-        Expr::BinOp(kind, l, r) => todo!(),
-        Expr::UnOp(kind, r) => todo!(),
+        Expr::BinOp(kind, l, r) => {
+            let l = ctxt.nodes[*l].clone();
+            let r = ctxt.nodes[*r].clone();
+
+            exec_binop(kind.clone(), l, r)
+        },
+        Expr::UnOp(kind, r) => {
+            let r = ctxt.nodes[*r].clone();
+
+            exec_unop(kind.clone(), r, ctxt)
+        },
         Expr::Num(x) => Value::Num(*x),
         Expr::Bool(b) => Value::Bool(*b),
         Expr::Nil => Value::Nil,
         Expr::Str(s) => Value::Str(s.clone()),
     }
+}
+
+fn exec_binop(kind: BinOpKind, l: Value, r: Value) -> Value {
+    use BinOpKind::*;
+
+    match (kind, l, r) {
+        (Plus, Value::Num(l), Value::Num(r)) => Value::Num(l + r),
+        (Minus, Value::Num(l), Value::Num(r)) => Value::Num(l - r),
+        (Mul, Value::Num(l), Value::Num(r)) => Value::Num(l * r),
+        (Div, Value::Num(l), Value::Num(r)) => Value::Num(l / r),
+        (Mod, Value::Num(l), Value::Num(r)) => Value::Num(l % r),
+        (Pow, Value::Num(l), Value::Num(r)) => Value::Num(l.powf(r)),
+        (Lt, Value::Num(l), Value::Num(r)) => Value::Bool(l < r),
+        (Le, Value::Num(l), Value::Num(r)) => Value::Bool(l <= r),
+        (Gt, Value::Num(l), Value::Num(r)) => Value::Bool(l > r),
+        (Ge, Value::Num(l), Value::Num(r)) => Value::Bool(l >= r),
+        (IsEqual, l, r) => Value::Bool(l == r),
+        (IsNotEqual, l, r) => Value::Bool(l != r),
+        (Concat, Value::Str(l), Value::Str(r)) => Value::Str(format!("{}{}", l, r)),
+        _ => panic!("type error!"),
+    }
+}
+
+
+fn exec_unop(kind: UnOpKind, r: Value, ctxt: &Ctxt) -> Value {
+    use UnOpKind::*;
+    match (kind, r) {
+        (Neg, Value::Num(x)) => Value::Num(-x),
+        (Len, Value::TablePtr(ptr)) => Value::Num(ctxt.heap[ptr].length as f64),
+        (Len, Value::Str(s)) => Value::Num(s.len() as f64),
+        (Not, l) if truthy(&l) => Value::Bool(false),
+        (Not, _) => Value::Bool(true),
+        _ => panic!("type error!"),
+    }
+}
+
+fn truthy(v: &Value) -> bool {
+    !matches!(v, Value::Bool(false) | Value::Nil)
 }
 
 fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> Value {
