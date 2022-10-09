@@ -12,7 +12,6 @@ struct Ctxt {
     // the Vec<> is pushed() & popped() for blocks, NOT functions.
     locals: Vec<HashMap<String, LocalId>>,
     upvalues: HashMap<String, (FnId, LocalId)>,
-    globals: HashMap<String, GlobalId>,
 
     // the fn whose body we are currently lowering.
     current_fn: FnId,
@@ -285,15 +284,12 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
             if let Some((fid, lid)) = ctxt.upvalues.get(s) {
                 return ir::LValue::Upvalue(*fid, *lid);
             }
-            if let Some(gid) = ctxt.globals.get(s) {
-                return ir::LValue::Global(*gid);
+            if let Some(gid) = ctxt.ir.globals.iter().position(|x| x == s) {
+                return ir::LValue::Global(gid);
             } else {
-                let free_gid = match ctxt.globals.values().max() {
-                    Some(max) => max+1,
-                    None => 0,
-                };
-                ctxt.globals.insert(s.clone(), free_gid);
-                return ir::LValue::Global(free_gid);
+                let gid = ctxt.ir.globals.len();
+                ctxt.ir.globals.push(s.clone());
+                return ir::LValue::Global(gid);
             }
         },
         LValue::Dot(expr, field) => {

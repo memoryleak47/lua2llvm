@@ -25,7 +25,9 @@ enum Value {
 #[derive(Default)]
 struct Ctxt {
     locals: Vec<Value>,
+    nodes: Vec<Value>,
     heap: Vec<TableData>,
+    globals: Vec<Value>,
 }
 
 #[derive(Default)]
@@ -35,6 +37,12 @@ struct TableData {
 }
 
 pub fn exec(ir: &IR) {
+    let mut ctxt = Ctxt::default();
+
+    if let Some(i) = ir.globals.iter().position(|x| x == "print") {
+        ctxt.globals[i] = Value::NativeFn(0);
+    }
+
     for st in &ir.fns[ir.main_fn].body {
         use Statement::*;
         match st {

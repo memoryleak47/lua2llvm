@@ -78,4 +78,5 @@ pub struct LitFunction {
 pub struct IR {
     pub fns: Vec<LitFunction>,
     pub main_fn: FnId,
+    pub globals: Vec<String>,
 }
