@@ -74,7 +74,17 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
         Expr::LValue(LValue::Global(gid)) => ctxt.globals[*gid].clone(),
         Expr::LValue(_) => todo!(),
         Expr::Argtable => Value::TablePtr(ctxt.argtable),
-        Expr::FnCall(n1, n2) => todo!(),
+        Expr::FnCall(f, argt) => {
+            let f = ctxt.nodes[*f].clone();
+            let argt = ctxt.nodes[*argt].clone();
+
+            let Value::TablePtr(argt) = argt else { panic!("function called with non-table argtable!") };
+            match f {
+                Value::LuaFn(f_id) => exec_fn(f_id, argt, ctxt),
+                Value::NativeFn(i) => Value::TablePtr((NATIVE_FNS[i])(argt, ctxt)),
+                _ => panic!("trying to execute non-function value!"),
+            }
+        },
         Expr::NewTable => {
             let i = ctxt.heap.len();
             ctxt.heap.push(TableData::default());
@@ -91,7 +101,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     }
 }
 
-fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) {
+fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> Value {
     let mut locals = Vec::new();
     let mut nodes = Vec::new();
 
@@ -118,7 +128,8 @@ fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) {
                     Global(gid) => { ctxt.globals[*gid] = val; },
                     Index(t, idx) => {
                         let idx = ctxt.nodes[*idx].clone();
-                        table_set(*t, idx, val, ctxt);
+                        let Value::TablePtr(t) = ctxt.nodes[*t].clone() else { panic!("indexing into non-table!") };
+                        table_set(t, idx, val, ctxt);
                     },
                     Upvalue(fnid, lid) => todo!(),
                 }
@@ -133,6 +144,8 @@ fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) {
     std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut argtable, &mut ctxt.argtable);
+
+    Value::Nil // TODO
 }
 
 pub fn exec(ir: &IR) {
@@ -156,5 +169,3 @@ pub fn exec(ir: &IR) {
 
     exec_fn(ir.main_fn, argtable, &mut ctxt);
 }
-
-
