@@ -58,19 +58,20 @@ struct TableData {
 }
 
 fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
-    use Expr::*;
     match expr {
-        LValue(l) => todo!(),
-        Argtable => todo!(),
-        FnCall(n1, n2) => todo!(),
-        NewTable => todo!(),
-        LitFunction(fnid) => todo!(),
-        BinOp(kind, l, r) => todo!(),
-        UnOp(kind, r) => todo!(),
-        Num(x) => Value::Num(*x),
-        Bool(b) => Value::Bool(*b),
-        Nil => Value::Nil,
-        Str(s) => Value::Str(s.clone()),
+        Expr::LValue(LValue::Local(lid)) => ctxt.locals[*lid].clone(),
+        Expr::LValue(LValue::Global(gid)) => ctxt.globals[*gid].clone(),
+        Expr::LValue(_) => todo!(),
+        Expr::Argtable => todo!(),
+        Expr::FnCall(n1, n2) => todo!(),
+        Expr::NewTable => todo!(),
+        Expr::LitFunction(fnid) => todo!(),
+        Expr::BinOp(kind, l, r) => todo!(),
+        Expr::UnOp(kind, r) => todo!(),
+        Expr::Num(x) => Value::Num(*x),
+        Expr::Bool(b) => Value::Bool(*b),
+        Expr::Nil => Value::Nil,
+        Expr::Str(s) => Value::Str(s.clone()),
     }
 }
 
@@ -88,7 +89,7 @@ pub fn exec(ir: &IR) {
             Local(lid) => todo!(),
             Compute(n, expr) => {
                 let val = exec_expr(expr, &mut ctxt);
-                while ctxt.nodes.len() < *n {
+                while ctxt.nodes.len() < *n+1 {
                     ctxt.nodes.push(Value::Nil);
                 }
                 ctxt.nodes[*n] = val;
