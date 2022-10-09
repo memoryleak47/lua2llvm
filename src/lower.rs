@@ -226,7 +226,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
 
     // this dummy allows us to have a fixed id before lowering of this fn is done.
     // this is necessary eg. for closuring.
-    let dummy_lit_fn = LitFunction { body: Vec::new(), local_count: 0 };
+    let dummy_lit_fn = LitFunction { body: Vec::new(), };
     ctxt.ir.fns.push(dummy_lit_fn);
 
     let mut current_fn = fid;
@@ -279,8 +279,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
 
     ctxt.ir.fns[fid] = LitFunction {
-        body,
-        local_count: locals.len(),
+        body
     };
 
     fid

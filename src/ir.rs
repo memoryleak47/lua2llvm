@@ -72,10 +72,7 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub struct LitFunction {
-    pub body: Vec<Statement>,
-
-    // number of local variables
-    pub local_count: usize,
+    pub body: Vec<Statement>
 }
 
 #[derive(Debug, Default)]
