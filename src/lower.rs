@@ -11,7 +11,7 @@ struct Ctxt {
 
     // the Vec<> is pushed() & popped() for blocks, NOT functions.
     locals: Vec<HashMap<String, LocalId>>,
-    upvalue_candidates: HashMap<String, (FnId, LocalId)>,
+    upvalues: HashMap<String, (FnId, LocalId)>,
     globals: HashMap<String, GlobalId>,
 
     // this is intended to be std::mem::swap'ped out, when needed.
@@ -64,9 +64,39 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> Node {
 
 fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
     match lvalue {
-        LValue::Var(s) => todo!(),
-        LValue::Dot(expr, field) => todo!(),
-        LValue::Index(t, i) => todo!(),
+        LValue::Var(s) => {
+            for loc in ctxt.locals.iter().rev() {
+                if let Some(lid) = loc.get(s) {
+                    return ir::LValue::Local(*lid);
+                }
+            }
+            if let Some((fid, lid)) = ctxt.upvalues.get(s) {
+                return ir::LValue::Upvalue(*fid, *lid);
+            }
+            if let Some(gid) = ctxt.globals.get(s) {
+                return ir::LValue::Global(*gid);
+            } else {
+                let free_gid = match ctxt.globals.values().max() {
+                    Some(max) => max+1,
+                    None => 0,
+                };
+                ctxt.globals.insert(s.clone(), free_gid);
+                return ir::LValue::Global(free_gid);
+            }
+        },
+        LValue::Dot(expr, field) => {
+            let l = lower_expr(expr, ctxt);
+            let field_expr = Expr::Literal(Literal::Str(field.clone()));
+            let r = lower_expr(&field_expr, ctxt);
+
+            ir::LValue::Index(l, r)
+        },
+        LValue::Index(l, r) => {
+            let l = lower_expr(l, ctxt);
+            let r = lower_expr(r, ctxt);
+
+            ir::LValue::Index(l, r)
+        },
     }
 }
 

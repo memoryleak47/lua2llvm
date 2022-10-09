@@ -33,7 +33,7 @@ pub enum LValue {
     // local variables from some outer function
     Upvalue(FnId, LocalId),
 
-    GlobalVar(GlobalId),
+    Global(GlobalId),
 
     // both table and idx will be evaluated to a Value, left-side needs to be Value::TablePtr.
     Index(/*table: */ Node, /*idx: */ Node),
@@ -41,6 +41,9 @@ pub enum LValue {
 
 #[derive(Debug)]
 pub enum Statement {
+    // if you closure a local variable, it's relevant where the "local" lies, (i.e. in or out of a given loop)
+    // because each further "local" call creates a fresh object.
+    Local(LocalId),
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
     Store(LValue, Node), // store the value from the Node in the LValue
     FnCall(/*func: */ Node, /* input-table: */ Node),
