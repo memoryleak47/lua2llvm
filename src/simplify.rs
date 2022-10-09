@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::ast::*;
 
 // simplify attempts to:

@@ -15,7 +15,9 @@ mod simplify;
 use simplify::simplify;
 
 mod ir;
-use ir::IR;
+
+mod lower;
+use lower::lower;
 
 // TODO
 // mod compile;
@@ -24,6 +26,7 @@ use ir::IR;
 enum Mode {
     Exec,
     Simp,
+    Lower,
 }
 
 fn default_mode() -> Mode { Mode::Simp }
@@ -37,6 +40,7 @@ fn cli() -> Option<(Mode, /*filename: */ String)> {
     let mode = match &argsref[..] {
         ["exec"] => Mode::Exec,
         ["simp"] => Mode::Simp,
+        ["lower"] => Mode::Lower,
         [] => default_mode(),
         _ => return None,
     };
@@ -46,7 +50,7 @@ fn cli() -> Option<(Mode, /*filename: */ String)> {
 
 fn usage() {
     println!("usage: lua2llvm [<mode>] <filename>");
-    println!("mode ::= simp | exec");
+    println!("mode ::= simp | exec | lower");
 }
 
 fn main() {
@@ -57,10 +61,19 @@ fn main() {
 
     let code = std::fs::read_to_string(filename).unwrap();
     let tokens = token::tokenize(&code);
-    let mut ast = parse::parse(&tokens).expect("Ast::parse failed!");
+    let ast = parse::parse(&tokens).expect("Ast::parse failed!");
 
-    if let Mode::Simp = mode {
-        ast = simplify(&ast);
+    match mode {
+        Mode::Simp => {
+            let ast = simplify(&ast);
+            exec(&ast);
+        },
+        Mode::Exec => {
+            exec(&ast);
+        },
+        Mode::Lower => {
+            let ir = lower(&ast);
+            dbg!(ir);
+        },
     }
-    exec(&ast);
 }
