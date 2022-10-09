@@ -25,7 +25,7 @@ pub type GlobalId = usize;
 pub type FnId = usize;
 
 // for mutable storage space
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LValue {
     // literally variables created with the "local" keyword in this fn
     Local(LocalId),

@@ -29,7 +29,7 @@ enum Mode {
     Lower,
 }
 
-fn default_mode() -> Mode { Mode::Simp }
+fn default_mode() -> Mode { Mode::Lower }
 
 fn cli() -> Option<(Mode, /*filename: */ String)> {
     let mut args: Vec<String> = std::env::args()

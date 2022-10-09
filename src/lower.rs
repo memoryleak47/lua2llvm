@@ -152,17 +152,49 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
     for st in statements {
         match st {
             Statement::Assign(lvalues, exprs) => {
-                todo!()
+                let lvalues: Vec<_> = lvalues.iter()
+                                             .map(|lval| lower_lvalue(lval, ctxt))
+                                             .collect();
+                let mut exprs: Vec<Expr> = exprs.clone();
+                let last = exprs.pop().unwrap();
+
+                // non-tabled rhs nodes
+                let mut rnodes: Vec<Node> = exprs.iter()
+                                 .map(|x| lower_expr1(x, ctxt))
+                                 .collect();
+                let (last, tabled) = lower_expr(&last, ctxt);
+                if !tabled {
+                    rnodes.push(last);
+                }
+                for (l, r) in lvalues.iter().zip(rnodes.iter()) {
+                    push_st(ir::Statement::Store(l.clone(), *r), ctxt);
+                }
+                let min = rnodes.len();
+                let max = lvalues.len();
+                for i in min..max {
+                    let expr = if tabled {
+                        let i = i - min + 1; // starting at 1
+                        let x = mk_compute(ir::Expr::Num(i as f64), ctxt);
+                        let x = ir::Expr::LValue(ir::LValue::Index(last, x));
+
+                        x
+                    } else {
+                        ir::Expr::Nil
+                    };
+                    let r = mk_compute(expr, ctxt);
+                    let l = lvalues[i].clone();
+                    push_st(ir::Statement::Store(l, r), ctxt);
+                }
             },
+            Statement::Local(_vars, _rhs) => todo!(),
+            Statement::FunctionCall(call) => todo!(),
             _ => todo!(),
     /*
-            Statement::FunctionCall(FunctionCall) => todo!(),
             Statement::While(Expr, /*body: */ Vec<Statement>) => todo!(),
             Statement::Repeat(/*body: */ Vec<Statement>, Expr) => todo!(),
             Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>) => todo!(),
-            Statement::Local(/*vars: */ Vec<String>, /*rhs: */ Vec<Expr>) => todo!(),
             Statement::Return(Vec<Expr>) => todo!(),
             Statement::Block(Vec<Statement>) => todo!(),
             Statement::Break => todo!(),
