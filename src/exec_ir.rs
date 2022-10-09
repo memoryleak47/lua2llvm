@@ -51,12 +51,15 @@ enum Value {
     Num(f64),
 }
 
-#[derive(Default)]
-struct Ctxt {
-    locals: Vec<Value>,
-    nodes: Vec<Value>,
+struct Ctxt<'ir> {
     heap: Vec<TableData>,
     globals: Vec<Value>,
+    ir: &'ir IR,
+
+    // function-local:
+    argtable: TablePtr,
+    locals: Vec<Value>,
+    nodes: Vec<Value>,
 }
 
 #[derive(Default)]
@@ -70,7 +73,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
         Expr::LValue(LValue::Local(lid)) => ctxt.locals[*lid].clone(),
         Expr::LValue(LValue::Global(gid)) => ctxt.globals[*gid].clone(),
         Expr::LValue(_) => todo!(),
-        Expr::Argtable => todo!(),
+        Expr::Argtable => Value::TablePtr(ctxt.argtable),
         Expr::FnCall(n1, n2) => todo!(),
         Expr::NewTable => {
             let i = ctxt.heap.len();
@@ -88,20 +91,20 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     }
 }
 
-pub fn exec(ir: &IR) {
-    let mut ctxt = Ctxt::default();
-    ctxt.globals = vec![Value::Nil; ir.globals.len()];
+fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) {
+    let mut locals = Vec::new();
+    let mut nodes = Vec::new();
 
-    if let Some(i) = ir.globals.iter().position(|x| x == "print") {
-        ctxt.globals[i] = Value::NativeFn(0);
-    }
+    std::mem::swap(&mut locals, &mut ctxt.locals);
+    std::mem::swap(&mut nodes, &mut ctxt.nodes);
+    std::mem::swap(&mut argtable, &mut ctxt.argtable);
 
-    for st in &ir.fns[ir.main_fn].body {
+    for st in &ctxt.ir.fns[f].body {
         use Statement::*;
         match st {
             Local(lid) => todo!(),
             Compute(n, expr) => {
-                let val = exec_expr(expr, &mut ctxt);
+                let val = exec_expr(expr, ctxt);
                 while ctxt.nodes.len() < *n+1 {
                     ctxt.nodes.push(Value::Nil);
                 }
@@ -115,7 +118,7 @@ pub fn exec(ir: &IR) {
                     Global(gid) => { ctxt.globals[*gid] = val; },
                     Index(t, idx) => {
                         let idx = ctxt.nodes[*idx].clone();
-                        table_set(*t, idx, val, &mut ctxt);
+                        table_set(*t, idx, val, ctxt);
                     },
                     Upvalue(fnid, lid) => todo!(),
                 }
@@ -126,6 +129,32 @@ pub fn exec(ir: &IR) {
             Break => todo!(),
         }
     }
+
+    std::mem::swap(&mut locals, &mut ctxt.locals);
+    std::mem::swap(&mut nodes, &mut ctxt.nodes);
+    std::mem::swap(&mut argtable, &mut ctxt.argtable);
+}
+
+pub fn exec(ir: &IR) {
+    let mut ctxt = Ctxt {
+        heap: Vec::new(),
+        globals: vec![Value::Nil; ir.globals.len()],
+        ir,
+        argtable: 0,
+        locals: Vec::new(),
+        nodes: Vec::new(),
+    };
+
+    if let Some(i) = ir.globals.iter().position(|x| x == "print") {
+        ctxt.globals[i] = Value::NativeFn(0);
+    }
+
+    let argtable = ctxt.heap.len();
+    let pair = (Value::Num(0.0), Value::Num(0.0));
+    let data = TableData { entries: vec![pair], length: 1 };
+    ctxt.heap.push(data);
+
+    exec_fn(ir.main_fn, argtable, &mut ctxt);
 }
 
 
