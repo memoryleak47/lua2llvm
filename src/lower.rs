@@ -200,6 +200,34 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table
     }
 }
 
+fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
+    let kind = match kind {
+        BinOpKind::Plus => ir::BinOpKind::Plus,
+        BinOpKind::Minus => ir::BinOpKind::Minus,
+        BinOpKind::Mul => ir::BinOpKind::Mul,
+        BinOpKind::Div => ir::BinOpKind::Div,
+        BinOpKind::Mod => ir::BinOpKind::Mod,
+        BinOpKind::Lt => ir::BinOpKind::Lt,
+        BinOpKind::Le => ir::BinOpKind::Le,
+        BinOpKind::Gt => ir::BinOpKind::Gt,
+        BinOpKind::Ge => ir::BinOpKind::Ge,
+        BinOpKind::IsEqual => ir::BinOpKind::IsEqual,
+        BinOpKind::IsNotEqual => ir::BinOpKind::IsNotEqual,
+        BinOpKind::Concat => ir::BinOpKind::Concat,
+        BinOpKind::Pow => ir::BinOpKind::Pow,
+
+        // TODO convert to if!
+        BinOpKind::And => todo!(),
+        BinOpKind::Or => todo!(),
+    };
+
+    let l = lower_expr1(l, ctxt);
+    let r = lower_expr1(r, ctxt);
+    let x = ir::Expr::BinOp(kind, l, r);
+
+    mk_compute(x, ctxt)
+}
+
 // "tabled" is true for function calls and ellipsis expressions.
 // which return tables after transforming them.
 fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
@@ -223,8 +251,13 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
 
             mk_compute(x, ctxt)
         },
-        Expr::BinOp(_kind, _l, _r) => todo!(),
-        Expr::UnOp(_kind, _r) => todo!(),
+        Expr::BinOp(kind, l, r) => lower_binop(kind, l, r, ctxt),
+        Expr::UnOp(kind, r) => {
+            let x = lower_expr1(r, ctxt);
+            let x = ir::Expr::UnOp(*kind, x);
+
+            mk_compute(x, ctxt)
+        },
         Expr::FunctionCall(call) => {
             tabled = true;
 

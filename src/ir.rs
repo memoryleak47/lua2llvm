@@ -1,4 +1,4 @@
-use crate::ast::UnOpKind;
+pub use crate::ast::UnOpKind;
 
 // the same as ast::BinOpKind but without And & Or.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,7 +61,7 @@ pub enum Expr {
     NewTable, // equivalent to {}
     LitFunction(FnId),
     BinOp(BinOpKind, Node, Node),
-    UnOp(UnOpKind, Node, Node),
+    UnOp(UnOpKind, Node),
 
     // literals
     Num(f64),
