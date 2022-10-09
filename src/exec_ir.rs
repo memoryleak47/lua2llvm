@@ -18,10 +18,7 @@ fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
         Value::Num(x) => println!("{}", x),
     }
 
-    // return empty table
-    let ptr = ctxt.heap.len();
-    ctxt.heap.push(TableData::default());
-    ptr
+    alloc_table(ctxt)
 }
 
 fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
@@ -86,18 +83,15 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             let argt = ctxt.nodes[*argt].clone();
 
             let Value::TablePtr(argt) = argt else { panic!("function called with non-table argtable!") };
-            match f {
+            let retptr = match f {
                 Value::LuaFn(f_id) => exec_fn(f_id, argt, ctxt),
-                Value::NativeFn(i) => Value::TablePtr((NATIVE_FNS[i])(argt, ctxt)),
+                Value::NativeFn(i) => (NATIVE_FNS[i])(argt, ctxt),
                 _ => panic!("trying to execute non-function value!"),
-            }
-        },
-        Expr::NewTable => {
-            let i = ctxt.heap.len();
-            ctxt.heap.push(TableData::default());
+            };
 
-            Value::TablePtr(i)
+            Value::TablePtr(retptr)
         },
+        Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
         Expr::LitFunction(fnid) => Value::LuaFn(*fnid),
         Expr::BinOp(kind, l, r) => {
             let l = ctxt.nodes[*l].clone();
@@ -155,9 +149,11 @@ fn truthy(v: &Value) -> bool {
     !matches!(v, Value::Bool(false) | Value::Nil)
 }
 
-fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> Value {
+fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     let mut locals = Vec::new();
     let mut nodes = Vec::new();
+
+    let mut opt_retptr: Option<TablePtr> = None;
 
     std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
@@ -204,7 +200,18 @@ fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> Value {
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut argtable, &mut ctxt.argtable);
 
-    Value::Nil // TODO
+    if let Some(retptr) = opt_retptr {
+        return retptr;
+    } else {
+        alloc_table(ctxt)
+    }
+}
+
+fn alloc_table(ctxt: &mut Ctxt) -> TablePtr {
+    let tid = ctxt.heap.len();
+    ctxt.heap.push(Default::default());
+
+    tid
 }
 
 pub fn exec(ir: &IR) {
@@ -221,10 +228,8 @@ pub fn exec(ir: &IR) {
         ctxt.globals[i] = Value::NativeFn(0);
     }
 
-    let argtable = ctxt.heap.len();
-    let pair = (Value::Num(0.0), Value::Num(0.0));
-    let data = TableData { entries: vec![pair], length: 1 };
-    ctxt.heap.push(data);
+    let argtable = alloc_table(&mut ctxt);
+    table_set(argtable, Value::Num(0.0), Value::Num(0.0), &mut ctxt);
 
     exec_fn(ir.main_fn, argtable, &mut ctxt);
 }
