@@ -435,6 +435,9 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 let t = table_wrap_exprlist(exprs, ctxt);
                 push_st(ir::Statement::ReturnTable(t), ctxt);
             },
+            Statement::Break => {
+                push_st(ir::Statement::Break, ctxt);
+            }
             _ => todo!(),
     /*
             Statement::While(Expr, /*body: */ Vec<Statement>) => todo!(),
@@ -443,7 +446,6 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>) => todo!(),
             Statement::Block(Vec<Statement>) => todo!(),
-            Statement::Break => todo!(),
     */
         }
     }
