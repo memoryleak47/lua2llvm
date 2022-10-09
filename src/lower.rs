@@ -150,7 +150,6 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
     }
 }
 
-// will only calc length if it ends in a Field::Expr.
 fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table: */ Node, /*length-node: */ Option<Node>) {
     let t = mk_compute(ir::Expr::NewTable, ctxt);
 
@@ -162,9 +161,8 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table
                     let opt = push_last_table_expr(t, counter, expr, calc_length, ctxt);
                     return (t, opt);
                 } else {
-                    let idx = Literal::Num(counter as f64);
-                    let idx = Expr::Literal(idx);
-                    let idx = lower_expr1(&idx, ctxt);
+                    let idx = ir::Expr::Num(counter as f64);
+                    let idx = mk_compute(idx, ctxt);
 
                     counter += 1;
                     let lval = ir::LValue::Index(t, idx);
@@ -173,9 +171,8 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table
                 }
             },
             Field::NameToExpr(name, expr) => {
-                let idx = Literal::Str(name.clone());
-                let idx = Expr::Literal(idx);
-                let idx = lower_expr1(&idx, ctxt);
+                let idx = ir::Expr::Str(name.clone());
+                let idx = mk_compute(idx, ctxt);
 
                 let val = lower_expr1(expr, ctxt);
 
@@ -192,7 +189,15 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table
         }
     }
 
-    (t, None)
+    if calc_length {
+        assert_eq!(fields.len(), 0);
+
+        let len = ir::Expr::Num(0.0);
+        let len = mk_compute(len, ctxt);
+        (t, Some(len))
+    } else {
+        (t, None)
+    }
 }
 
 // "tabled" is true for function calls and ellipsis expressions.
