@@ -1,4 +1,4 @@
-use crate::ir::{FnId, IR, Statement};
+use crate::ir::{FnId, IR, Statement, Expr, LValue};
 
 type TablePtr = usize;
 
@@ -57,8 +57,26 @@ struct TableData {
     length: usize,
 }
 
+fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
+    use Expr::*;
+    match expr {
+        LValue(l) => todo!(),
+        Argtable => todo!(),
+        FnCall(n1, n2) => todo!(),
+        NewTable => todo!(),
+        LitFunction(fnid) => todo!(),
+        BinOp(kind, l, r) => todo!(),
+        UnOp(kind, r) => todo!(),
+        Num(x) => Value::Num(*x),
+        Bool(b) => Value::Bool(*b),
+        Nil => Value::Nil,
+        Str(s) => Value::Str(s.clone()),
+    }
+}
+
 pub fn exec(ir: &IR) {
     let mut ctxt = Ctxt::default();
+    ctxt.globals = vec![Value::Nil; ir.globals.len()];
 
     if let Some(i) = ir.globals.iter().position(|x| x == "print") {
         ctxt.globals[i] = Value::NativeFn(0);
@@ -68,8 +86,23 @@ pub fn exec(ir: &IR) {
         use Statement::*;
         match st {
             Local(lid) => todo!(),
-            Compute(n, expr) => todo!(),
-            Store(lval, n) => todo!(),
+            Compute(n, expr) => {
+                let val = exec_expr(expr, &mut ctxt);
+                while ctxt.nodes.len() < *n {
+                    ctxt.nodes.push(Value::Nil);
+                }
+                ctxt.nodes[*n] = val;
+            }
+            Store(lval, n) => {
+                use LValue::*;
+                let val = ctxt.nodes[*n].clone();
+                match lval {
+                    Local(lid) => { ctxt.locals[*lid] = val; },
+                    Global(gid) => { ctxt.globals[*gid] = val; },
+                    Index(t, idx) => todo!(),
+                    Upvalue(fnid, lid) => todo!(),
+                }
+            },
             ReturnTable(n) => todo!(),
             If(n, then, els) => todo!(),
             Loop(body) => todo!(),
