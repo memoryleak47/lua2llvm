@@ -191,8 +191,29 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 let Value::TablePtr(t) = t else { panic!("returning non-table!") };
                 return ControlFlow::ReturnTable(t);
             },
-            If(n, then, els) => todo!(),
-            Loop(body) => todo!(),
+            If(cond, then_body, else_body) => {
+                let cond = ctxt.nodes[*cond].clone();
+                if truthy(&cond) {
+                    match exec_body(then_body, ctxt) {
+                        ControlFlow::End => {},
+                        x => return x,
+                    }
+                } else {
+                    match exec_body(else_body, ctxt) {
+                        ControlFlow::End => {},
+                        x => return x,
+                    }
+                }
+            },
+            Loop(body) => {
+                loop {
+                    match exec_body(body, ctxt) {
+                        ControlFlow::Break => break,
+                        ControlFlow::End => {},
+                        ret@ControlFlow::ReturnTable(_) => return ret,
+                    }
+                }
+            },
             Break => return ControlFlow::Break,
         }
     }
