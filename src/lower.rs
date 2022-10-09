@@ -62,7 +62,30 @@ fn lower_table(fields: &[Field], ctxt: &mut Ctxt) -> Node {
     for (i, f) in fields.iter().enumerate() {
         match f {
             Field::Expr(expr) => {
-                todo!()
+                // is Some whenever we have a non-tabled expr coming up.
+                let n: Option<Node> =
+                    if i == fields.len() - 1 {
+                        let (expr, tabled) = lower_expr(&expr, ctxt);
+                        if tabled {
+                            todo!();
+                            None
+                        } else {
+                            Some(expr)
+                        }
+                    } else {
+                        Some(lower_expr1(&expr, ctxt))
+                    };
+
+                if let Some(val) = n {
+                    let idx = Literal::Num(counter as f64);
+                    let idx = Expr::Literal(idx);
+                    let idx = lower_expr1(&idx, ctxt);
+
+                    counter += 1;
+
+                    let lval = ir::LValue::Index(t, idx);
+                    push_st(ir::Statement::Store(lval, val), ctxt);
+                }
             },
             Field::NameToExpr(name, expr) => {
                 let idx = Literal::Str(name.clone());
