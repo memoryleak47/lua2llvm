@@ -41,8 +41,25 @@ pub fn lower(ast: &Ast) -> IR {
     ir
 }
 
-fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> Node {
-    match expr {
+// same as lower_expr, but does _[1] for "tabled = true" automatically.
+fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
+    let (n, tabled) = lower_expr(expr, ctxt);
+    if tabled {
+        let x = mk_compute(ir::Expr::Num(1.0), ctxt);
+        let x = ir::Expr::LValue(ir::LValue::Index(n, x));
+        let x = mk_compute(x, ctxt);
+
+        x
+    } else {
+        n
+    }
+}
+
+// "tabled" is true for function calls and ellipsis expressions.
+// which return tables after transforming them.
+fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
+    let mut tabled = false;
+    let node = match expr {
         Expr::Ellipsis => todo!(),
         Expr::Literal(Literal::Function(args, variadic, body)) => {
             let fid = lower_fn(args, variadic, body, ctxt);
@@ -59,14 +76,19 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> Node {
         },
         Expr::BinOp(_kind, _l, _r) => todo!(),
         Expr::UnOp(_kind, _r) => todo!(),
-        Expr::FunctionCall(_call) => todo!(),
+        Expr::FunctionCall(_call) => {
+            tabled = true;
+            todo!()
+        }
 
         // literals
         Expr::Literal(Literal::Num(i)) => mk_compute(ir::Expr::Num(*i), ctxt),
         Expr::Literal(Literal::Bool(b)) => mk_compute(ir::Expr::Bool(*b), ctxt),
         Expr::Literal(Literal::Str(s)) => mk_compute(ir::Expr::Str(s.clone()), ctxt),
         Expr::Literal(Literal::Nil) => mk_compute(ir::Expr::Nil, ctxt),
-    }
+    };
+
+    (node, tabled)
 }
 
 fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
@@ -92,15 +114,15 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
             }
         },
         LValue::Dot(expr, field) => {
-            let l = lower_expr(expr, ctxt);
+            let l = lower_expr1(expr, ctxt);
             let field_expr = Expr::Literal(Literal::Str(field.clone()));
-            let r = lower_expr(&field_expr, ctxt);
+            let r = lower_expr1(&field_expr, ctxt);
 
             ir::LValue::Index(l, r)
         },
         LValue::Index(l, r) => {
-            let l = lower_expr(l, ctxt);
-            let r = lower_expr(r, ctxt);
+            let l = lower_expr1(l, ctxt);
+            let r = lower_expr1(r, ctxt);
 
             ir::LValue::Index(l, r)
         },
