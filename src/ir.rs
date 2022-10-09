@@ -46,7 +46,6 @@ pub enum Statement {
     Local(LocalId),
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
     Store(LValue, Node), // store the value from the Node in the LValue
-    FnCall(/*func: */ Node, /* input-table: */ Node),
     ReturnTable(Node), // Node needs to be a table
     If(Node, /*then*/ Vec<Statement>, /*else*/ Vec<Statement>),
     Loop(Vec<Statement>), // loops until a break happens
