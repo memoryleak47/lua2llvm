@@ -55,35 +55,41 @@ fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
     }
 }
 
-fn lower_table(fields: &[Field], ctxt: &mut Ctxt) -> Node {
+// pushes expr to the table as the last element of a table constructor.
+fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, ctxt: &mut Ctxt) -> /*length-expr:*/ ir::Expr {
+    let (val, tabled) = lower_expr(expr, ctxt);
+    if tabled {
+        todo!()
+    } else {
+        let idx = Literal::Num(counter as f64);
+        let idx = Expr::Literal(idx);
+        let idx = lower_expr1(&idx, ctxt);
+
+        let lval = ir::LValue::Index(t, idx);
+        push_st(ir::Statement::Store(lval, val), ctxt);
+
+        ir::Expr::Num(counter as f64)
+    }
+}
+
+fn lower_table(fields: &[Field], ctxt: &mut Ctxt) -> (/*table: */ Node, /*length-expr: */ Option<ir::Expr>) {
     let t = mk_compute(ir::Expr::NewTable, ctxt);
 
     let mut counter = 1; // the next Field::Expr id.
     for (i, f) in fields.iter().enumerate() {
         match f {
             Field::Expr(expr) => {
-                // is Some whenever we have a non-tabled expr coming up.
-                let n: Option<Node> =
-                    if i == fields.len() - 1 {
-                        let (expr, tabled) = lower_expr(&expr, ctxt);
-                        if tabled {
-                            todo!();
-                            None
-                        } else {
-                            Some(expr)
-                        }
-                    } else {
-                        Some(lower_expr1(&expr, ctxt))
-                    };
-
-                if let Some(val) = n {
+                if i == fields.len() - 1 {
+                    let len = push_last_table_expr(t, counter, expr, ctxt);
+                    return (t, Some(len));
+                } else {
                     let idx = Literal::Num(counter as f64);
                     let idx = Expr::Literal(idx);
                     let idx = lower_expr1(&idx, ctxt);
 
                     counter += 1;
-
                     let lval = ir::LValue::Index(t, idx);
+                    let val = lower_expr1(&expr, ctxt);
                     push_st(ir::Statement::Store(lval, val), ctxt);
                 }
             },
@@ -107,7 +113,7 @@ fn lower_table(fields: &[Field], ctxt: &mut Ctxt) -> Node {
         }
     }
 
-    t
+    (t, None)
 }
 
 // "tabled" is true for function calls and ellipsis expressions.
@@ -122,7 +128,11 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
 
             mk_compute(x, ctxt)
         },
-        Expr::Literal(Literal::Table(fields)) => lower_table(fields, ctxt),
+        Expr::Literal(Literal::Table(fields)) => {
+            let (t, _) = lower_table(fields, ctxt);
+
+            t
+        },
         Expr::LValue(lval) => {
             let x = lower_lvalue(lval, ctxt);
             let x = ir::Expr::LValue(x);
@@ -263,8 +273,21 @@ fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
 // should return a table from the expressions.
 // table[0] should be the length of this table.
 fn table_wrap_exprlist(exprs: &[Expr], ctxt: &mut Ctxt) -> Node {
-    // should not call lower_table. It's too different.
-    todo!()
+    let fields: Vec<_> = exprs.iter()
+                      .cloned()
+                      .map(Field::Expr)
+                      .collect();
+    let (t, len) = lower_table(&fields, ctxt);
+    let len = len.unwrap();
+    let idx = Literal::Num(0 as f64);
+    let idx = Expr::Literal(idx);
+    let idx = lower_expr1(&idx, ctxt);
+
+    let lval = ir::LValue::Index(t, idx);
+    let len = mk_compute(len, ctxt);
+    push_st(ir::Statement::Store(lval, len), ctxt);
+
+    t
 }
 
 fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
