@@ -148,6 +148,39 @@ fn declare_local(name: String, ctxt: &mut Ctxt) -> LocalId {
     free_lid
 }
 
+fn lower_assign(lvalues: &[ir::LValue], exprs: &[Expr], ctxt: &mut Ctxt) {
+    let mut exprs: Vec<Expr> = exprs.to_vec();
+    let last = exprs.pop().unwrap();
+
+    // non-tabled rhs nodes
+    let mut rnodes: Vec<Node> = exprs.iter()
+                     .map(|x| lower_expr1(x, ctxt))
+                     .collect();
+    let (last, tabled) = lower_expr(&last, ctxt);
+    if !tabled {
+        rnodes.push(last);
+    }
+    for (l, r) in lvalues.iter().zip(rnodes.iter()) {
+        push_st(ir::Statement::Store(l.clone(), *r), ctxt);
+    }
+    let min = rnodes.len();
+    let max = lvalues.len();
+    for i in min..max {
+        let expr = if tabled {
+            let i = i - min + 1; // starting at 1
+            let x = mk_compute(ir::Expr::Num(i as f64), ctxt);
+            let x = ir::Expr::LValue(ir::LValue::Index(last, x));
+
+            x
+        } else {
+            ir::Expr::Nil
+        };
+        let r = mk_compute(expr, ctxt);
+        let l = lvalues[i].clone();
+        push_st(ir::Statement::Store(l, r), ctxt);
+    }
+}
+
 fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
     for st in statements {
         match st {
@@ -155,38 +188,15 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 let lvalues: Vec<_> = lvalues.iter()
                                              .map(|lval| lower_lvalue(lval, ctxt))
                                              .collect();
-                let mut exprs: Vec<Expr> = exprs.clone();
-                let last = exprs.pop().unwrap();
-
-                // non-tabled rhs nodes
-                let mut rnodes: Vec<Node> = exprs.iter()
-                                 .map(|x| lower_expr1(x, ctxt))
-                                 .collect();
-                let (last, tabled) = lower_expr(&last, ctxt);
-                if !tabled {
-                    rnodes.push(last);
-                }
-                for (l, r) in lvalues.iter().zip(rnodes.iter()) {
-                    push_st(ir::Statement::Store(l.clone(), *r), ctxt);
-                }
-                let min = rnodes.len();
-                let max = lvalues.len();
-                for i in min..max {
-                    let expr = if tabled {
-                        let i = i - min + 1; // starting at 1
-                        let x = mk_compute(ir::Expr::Num(i as f64), ctxt);
-                        let x = ir::Expr::LValue(ir::LValue::Index(last, x));
-
-                        x
-                    } else {
-                        ir::Expr::Nil
-                    };
-                    let r = mk_compute(expr, ctxt);
-                    let l = lvalues[i].clone();
-                    push_st(ir::Statement::Store(l, r), ctxt);
-                }
+                lower_assign(&lvalues, exprs, ctxt);
             },
-            Statement::Local(_vars, _rhs) => todo!(),
+            Statement::Local(vars, exprs) => {
+                let mut lvalues: Vec<_> = vars.iter()
+                                    .map(|x| declare_local(x.clone(), ctxt))
+                                    .map(ir::LValue::Local)
+                                    .collect();
+                lower_assign(&lvalues, exprs, ctxt);
+            },
             Statement::FunctionCall(call) => todo!(),
             _ => todo!(),
     /*
