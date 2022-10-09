@@ -10,7 +10,7 @@ pub enum BinOpKind {
 }
 
 // Node is for temporary constants contained in the computation tree.
-// Nodes are constructed using the Statement::Compute or Statement::FnCall instructions.
+// Nodes are constructed using the Statement::Compute instruction.
 // Each node id has exactly one such associated instruction. 
 // nodes are somewhat like virtual registers %<id> from LLVM IR.
 pub type Node = usize;
@@ -51,15 +51,17 @@ pub enum Statement {
 pub enum Expr {
     LValue(LValue),
     Argtable, // the table where all function arguments are stored in sequentially
-    Num(f64),
-    Bool(bool),
-    Nil,
-    Str(String),
     FnCall(/*func: */ Node, /* input-table: */ Node),
     NewTable, // equivalent to {}
     LitFunction(LitFunction),
     BinOp(BinOpKind, Node, Node),
     UnOp(UnOpKind, Node, Node),
+
+    // literals
+    Num(f64),
+    Bool(bool),
+    Nil,
+    Str(String),
 }
 
 #[derive(Debug)]
