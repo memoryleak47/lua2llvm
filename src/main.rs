@@ -8,8 +8,7 @@ mod token;
 mod ast;
 mod parse;
 
-mod exec;
-pub use exec::exec;
+mod exec_ast;
 
 mod simplify;
 use simplify::simplify;
@@ -18,6 +17,8 @@ mod ir;
 
 mod lower;
 use lower::lower;
+
+mod exec_ir;
 
 // TODO
 // mod compile;
@@ -66,14 +67,14 @@ fn main() {
     match mode {
         Mode::Simp => {
             let ast = simplify(&ast);
-            exec(&ast);
+            exec_ast::exec(&ast);
         },
         Mode::Exec => {
-            exec(&ast);
+            exec_ast::exec(&ast);
         },
         Mode::Lower => {
             let ir = lower(&ast);
-            dbg!(ir);
+            exec_ir::exec(&ir);
         },
     }
 }
