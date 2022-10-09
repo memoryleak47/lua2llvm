@@ -14,24 +14,26 @@ struct Ctxt {
     upvalues: HashMap<String, (FnId, LocalId)>,
     globals: HashMap<String, GlobalId>,
 
+    // the fn whose body we are currently lowering.
+    current_fn: FnId,
+
     // this is intended to be std::mem::swap'ped out, when needed.
-    current_body: Vec<ir::Statement>,
-    node_count: usize,
+    body: Vec<ir::Statement>,
+    next_node: usize,
 }
 
 fn mk_compute(expr: ir::Expr, ctxt: &mut Ctxt) -> Node {
-    let node = ctxt.node_count;
-    ctxt.node_count += 1;
+    let node = ctxt.next_node;
+    ctxt.next_node += 1;
 
-    let st = ir::Statement::Compute(node, expr);
-    ctxt.current_body.push(st);
+    push_st(ir::Statement::Compute(node, expr), ctxt);
 
     node
 }
 
 pub fn lower(ast: &Ast) -> IR {
     let mut ctxt = Ctxt::default();
-    let id = lower_fn(&ast.statements, &mut ctxt);
+    let id = lower_fn(&[], &Variadic::No, &ast.statements, &mut ctxt);
 
     let mut ir = ctxt.ir;
     ir.main_fn = id;
@@ -42,7 +44,12 @@ pub fn lower(ast: &Ast) -> IR {
 fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> Node {
     match expr {
         Expr::Ellipsis => todo!(),
-        Expr::Literal(Literal::Function(_args, _variadic, _body)) => todo!(),
+        Expr::Literal(Literal::Function(args, variadic, body)) => {
+            let fid = lower_fn(args, variadic, body, ctxt);
+            let x = ir::Expr::LitFunction(fid);
+
+            mk_compute(x, ctxt)
+        },
         Expr::Literal(Literal::Table(_fields)) => todo!(),
         Expr::LValue(lval) => {
             let x = lower_lvalue(lval, ctxt);
@@ -100,24 +107,33 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
     }
 }
 
-fn lower_fn(statements: &[Statement], ctxt: &mut Ctxt) -> FnId {
-    let id = ctxt.ir.fns.len();
+fn declare_local(name: String, ctxt: &mut Ctxt) -> LocalId {
+    let optmax: Option<LocalId> = ctxt.locals.iter()
+                    .flat_map(|map| map.values())
+                    .copied()
+                    .max();
+    let free_lid = match optmax {
+        Some(max) => max+1,
+        None => 0,
+    };
+    ctxt.locals
+        .last_mut()
+        .unwrap()
+        .insert(name, free_lid);
 
-    // this dummy allows us to have a fixed id before lowering of this fn is done.
-    // this is necessary eg. for closuring.
-    let dummy_lit_fn = LitFunction { body: Vec::new(), local_count: 0 };
-    ctxt.ir.fns.push(dummy_lit_fn);
+    push_st(ir::Statement::Local(free_lid), ctxt);
 
-    let mut body = Vec::new();
-    std::mem::swap(&mut ctxt.current_body, &mut body);
+    free_lid
+}
 
+fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
     for st in statements {
         match st {
             Statement::Assign(lvalues, exprs) => {
                 todo!()
             },
             _ => todo!(),
-/*
+    /*
             Statement::FunctionCall(FunctionCall) => todo!(),
             Statement::While(Expr, /*body: */ Vec<Statement>) => todo!(),
             Statement::Repeat(/*body: */ Vec<Statement>, Expr) => todo!(),
@@ -128,16 +144,73 @@ fn lower_fn(statements: &[Statement], ctxt: &mut Ctxt) -> FnId {
             Statement::Return(Vec<Expr>) => todo!(),
             Statement::Block(Vec<Statement>) => todo!(),
             Statement::Break => todo!(),
-*/
+    */
+        }
+    }
+}
+
+fn push_st(st: ir::Statement, ctxt: &mut Ctxt) {
+    ctxt.body.push(st);
+}
+
+fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt: &mut Ctxt) -> FnId {
+    let fid = ctxt.ir.fns.len();
+
+    // this dummy allows us to have a fixed id before lowering of this fn is done.
+    // this is necessary eg. for closuring.
+    let dummy_lit_fn = LitFunction { body: Vec::new(), local_count: 0 };
+    ctxt.ir.fns.push(dummy_lit_fn);
+
+    let mut current_fn = fid;
+    let mut locals = Vec::new();
+    let mut body = Vec::new();
+    let mut next_node = 0;
+    let mut upvalues = ctxt.upvalues.clone();
+    for map in &ctxt.locals {
+        for (var, lid) in map.iter() {
+            upvalues.insert(var.clone(), (ctxt.current_fn, *lid));
         }
     }
 
-    std::mem::swap(&mut ctxt.current_body, &mut body);
+    std::mem::swap(&mut ctxt.current_fn, &mut current_fn);
+    std::mem::swap(&mut ctxt.locals, &mut locals);
+    std::mem::swap(&mut ctxt.body, &mut body);
+    std::mem::swap(&mut ctxt.next_node, &mut next_node);
+    std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
 
-    ctxt.ir.fns[id] = LitFunction {
+    {
+        let argtable = mk_compute(ir::Expr::Argtable, ctxt);
+
+        for (i, arg) in args.iter().enumerate() {
+            let lid = declare_local(arg.clone(), ctxt);
+            // lua tables start with 1, not 0.
+            let i = i + 1;
+            let i = ir::Expr::Num(i as f64);
+            let i = mk_compute(i, ctxt);
+            let idx = ir::LValue::Index(argtable, i);
+            let idx = ir::Expr::LValue(idx);
+            let node = mk_compute(idx, ctxt);
+            let lvalue = ir::LValue::Local(lid);
+            push_st(ir::Statement::Store(lvalue, node), ctxt);
+        }
+
+        if *variadic == Variadic::Yes {
+            // TODO evaluate "..." from the rest of the argtable.
+        }
+
+        lower_body(statements, ctxt);
+    }
+
+    std::mem::swap(&mut ctxt.current_fn, &mut current_fn);
+    std::mem::swap(&mut ctxt.locals, &mut locals);
+    std::mem::swap(&mut ctxt.body, &mut body);
+    std::mem::swap(&mut ctxt.next_node, &mut next_node);
+    std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
+
+    ctxt.ir.fns[fid] = LitFunction {
         body,
-        local_count: 0,
+        local_count: locals.len(),
     };
 
-    id
+    fid
 }

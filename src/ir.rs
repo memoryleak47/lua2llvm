@@ -59,7 +59,7 @@ pub enum Expr {
     Argtable, // the table where all function arguments are stored in sequentially
     FnCall(/*func: */ Node, /* input-table: */ Node),
     NewTable, // equivalent to {}
-    LitFunction(LitFunction),
+    LitFunction(FnId),
     BinOp(BinOpKind, Node, Node),
     UnOp(UnOpKind, Node, Node),
 
