@@ -166,7 +166,12 @@ fn exec_fn(f: FnId, mut argtable: TablePtr, ctxt: &mut Ctxt) -> Value {
     for st in &ctxt.ir.fns[f].body {
         use Statement::*;
         match st {
-            Local(lid) => todo!(),
+            Local(lid) => {
+                while ctxt.locals.len() < lid+1 {
+                    ctxt.locals.push(Value::Nil);
+                }
+                ctxt.locals[*lid] = Value::Nil;
+            },
             Compute(n, expr) => {
                 let val = exec_expr(expr, ctxt);
                 while ctxt.nodes.len() < *n+1 {
