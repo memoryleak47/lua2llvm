@@ -18,22 +18,25 @@ pub type Node = usize;
 // a local variable: usable from within the body of it's function.
 pub type LocalId = usize;
 
-// a variable being a local variable in some super function,
-// in whose body this child function was defined.
-pub type ClosureArgId = usize;
+// a global variable.
+pub type GlobalId = usize;
 
-#[derive(Debug)]
-pub enum LocalVar {
-    Local(LocalId), // literally variables created with the "local" keyword in this fn
-    ClosureArg(ClosureArgId), // indexes into closure_args from parent function
-}
+// used to index into IR::fns.
+pub type FnId = usize;
 
 // for mutable storage space
 #[derive(Debug)]
 pub enum LValue {
-    LocalVar(LocalVar),
-    Index(/*table: */ Node, /*idx: */ Node),
+    // literally variables created with the "local" keyword in this fn
+    Local(LocalId),
+
+    // local variables from some outer function
+    Upvalue(FnId, LocalId),
+
+    GlobalVar(GlobalId),
+
     // both table and idx will be evaluated to a Value, left-side needs to be Value::TablePtr.
+    Index(/*table: */ Node, /*idx: */ Node),
 }
 
 #[derive(Debug)]
@@ -66,16 +69,14 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub struct LitFunction {
-    // closure_args[i] needs to be evaluated in the parent function,
-    // and is usable inside the inner function as LocalVar::ClosureArg(i)
-    pub closure_args: Vec<LocalVar>,
     pub body: Vec<Statement>,
 
     // number of local variables
     pub local_count: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct IR {
-    pub main_fn: LitFunction,
+    pub fns: Vec<LitFunction>,
+    pub main_fn: FnId,
 }

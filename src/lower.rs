@@ -3,18 +3,20 @@
 use std::collections::HashMap;
 
 use crate::ast::*;
-use crate::ir::{self, IR, LitFunction, Node};
+use crate::ir::{self, FnId, LocalId, GlobalId, IR, LitFunction, Node};
 
 #[derive(Default)]
 struct Ctxt {
-    locals: HashMap<String, ir::LocalVar>,
+    ir: IR,
+
+    // the Vec<> is pushed() & popped() for blocks, NOT functions.
+    locals: Vec<HashMap<String, LocalId>>,
+    upvalue_candidates: HashMap<String, (FnId, LocalId)>,
+    globals: HashMap<String, GlobalId>,
 
     // this is intended to be std::mem::swap'ped out, when needed.
     current_body: Vec<ir::Statement>,
     node_count: usize,
-
-    // the index corresponds to the LocalId within the main function.
-    globals: Vec<String>,
 }
 
 fn mk_compute(expr: ir::Expr, ctxt: &mut Ctxt) -> Node {
@@ -29,9 +31,12 @@ fn mk_compute(expr: ir::Expr, ctxt: &mut Ctxt) -> Node {
 
 pub fn lower(ast: &Ast) -> IR {
     let mut ctxt = Ctxt::default();
-    let f = lower_fn(&ast.statements, &mut ctxt);
+    let id = lower_fn(&ast.statements, &mut ctxt);
 
-    IR { main_fn: f }
+    let mut ir = ctxt.ir;
+    ir.main_fn = id;
+
+    ir
 }
 
 fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> Node {
@@ -65,7 +70,14 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
     }
 }
 
-fn lower_fn(statements: &[Statement], ctxt: &mut Ctxt) -> LitFunction {
+fn lower_fn(statements: &[Statement], ctxt: &mut Ctxt) -> FnId {
+    let id = ctxt.ir.fns.len();
+
+    // this dummy allows us to have a fixed id before lowering of this fn is done.
+    // this is necessary eg. for closuring.
+    let dummy_lit_fn = LitFunction { body: Vec::new(), local_count: 0 };
+    ctxt.ir.fns.push(dummy_lit_fn);
+
     let mut body = Vec::new();
     std::mem::swap(&mut ctxt.current_body, &mut body);
 
@@ -92,5 +104,10 @@ fn lower_fn(statements: &[Statement], ctxt: &mut Ctxt) -> LitFunction {
 
     std::mem::swap(&mut ctxt.current_body, &mut body);
 
-    LitFunction { closure_args: Vec::new(), body, local_count: 0 }
+    ctxt.ir.fns[id] = LitFunction {
+        body,
+        local_count: 0,
+    };
+
+    id
 }
