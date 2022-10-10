@@ -478,9 +478,25 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             Statement::Break => {
                 push_st(ir::Statement::Break, ctxt);
             }
+            Statement::While(cond, body) => {
+                // in the while-loop there is a new scope!
+                ctxt.locals.push(Default::default());
+
+                let mut b = Vec::new();
+                std::mem::swap(&mut ctxt.body, &mut b);
+
+                let cond = lower_expr1(cond, ctxt);
+                push_st(ir::Statement::If(cond, vec![ir::Statement::Break], vec![]), ctxt);
+
+                lower_body(body, ctxt);
+
+                std::mem::swap(&mut ctxt.body, &mut b);
+                push_st(ir::Statement::Loop(b), ctxt);
+
+                ctxt.locals.pop().unwrap();
+            }
             _ => todo!(),
     /*
-            Statement::While(Expr, /*body: */ Vec<Statement>) => todo!(),
             Statement::Repeat(/*body: */ Vec<Statement>, Expr) => todo!(),
             Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>) => todo!(),
