@@ -215,9 +215,40 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
         BinOpKind::Concat => ir::BinOpKind::Concat,
         BinOpKind::Pow => ir::BinOpKind::Pow,
 
-        // TODO convert to if!
-        BinOpKind::And => todo!(),
-        BinOpKind::Or => todo!(),
+        BinOpKind::And => {
+            let l: Node = lower_expr1(l, ctxt);
+            let v = ir::LValue::Local(mk_local(ctxt));
+            push_st(ir::Statement::Store(v.clone(), l), ctxt);
+
+            let mut if_body = Vec::new();
+            std::mem::swap(&mut ctxt.body, &mut if_body);
+
+            let r: Node = lower_expr1(r, ctxt);
+            push_st(ir::Statement::Store(v.clone(), r), ctxt);
+
+            std::mem::swap(&mut ctxt.body, &mut if_body);
+
+            push_st(ir::Statement::If(l, if_body, Vec::new()), ctxt);
+
+            return mk_compute(ir::Expr::LValue(v),  ctxt);
+        },
+        BinOpKind::Or => {
+            let l: Node = lower_expr1(l, ctxt);
+            let v = ir::LValue::Local(mk_local(ctxt));
+            push_st(ir::Statement::Store(v.clone(), l), ctxt);
+
+            let mut else_body = Vec::new();
+            std::mem::swap(&mut ctxt.body, &mut else_body);
+
+            let r: Node = lower_expr1(r, ctxt);
+            push_st(ir::Statement::Store(v.clone(), r), ctxt);
+
+            std::mem::swap(&mut ctxt.body, &mut else_body);
+
+            push_st(ir::Statement::If(l, Vec::new(), else_body), ctxt);
+
+            return mk_compute(ir::Expr::LValue(v),  ctxt);
+        },
     };
 
     let l = lower_expr1(l, ctxt);
