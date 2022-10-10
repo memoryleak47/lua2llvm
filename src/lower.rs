@@ -486,7 +486,7 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 std::mem::swap(&mut ctxt.body, &mut b);
 
                 let cond = lower_expr1(cond, ctxt);
-                push_st(ir::Statement::If(cond, vec![ir::Statement::Break], vec![]), ctxt);
+                push_st(ir::Statement::If(cond, vec![], vec![ir::Statement::Break]), ctxt);
 
                 lower_body(body, ctxt);
 
