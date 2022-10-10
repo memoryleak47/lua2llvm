@@ -259,6 +259,9 @@ fn alloc_table(ctxt: &mut Ctxt) -> TablePtr {
 }
 
 pub fn exec(ir: &IR) {
+    // temporary print
+    println!("{}", ir);
+
     let mut ctxt = Ctxt {
         heap: Vec::new(),
         globals: vec![Value::Nil; ir.globals.len()],

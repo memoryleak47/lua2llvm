@@ -1,5 +1,7 @@
 pub use crate::ast::UnOpKind;
 
+mod display;
+
 // the same as ast::BinOpKind but without And & Or.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOpKind {
