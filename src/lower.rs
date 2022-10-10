@@ -357,6 +357,19 @@ fn mk_local(ctxt: &mut Ctxt) -> LocalId {
 
 fn lower_assign(lvalues: &[ir::LValue], exprs: &[Expr], ctxt: &mut Ctxt) {
     let mut exprs: Vec<Expr> = exprs.to_vec();
+
+    // if exprs == [], just set everything to Nil!
+    if exprs.is_empty() {
+        let nil = mk_compute(ir::Expr::Nil, ctxt);
+        for l in lvalues {
+            push_st(ir::Statement::Store(l.clone(), nil), ctxt);
+        }
+
+        return;
+    }
+
+    // otherwise, last expr needs to handled differently.
+    // if it's tabled, it needs to be unwrapped!
     let last = exprs.pop().unwrap();
 
     // non-tabled rhs nodes
