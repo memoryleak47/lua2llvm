@@ -8,14 +8,25 @@ type NativeFnId = usize;
 static NATIVE_FNS: [NativeFn; 4] = [print_fn, next_fn, pairs_fn, type_fn];
 
 fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
-    match table_get(t, Value::Num(1.0), ctxt) {
-        Value::Nil => println!("nil"),
-        Value::Bool(b) => println!("{}", b),
-        Value::Str(s) => println!("{}", s),
-        Value::TablePtr(ptr) => println!("table {}", ptr),
-        Value::NativeFn(_) => println!("<native-fn>"),
-        Value::LuaFn(..) => println!("<lua-fn>"),
-        Value::Num(x) => println!("{}", x),
+    let Value::Num(count) = table_get(t, Value::Num(0.0), ctxt) else { panic!("non-numeric table[0]!") };
+    let count = count as usize;
+
+    for i in 0..count {
+        let v = table_get(t, Value::Num((i+1) as f64), ctxt);
+        match v {
+            Value::Nil => print!("nil"),
+            Value::Bool(b) => print!("{}", b),
+            Value::Str(s) => print!("{}", s),
+            Value::TablePtr(ptr) => print!("table {}", ptr),
+            Value::NativeFn(_) => print!("<native-fn>"),
+            Value::LuaFn(..) => print!("<lua-fn>"),
+            Value::Num(x) => print!("{}", x),
+        }
+        if i == count-1 {
+            println!();
+        } else {
+            print!("    ");
+        }
     }
 
     empty(ctxt)
