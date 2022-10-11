@@ -553,7 +553,51 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
                 ctxt.locals.pop().unwrap();
             },
-            Statement::NumericFor(_ident, _start, _stop, _optstep, _body) => todo!(),
+            Statement::NumericFor(ident, start, stop, optstep, body) => {
+                let loc_var = ir::LValue::Local(mk_local(ctxt));
+
+                let n_start = lower_expr1(start, ctxt);
+                push_st(ir::Statement::Store(loc_var.clone(), n_start), ctxt);
+
+                let n_stop = lower_expr1(stop, ctxt);
+                let n_step = match optstep {
+                    Some(x) => lower_expr1(x, ctxt),
+                    None => mk_compute(ir::Expr::Num(1.0), ctxt),
+                };
+
+                // loop:
+
+                let mut b = Vec::new();
+                std::mem::swap(&mut ctxt.body, &mut b);
+
+                // if !(var <= stop): break
+                let n_var = mk_compute(ir::Expr::LValue(loc_var.clone()), ctxt);
+                let cond = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Le, n_var.clone(), n_stop), ctxt);
+                push_st(ir::Statement::If(cond, vec![], vec![ir::Statement::Break]), ctxt);
+
+                // local v = var
+                let v = mk_local(ctxt);
+                let loc_v = ir::LValue::Local(v.clone());
+                let mut map: HashMap<_, _> = Default::default();
+                map.insert(ident.clone(), v.clone());
+                ctxt.locals.push(map);
+
+                push_st(ir::Statement::Store(loc_v, n_var), ctxt);
+
+                // block
+                lower_body(body, ctxt);
+
+                ctxt.locals.pop().unwrap();
+
+                // var = var + step
+                let n_var = mk_compute(ir::Expr::LValue(loc_var.clone()), ctxt);
+                let sum = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Plus, n_var, n_step), ctxt);
+                push_st(ir::Statement::Store(loc_var, sum), ctxt);
+
+                std::mem::swap(&mut ctxt.body, &mut b);
+                push_st(ir::Statement::Loop(b), ctxt);
+
+            },
             Statement::GenericFor(_idents, _exprs, _body) => todo!(),
         }
     }
