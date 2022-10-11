@@ -570,10 +570,29 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 let mut b = Vec::new();
                 std::mem::swap(&mut ctxt.body, &mut b);
 
-                // if !(var <= stop): break
                 let n_var = mk_compute(ir::Expr::LValue(loc_var.clone()), ctxt);
-                let cond = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Le, n_var.clone(), n_stop), ctxt);
-                push_st(ir::Statement::If(cond, vec![], vec![ir::Statement::Break]), ctxt);
+
+                // if step > 0
+                let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
+                let step_gt_0 = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Gt, n_step, zero), ctxt);
+
+                // if !(var <= limit): break
+                let mut ifblock = Vec::new();
+                std::mem::swap(&mut ctxt.body, &mut ifblock);
+                let var_le_stop = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Le, n_var, n_stop), ctxt);
+                push_st(ir::Statement::If(var_le_stop, vec![], vec![ir::Statement::Break]), ctxt);
+                std::mem::swap(&mut ctxt.body, &mut ifblock);
+
+                // else:
+                // if !(var >= limit): break
+                let mut elseblock = Vec::new();
+                std::mem::swap(&mut ctxt.body, &mut elseblock);
+                let var_ge_stop = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Ge, n_var, n_stop), ctxt);
+                push_st(ir::Statement::If(var_ge_stop, vec![], vec![ir::Statement::Break]), ctxt);
+                std::mem::swap(&mut ctxt.body, &mut elseblock);
+
+                // add this large if block!
+                push_st(ir::Statement::If(step_gt_0, ifblock, elseblock), ctxt);
 
                 // local v = var
                 let v = mk_local(ctxt);
