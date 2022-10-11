@@ -5,7 +5,7 @@ type TablePtr = usize;
 type NativeFn = fn(TablePtr, &mut Ctxt) -> TablePtr;
 type NativeFnId = usize;
 
-static NATIVE_FNS: [NativeFn; 1] = [print_fn];
+static NATIVE_FNS: [NativeFn; 4] = [print_fn, next_fn, pairs_fn, type_fn];
 
 fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     match table_get(t, Value::Num(1.0), ctxt) {
@@ -19,6 +19,35 @@ fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     }
 
     empty(ctxt)
+}
+
+fn next_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
+    let Value::TablePtr(tt) = table_get(t, Value::Num(1.0), ctxt) else { panic!("calling next on non-table!") };
+    let r = table_get(t, Value::Num(2.0), ctxt);
+
+    wrap_vec(table_next(tt, r, ctxt), ctxt)
+}
+
+fn pairs_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
+    let arg = table_get(t, Value::Num(1.0), ctxt);
+
+    wrap_vec(vec![Value::NativeFn(1), arg, Value::Nil], ctxt)
+}
+
+fn type_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
+    let arg = table_get(t, Value::Num(1.0), ctxt);
+
+    let string = match arg {
+        Value::Nil => "nil",
+        Value::Bool(_) => "boolean",
+        Value::TablePtr(_) => "table",
+        Value::Str(_) => "string",
+        Value::NativeFn(_) => "function",
+        Value::LuaFn(..) => "function",
+        Value::Num(_) => "number",
+    };
+
+    wrap_vec(vec![Value::Str(string.to_string())], ctxt)
 }
 
 enum ControlFlow {
@@ -41,6 +70,35 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
     if idx != Value::Nil {
         entries.push((idx, val));
     }
+}
+
+fn table_next(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Vec<Value> {
+    let data = &ctxt.heap[ptr];
+    if idx == Value::Nil {
+        match data.entries.get(0) {
+            Some((k, v)) => vec![k.clone(), v.clone()],
+            None => Vec::new(),
+        }
+    } else {
+        let i = data.entries.iter().position(|(i, _)| *i == idx).expect("invalid key to next!");
+        if let Some((k, v)) = data.entries.get(i+1) {
+            vec![k.clone(), v.clone()]
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+fn wrap_vec(vec: Vec<Value>, ctxt: &mut Ctxt) -> TablePtr {
+    let t = alloc_table(ctxt);
+    let len = vec.len();
+    table_set(t, Value::Num(0.0), Value::Num(len as f64), ctxt);
+    for (i, v) in vec.into_iter().enumerate() {
+        let i = Value::Num((i+1) as f64);
+        table_set(t, i, v, ctxt);
+    }
+
+    t
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -273,6 +331,18 @@ pub fn exec(ir: &IR) {
 
     if let Some(i) = ir.globals.iter().position(|x| x == "print") {
         ctxt.globals[i] = Value::NativeFn(0);
+    }
+
+    if let Some(i) = ir.globals.iter().position(|x| x == "next") {
+        ctxt.globals[i] = Value::NativeFn(1);
+    }
+
+    if let Some(i) = ir.globals.iter().position(|x| x == "pairs") {
+        ctxt.globals[i] = Value::NativeFn(2);
+    }
+
+    if let Some(i) = ir.globals.iter().position(|x| x == "type") {
+        ctxt.globals[i] = Value::NativeFn(3);
     }
 
     let argtable = empty(&mut ctxt);
