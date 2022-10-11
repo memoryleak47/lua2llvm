@@ -546,11 +546,17 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 ctxt.locals.pop().unwrap();
             },
             Statement::If(ifblocks, optelse) => { lower_if(ifblocks, optelse, ctxt); }
+            Statement::Block(body) => {
+                ctxt.locals.push(Default::default());
+
+                lower_body(body, ctxt);
+
+                ctxt.locals.pop().unwrap();
+            },
             _ => todo!(),
     /*
             Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>) => todo!(),
-            Statement::Block(Vec<Statement>) => todo!(),
     */
         }
     }
