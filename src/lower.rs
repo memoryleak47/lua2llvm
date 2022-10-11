@@ -494,10 +494,25 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 push_st(ir::Statement::Loop(b), ctxt);
 
                 ctxt.locals.pop().unwrap();
-            }
+            },
+            Statement::Repeat(body, cond) => {
+                ctxt.locals.push(Default::default());
+
+                let mut b = Vec::new();
+                std::mem::swap(&mut ctxt.body, &mut b);
+
+                lower_body(body, ctxt);
+
+                let cond = lower_expr1(cond, ctxt);
+                push_st(ir::Statement::If(cond, vec![ir::Statement::Break], vec![]), ctxt);
+
+                std::mem::swap(&mut ctxt.body, &mut b);
+                push_st(ir::Statement::Loop(b), ctxt);
+
+                ctxt.locals.pop().unwrap();
+            },
             _ => todo!(),
     /*
-            Statement::Repeat(/*body: */ Vec<Statement>, Expr) => todo!(),
             Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>) => todo!(),
