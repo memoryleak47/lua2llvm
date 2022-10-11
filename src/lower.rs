@@ -617,7 +617,65 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 push_st(ir::Statement::Loop(b), ctxt);
 
             },
-            Statement::GenericFor(_idents, _exprs, _body) => todo!(),
+            Statement::GenericFor(idents, exprs, body) => {
+                let (f, s, var) = (mk_local(ctxt), mk_local(ctxt), mk_local(ctxt));
+                let (f_lval, s_lval, var_lval) = (ir::LValue::Local(f), ir::LValue::Local(s), ir::LValue::Local(var));
+                let lvals = vec![f_lval.clone(), s_lval.clone(), var_lval.clone()];
+                lower_assign(&lvals, exprs, ctxt);
+
+                let mut b = Vec::new();
+                std::mem::swap(&mut ctxt.body, &mut b);
+
+                let n_f = mk_compute(ir::Expr::LValue(f_lval.clone()), ctxt);
+                let n_s = mk_compute(ir::Expr::LValue(s_lval.clone()), ctxt);
+                let n_var = mk_compute(ir::Expr::LValue(var_lval.clone()), ctxt);
+
+                let t = mk_compute(ir::Expr::NewTable, ctxt);
+
+                let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
+                let one = mk_compute(ir::Expr::Num(1.0), ctxt);
+                let two = mk_compute(ir::Expr::Num(2.0), ctxt);
+
+                // t[0] = 2
+                push_st(ir::Statement::Store(ir::LValue::Index(t, zero), two), ctxt);
+
+                // t[1] = s
+                push_st(ir::Statement::Store(ir::LValue::Index(t, one), n_s), ctxt);
+
+                // t[2] = var
+                push_st(ir::Statement::Store(ir::LValue::Index(t, two), n_var), ctxt);
+
+                // call f(s, var) which is equivalent to f(t), where t = {s, var}
+                // rettable = f(s, var)
+                let rettable = mk_compute(ir::Expr::FnCall(n_f, t), ctxt);
+
+                let mut map = HashMap::new();
+                for (i, ident) in idents.iter().enumerate() {
+                    let local = mk_local(ctxt);
+                    map.insert(ident.clone(), local);
+                    let n_i = mk_compute(ir::Expr::Num((i+1) as f64), ctxt);
+
+                    // rettable_i = rettable[i]
+                    let rettable_i = mk_compute(ir::Expr::LValue(ir::LValue::Index(rettable, n_i)), ctxt);
+                    push_st(ir::Statement::Store(ir::LValue::Local(local), rettable_i), ctxt);
+
+                    if i == 0 {
+                        push_st(ir::Statement::Store(var_lval.clone(), rettable_i), ctxt);
+                    }
+                }
+
+                let n_var = mk_compute(ir::Expr::LValue(var_lval.clone()), ctxt);
+                let n_nil = mk_compute(ir::Expr::Nil, ctxt);
+                let var_eq_nil = mk_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, n_var, n_nil), ctxt);
+                push_st(ir::Statement::If(var_eq_nil, vec![ir::Statement::Break], vec![]), ctxt);
+
+                ctxt.locals.push(map);
+                lower_body(body, ctxt);
+                ctxt.locals.pop().unwrap();
+
+                std::mem::swap(&mut ctxt.body, &mut b);
+                push_st(ir::Statement::Loop(b), ctxt);
+            },
         }
     }
 }
