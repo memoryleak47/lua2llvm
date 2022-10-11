@@ -553,11 +553,8 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
                 ctxt.locals.pop().unwrap();
             },
-            _ => todo!(),
-    /*
-            Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>) => todo!(),
-            Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>) => todo!(),
-    */
+            Statement::NumericFor(_ident, _start, _stop, _optstep, _body) => todo!(),
+            Statement::GenericFor(_idents, _exprs, _body) => todo!(),
         }
     }
 }
