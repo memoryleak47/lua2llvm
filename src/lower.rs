@@ -447,6 +447,40 @@ fn table_wrap_exprlist(exprs: &[Expr], ctxt: &mut Ctxt) -> Node {
     t
 }
 
+fn lower_if(ifblocks: &[IfBlock], optelse: &Option<Vec<Statement>>, ctxt: &mut Ctxt) {
+    assert!(ifblocks.len() > 0);
+
+    let IfBlock(cond, ifbody) = ifblocks[0].clone();
+    let cond = lower_expr1(&cond, ctxt);
+
+    let mut low_ifbody = Vec::new();
+    std::mem::swap(&mut low_ifbody, &mut ctxt.body);
+    ctxt.locals.push(Default::default());
+    lower_body(&ifbody, ctxt);
+    ctxt.locals.pop().unwrap();
+    std::mem::swap(&mut low_ifbody, &mut ctxt.body);
+
+    let mut low_elsebody = Vec::new();
+    if ifblocks.len() == 1 {
+        if let Some(else_b) = optelse {
+            std::mem::swap(&mut low_elsebody, &mut ctxt.body);
+            ctxt.locals.push(Default::default());
+            lower_body(else_b, ctxt);
+            ctxt.locals.pop().unwrap();
+            std::mem::swap(&mut low_elsebody, &mut ctxt.body);
+        }
+    } else { // recursion!
+        std::mem::swap(&mut low_elsebody, &mut ctxt.body);
+        ctxt.locals.push(Default::default());
+
+        lower_if(&ifblocks[1..], optelse, ctxt);
+
+        ctxt.locals.pop().unwrap();
+        std::mem::swap(&mut low_elsebody, &mut ctxt.body);
+    }
+    push_st(ir::Statement::If(cond, low_ifbody, low_elsebody), ctxt);
+}
+
 fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
     for st in statements {
         match st {
@@ -511,11 +545,11 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
                 ctxt.locals.pop().unwrap();
             },
+            Statement::If(ifblocks, optelse) => { lower_if(ifblocks, optelse, ctxt); }
             _ => todo!(),
     /*
             Statement::NumericFor(/*ident: */String, /*start: */Expr, /*stop: */Expr, /*step: */Option<Expr>, /*body: */ Vec<Statement>) => todo!(),
             Statement::GenericFor(Vec<String>, Vec<Expr>, /*body: */ Vec<Statement>) => todo!(),
-            Statement::If(Vec<IfBlock>, /*else-body: */ Option<Vec<Statement>>) => todo!(),
             Statement::Block(Vec<Statement>) => todo!(),
     */
         }
