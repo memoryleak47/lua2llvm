@@ -12,6 +12,7 @@ struct Ctxt {
     // the Vec<> is pushed() & popped() for blocks, NOT functions.
     locals: Vec<HashMap<String, LocalId>>,
     upvalues: HashMap<String, (FnId, LocalId)>,
+    next_local: usize,
 
     // the fn whose body we are currently lowering.
     current_fn: FnId,
@@ -341,14 +342,8 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
 
 // does not add the local to ctxt.locals!
 fn mk_local(ctxt: &mut Ctxt) -> LocalId {
-    let optmax: Option<LocalId> = ctxt.locals.iter()
-                    .flat_map(|map| map.values())
-                    .copied()
-                    .max();
-    let free_lid = match optmax {
-        Some(max) => max+1,
-        None => 0,
-    };
+    let free_lid = ctxt.next_local;
+    ctxt.next_local += 1;
 
     push_st(ir::Statement::Local(free_lid), ctxt);
 
@@ -696,6 +691,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     let mut locals = vec![HashMap::new()];
     let mut body = Vec::new();
     let mut next_node = 0;
+    let mut next_local = 0;
     let mut upvalues = ctxt.upvalues.clone();
     for map in &ctxt.locals {
         for (var, lid) in map.iter() {
@@ -707,6 +703,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.locals, &mut locals);
     std::mem::swap(&mut ctxt.body, &mut body);
     std::mem::swap(&mut ctxt.next_node, &mut next_node);
+    std::mem::swap(&mut ctxt.next_local, &mut next_local);
     std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
 
     {
@@ -739,6 +736,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.locals, &mut locals);
     std::mem::swap(&mut ctxt.body, &mut body);
     std::mem::swap(&mut ctxt.next_node, &mut next_node);
+    std::mem::swap(&mut ctxt.next_local, &mut next_local);
     std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
 
     ctxt.ir.fns[fid] = LitFunction {

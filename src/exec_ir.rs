@@ -161,7 +161,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             let retptr = match f {
                 Value::LuaFn(f_id) => exec_fn(f_id, argt, ctxt),
                 Value::NativeFn(i) => (NATIVE_FNS[i])(argt, ctxt),
-                _ => panic!("trying to execute non-function value!"),
+                v => panic!("trying to execute non-function value! {:?}", v),
             };
 
             Value::TablePtr(retptr)
