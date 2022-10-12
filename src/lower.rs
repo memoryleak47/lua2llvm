@@ -63,7 +63,8 @@ fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
 }
 
 // pushes expr to the table as the last element of a table constructor.
-fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool, ctxt: &mut Ctxt) -> /*length-node: */ Option<Node> {
+// counter == the next Field::Expr id.
+fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool, ctxt: &mut Ctxt) {
     let (val, tabled) = lower_expr(expr, ctxt);
     if tabled {
         // `orig_t_len = #t`
@@ -138,35 +139,40 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
             let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, r);
             let x = mk_compute(x, ctxt);
 
-            Some(x)
-        } else { None }
+            let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
+            push_st(ir::Statement::Store(ir::LValue::Index(t, zero), x), ctxt);
+        }
     } else {
-        let idx = Literal::Num(counter as f64);
-        let idx = Expr::Literal(idx);
-        let idx = lower_expr1(&idx, ctxt);
+        let idx = mk_compute(ir::Expr::Num(counter as f64), ctxt);
+        let lval = ir::LValue::Index(t, idx);
+        push_st(ir::Statement::Store(lval, val), ctxt);
 
         if calc_length {
-            let lval = ir::LValue::Index(t, idx);
-            push_st(ir::Statement::Store(lval, val), ctxt);
-            let node = mk_compute(ir::Expr::Num(counter as f64), ctxt);
-
-            Some(node)
-        } else {
-            None
+            let len = idx; // length of array is the same as the highest index.
+            let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
+            let lval = ir::LValue::Index(t, zero);
+            push_st(ir::Statement::Store(lval, len), ctxt);
         }
     }
 }
 
-fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table: */ Node, /*length-node: */ Option<Node>) {
+// if calc_length is true, the function assumes that only Field::Expr inputs are given.
+// It then stores the length of the table in t[0].
+fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> Node {
     let t = mk_compute(ir::Expr::NewTable, ctxt);
+
+    if calc_length && fields.is_empty() {
+        let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
+        push_st(ir::Statement::Store(ir::LValue::Index(t, zero), zero), ctxt);
+        return t;
+    }
 
     let mut counter = 1; // the next Field::Expr id.
     for (i, f) in fields.iter().enumerate() {
         match f {
             Field::Expr(expr) => {
                 if i == fields.len() - 1 {
-                    let opt = push_last_table_expr(t, counter, expr, calc_length, ctxt);
-                    return (t, opt);
+                    push_last_table_expr(t, counter, expr, calc_length, ctxt);
                 } else {
                     let idx = ir::Expr::Num(counter as f64);
                     let idx = mk_compute(idx, ctxt);
@@ -178,6 +184,8 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table
                 }
             },
             Field::NameToExpr(name, expr) => {
+                assert_eq!(calc_length, false);
+
                 let idx = ir::Expr::Str(name.clone());
                 let idx = mk_compute(idx, ctxt);
 
@@ -187,6 +195,8 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table
                 push_st(ir::Statement::Store(lval, val), ctxt);
             },
             Field::ExprToExpr(idx, val) => {
+                assert_eq!(calc_length, false);
+
                 let idx = lower_expr1(idx, ctxt);
                 let val = lower_expr1(val, ctxt);
 
@@ -196,15 +206,7 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> (/*table
         }
     }
 
-    if calc_length {
-        assert_eq!(fields.len(), 0);
-
-        let len = ir::Expr::Num(0.0);
-        let len = mk_compute(len, ctxt);
-        (t, Some(len))
-    } else {
-        (t, None)
-    }
+    t
 }
 
 fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
@@ -283,9 +285,7 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
             mk_compute(x, ctxt)
         },
         Expr::Literal(Literal::Table(fields)) => {
-            let (t, _) = lower_table(fields, /*calc-length: */ false, ctxt);
-
-            t
+            lower_table(fields, /*calc-length: */ false, ctxt)
         },
         Expr::LValue(lval) => {
             let x = lower_lvalue(lval, ctxt);
@@ -440,17 +440,8 @@ fn table_wrap_exprlist(exprs: &[Expr], ctxt: &mut Ctxt) -> Node {
                       .cloned()
                       .map(Field::Expr)
                       .collect();
-    let (t, len) = lower_table(&fields, /*calc-length: */ true, ctxt);
-    let len = len.unwrap();
 
-    let idx = Literal::Num(0 as f64);
-    let idx = Expr::Literal(idx);
-    let idx = lower_expr1(&idx, ctxt);
-
-    let lval = ir::LValue::Index(t, idx);
-    push_st(ir::Statement::Store(lval, len), ctxt);
-
-    t
+    lower_table(&fields, /*calc-length: */ true, ctxt)
 }
 
 fn lower_if(ifblocks: &[IfBlock], optelse: &Option<Vec<Statement>>, ctxt: &mut Ctxt) {
