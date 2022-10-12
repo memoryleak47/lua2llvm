@@ -46,7 +46,7 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, f: &mut Formatter<'_>
     write!(f, "{}", &indent)?;
 
     match st {
-        Local(lid) => write!(f, "local f{}\n", lid),
+        Local(lid) => write!(f, "local l{}\n", lid),
         Compute(n, e) => {
             write!(f, "n{} = ", n)?;
             display_expr(e, f)?;
