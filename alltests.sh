@@ -16,5 +16,6 @@ do
         echo "'$res1'"
         echo lua:
         echo "'$res2'"
+        exit
     fi
 done
