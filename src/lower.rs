@@ -20,12 +20,19 @@ struct Ctxt {
     // this is intended to be std::mem::swap'ped out, when needed.
     body: Vec<ir::Statement>,
     next_node: usize,
+
+    ellipsis_node: Option<Node>,
 }
 
-fn mk_compute(expr: ir::Expr, ctxt: &mut Ctxt) -> Node {
+fn mk_node(ctxt: &mut Ctxt) -> Node {
     let node = ctxt.next_node;
     ctxt.next_node += 1;
 
+    node
+}
+
+fn mk_compute(expr: ir::Expr, ctxt: &mut Ctxt) -> Node {
+    let node = mk_node(ctxt);
     push_st(ir::Statement::Compute(node, expr), ctxt);
 
     node
@@ -264,7 +271,11 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
     let mut tabled = false;
     let node = match expr {
-        Expr::Ellipsis => todo!(),
+        Expr::Ellipsis => {
+            tabled = true;
+
+            ctxt.ellipsis_node.expect("lowering `...` in non-variadic function!")
+        },
         Expr::Literal(Literal::Function(args, variadic, body)) => {
             let fid = lower_fn(args, variadic, body, ctxt);
             let x = ir::Expr::LitFunction(fid);
@@ -698,6 +709,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
             upvalues.insert(var.clone(), (ctxt.current_fn, *lid));
         }
     }
+    let mut ellipsis_node = None;
 
     std::mem::swap(&mut ctxt.current_fn, &mut current_fn);
     std::mem::swap(&mut ctxt.locals, &mut locals);
@@ -705,6 +717,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.next_node, &mut next_node);
     std::mem::swap(&mut ctxt.next_local, &mut next_local);
     std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
+    std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
 
     {
         let argtable = mk_compute(ir::Expr::Argtable, ctxt);
@@ -726,7 +739,51 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
         }
 
         if *variadic == Variadic::Yes {
-            // TODO evaluate "..." from the rest of the argtable.
+            let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
+            let one = mk_compute(ir::Expr::Num(1.0), ctxt);
+
+            // ARG_LEN = args.len()
+            // ARGT_LEN = argtable[0]
+            // E_LEN = ARGT_LEN - ARG_LEN -- length of ellipsis `...`
+            // n = {}
+            // n[0] <- E_LEN
+            // i = 1
+            // loop {
+            //   if i > E_LEN: break
+            //   n[i] = argtable[i+ARG_LEN]
+            //   i = i + 1
+            // }
+            let arg_len = mk_compute(ir::Expr::Num(args.len() as f64), ctxt);
+            let argt_len = mk_compute(ir::Expr::LValue(ir::LValue::Index(argtable, zero)), ctxt);
+            let e_len = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Minus, argt_len, arg_len), ctxt);
+            let n = mk_compute(ir::Expr::NewTable, ctxt);
+            push_st(ir::Statement::Store(ir::LValue::Index(n, zero), e_len), ctxt);
+
+            let i = mk_local(ctxt);
+            push_st(ir::Statement::Store(ir::LValue::Local(i), one), ctxt);
+
+            let i_node = mk_node(ctxt);
+            let i_gt_e_len = mk_node(ctxt);
+            let i_plus_arg_len = mk_node(ctxt);
+            let argtable_indexed = mk_node(ctxt); // argtable[i+ARGLEN]
+            let i_plus_one = mk_node(ctxt);
+            push_st(ir::Statement::Loop(vec![
+                // if i > E_LEN: break
+                ir::Statement::Compute(i_node, ir::Expr::LValue(ir::LValue::Local(i))),
+                ir::Statement::Compute(i_gt_e_len, ir::Expr::BinOp(ir::BinOpKind::Gt, i_node, e_len)),
+                ir::Statement::If(i_gt_e_len, vec![ir::Statement::Break], vec![]),
+
+                // n[i] = argtable[i+ARG_LEN]
+                ir::Statement::Compute(i_plus_arg_len, ir::Expr::BinOp(ir::BinOpKind::Plus, i_node, arg_len)),
+                ir::Statement::Compute(argtable_indexed, ir::Expr::LValue(ir::LValue::Index(argtable, i_plus_arg_len))),
+                ir::Statement::Store(ir::LValue::Index(n, i_node), argtable_indexed),
+
+                // i = i+1
+                ir::Statement::Compute(i_plus_one, ir::Expr::BinOp(ir::BinOpKind::Plus, i_node, one)),
+                ir::Statement::Store(ir::LValue::Local(i), i_plus_one),
+            ]), ctxt);
+
+            ctxt.ellipsis_node = Some(n);
         }
 
         lower_body(statements, ctxt);
@@ -738,6 +795,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.next_node, &mut next_node);
     std::mem::swap(&mut ctxt.next_local, &mut next_local);
     std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
+    std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
 
     ctxt.ir.fns[fid] = LitFunction {
         body
