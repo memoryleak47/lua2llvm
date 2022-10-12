@@ -1,4 +1,4 @@
-use crate::ir::{FnId, IR, Statement, Expr, LValue, BinOpKind, UnOpKind};
+use crate::ir::{FnId, IR, Statement, Expr, LValue, BinOpKind, UnOpKind, UpvalueRef};
 
 type TablePtr = usize;
 
@@ -141,7 +141,7 @@ enum Value {
     TablePtr(TablePtr),
     Str(String),
     NativeFn(NativeFnId),
-    LuaFn(FnId),
+    LuaFn(FnId, /*upvalues: */ Vec<Value>),
     Num(f64),
 }
 
@@ -154,6 +154,7 @@ struct Ctxt<'ir> {
     argtable: TablePtr,
     locals: Vec<Value>,
     nodes: Vec<Value>,
+    upvalues: Vec<Value>,
 }
 
 #[derive(Default)]
@@ -166,6 +167,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::LValue(LValue::Local(lid)) => ctxt.locals[*lid].clone(),
         Expr::LValue(LValue::Global(gid)) => ctxt.globals[*gid].clone(),
+        Expr::LValue(LValue::Upvalue(uid)) => ctxt.upvalues[*uid].clone(),
         Expr::LValue(LValue::Index(t, idx)) => {
             let t = ctxt.nodes[*t].clone();
             let idx = ctxt.nodes[*idx].clone();
@@ -173,7 +175,6 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             let Value::TablePtr(t) = t else { panic!("indexing into non-table!") };
             table_get(t, idx, ctxt)
         },
-        Expr::LValue(_) => todo!(),
         Expr::Argtable => Value::TablePtr(ctxt.argtable),
         Expr::FnCall(f, argt) => {
             let f = ctxt.nodes[*f].clone();
@@ -181,7 +182,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
 
             let Value::TablePtr(argt) = argt else { panic!("function called with non-table argtable!") };
             let retptr = match f {
-                Value::LuaFn(f_id) => exec_fn(f_id, argt, ctxt),
+                Value::LuaFn(f_id, upvalues) => exec_fn(f_id, argt, &upvalues[..], ctxt),
                 Value::NativeFn(i) => (NATIVE_FNS[i])(argt, ctxt),
                 v => panic!("trying to execute non-function value! {:?}", v),
             };
@@ -189,7 +190,23 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             Value::TablePtr(retptr)
         },
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
-        Expr::LitFunction(fnid) => Value::LuaFn(*fnid),
+        Expr::LitFunction(fnid) => {
+            // evaluate all things we need to closure!
+            let func = &ctxt.ir.fns[*fnid];
+            let mut upvalues: Vec<Value> = Vec::new();
+            for uref in &func.upvalue_refs {
+                match uref {
+                    UpvalueRef::Local(lid) => {
+                        upvalues.push(ctxt.locals[*lid].clone());
+                    },
+                    UpvalueRef::Upvalue(uid) => {
+                        upvalues.push(ctxt.upvalues[*uid].clone());
+                    },
+                }
+            }
+
+            Value::LuaFn(*fnid, upvalues)
+        },
         Expr::BinOp(kind, l, r) => {
             let l = ctxt.nodes[*l].clone();
             let r = ctxt.nodes[*r].clone();
@@ -269,12 +286,15 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 match lval {
                     Local(lid) => { ctxt.locals[*lid] = val; },
                     Global(gid) => { ctxt.globals[*gid] = val; },
+                    Upvalue(uid) => {
+                        eprintln!("setting an LValue::Upvalue doesn't really make sense!");
+                        ctxt.upvalues[*uid] = val;
+                    },
                     Index(t, idx) => {
                         let idx = ctxt.nodes[*idx].clone();
                         let Value::TablePtr(t) = ctxt.nodes[*t].clone() else { panic!("indexing into non-table!") };
                         table_set(t, idx, val, ctxt);
                     },
-                    Upvalue(fnid, lid) => todo!(),
                 }
             },
             ReturnTable(t) => {
@@ -312,20 +332,23 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
     ControlFlow::End
 }
 
-fn exec_fn(f: FnId, argtable: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
+fn exec_fn(f: FnId, argtable: TablePtr, upvalues: &[Value], ctxt: &mut Ctxt) -> TablePtr {
     let mut locals = Vec::new();
     let mut nodes = Vec::new();
     let mut argtable = argtable;
+    let mut upvalues = upvalues.to_vec();
 
     std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut argtable, &mut ctxt.argtable);
+    std::mem::swap(&mut upvalues, &mut ctxt.upvalues);
 
     let flow = exec_body(&ctxt.ir.fns[f].body, ctxt);
 
     std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut argtable, &mut ctxt.argtable);
+    std::mem::swap(&mut upvalues, &mut ctxt.upvalues);
 
     match flow {
         ControlFlow::Break => panic!("cannot break, if you are not in a loop!"),
@@ -360,6 +383,7 @@ pub fn exec(ir: &IR) {
         argtable: 0,
         locals: Vec::new(),
         nodes: Vec::new(),
+        upvalues: Vec::new(),
     };
 
     if let Some(i) = ir.globals.iter().position(|x| x == "print") {
@@ -380,5 +404,5 @@ pub fn exec(ir: &IR) {
 
     let argtable = empty(&mut ctxt);
 
-    exec_fn(ir.main_fn, argtable, &mut ctxt);
+    exec_fn(ir.main_fn, argtable, &[], &mut ctxt);
 }

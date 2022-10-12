@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use crate::ast::*;
-use crate::ir::{self, FnId, LocalId, GlobalId, IR, LitFunction, Node};
+use crate::ir::{self, FnId, LocalId, GlobalId, IR, LitFunction, Node, UpvalueId, UpvalueRef};
 
 #[derive(Default)]
 struct Ctxt {
@@ -11,7 +11,15 @@ struct Ctxt {
 
     // the Vec<> is pushed() & popped() for blocks, NOT functions.
     locals: Vec<HashMap<String, LocalId>>,
-    upvalues: HashMap<String, (FnId, LocalId)>,
+
+    // the entries of this table were previously in upvalue_candidates and had at least one occurence.
+    // UpvalueId is the resulting Id, and UpvalueRef shows which variable was closured from the parent frame.
+    upvalues: HashMap<String, (UpvalueId, UpvalueRef)>,
+
+    // contains all potentially closurable local variables of the parent function.
+    // always look in `upvalues` first, in order to prevent double-closuring of the same variable.
+    upvalue_candidates: HashMap<String, UpvalueRef>,
+
     next_local: usize,
 
     // the fn whose body we are currently lowering.
@@ -324,8 +332,14 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
                     return ir::LValue::Local(*lid);
                 }
             }
-            if let Some((fid, lid)) = ctxt.upvalues.get(s) {
-                return ir::LValue::Upvalue(*fid, *lid);
+            if let Some((uid, _)) = ctxt.upvalues.get(s) {
+                return ir::LValue::Upvalue(*uid);
+            }
+            if let Some(uref) = ctxt.upvalue_candidates.get(s) {
+                let uid = ctxt.upvalues.len();
+                ctxt.upvalues.insert(s.clone(), (uid, uref.clone()));
+
+                return ir::LValue::Upvalue(uid);
             }
             if let Some(gid) = ctxt.ir.globals.iter().position(|x| x == s) {
                 return ir::LValue::Global(gid);
@@ -686,7 +700,10 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
 
     // this dummy allows us to have a fixed id before lowering of this fn is done.
     // this is necessary eg. for closuring.
-    let dummy_lit_fn = LitFunction { body: Vec::new(), };
+    let dummy_lit_fn = LitFunction {
+        body: Vec::new(),
+        upvalue_refs: Vec::new(),
+    };
     ctxt.ir.fns.push(dummy_lit_fn);
 
     let mut current_fn = fid;
@@ -694,13 +711,20 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     let mut body = Vec::new();
     let mut next_node = 0;
     let mut next_local = 0;
-    let mut upvalues = ctxt.upvalues.clone();
-    for map in &ctxt.locals {
-        for (var, lid) in map.iter() {
-            upvalues.insert(var.clone(), (ctxt.current_fn, *lid));
+    let mut upvalues: HashMap<String, (UpvalueId, UpvalueRef)> = HashMap::new();
+    let mut upvalue_candidates: HashMap<String, UpvalueRef> = HashMap::new();
+    let mut ellipsis_node = None;
+
+    // fill upvalue_candidates, order of those is important:
+    // local candidates overwrite upvalue candidates; inner local candidates overwrite outer local candidates!
+    for (k, (uid, _)) in ctxt.upvalues.iter() {
+        upvalue_candidates.insert(k.clone(), UpvalueRef::Upvalue(*uid));
+    }
+    for loc in ctxt.locals.iter() {
+        for (k, lid) in loc {
+            upvalue_candidates.insert(k.clone(), UpvalueRef::Local(*lid));
         }
     }
-    let mut ellipsis_node = None;
 
     std::mem::swap(&mut ctxt.current_fn, &mut current_fn);
     std::mem::swap(&mut ctxt.locals, &mut locals);
@@ -708,6 +732,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.next_node, &mut next_node);
     std::mem::swap(&mut ctxt.next_local, &mut next_local);
     std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
+    std::mem::swap(&mut ctxt.upvalue_candidates, &mut upvalue_candidates);
     std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
 
     {
@@ -786,10 +811,21 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.next_node, &mut next_node);
     std::mem::swap(&mut ctxt.next_local, &mut next_local);
     std::mem::swap(&mut ctxt.upvalues, &mut upvalues);
+    std::mem::swap(&mut ctxt.upvalue_candidates, &mut upvalue_candidates);
     std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
 
+    let upvalue_refs = {
+        let mut ret = vec![/*some tmp: */ UpvalueRef::Local(0); upvalues.len()];
+        for (uid, uref) in upvalues.values() {
+            ret[*uid] = uref.clone();
+        }
+
+        ret
+    };
+
     ctxt.ir.fns[fid] = LitFunction {
-        body
+        body,
+        upvalue_refs,
     };
 
     fid

@@ -5,7 +5,7 @@ use std::fmt::{self, Display, Formatter};
 // locals: l<id>
 // globals: g<id>
 // nodes: n<id>
-// closures: c<id>:<id>
+// upvalues: u<id>
 
 impl Display for IR {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -79,7 +79,7 @@ fn display_lvalue(lvalue: &LValue, f: &mut Formatter<'_>) -> fmt::Result {
     use LValue::*;
     match lvalue {
         Local(lid) => write!(f, "l{}", lid),
-        Upvalue(fn_id, lid) => write!(f, "c{}:{}", fn_id, lid),
+        Upvalue(uid) => write!(f, "u{}", uid),
         Global(gid) => write!(f, "g{}", gid),
         Index(t, i) => write!(f, "n{}[n{}]", t, i),
     }

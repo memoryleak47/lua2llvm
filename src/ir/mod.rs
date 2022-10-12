@@ -26,6 +26,8 @@ pub type GlobalId = usize;
 // used to index into IR::fns.
 pub type FnId = usize;
 
+pub type UpvalueId = usize;
+
 // for mutable storage space
 #[derive(Debug, Clone)]
 pub enum LValue {
@@ -33,7 +35,7 @@ pub enum LValue {
     Local(LocalId),
 
     // local variables from some outer function
-    Upvalue(FnId, LocalId),
+    Upvalue(UpvalueId),
 
     Global(GlobalId),
 
@@ -73,7 +75,19 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub struct LitFunction {
-    pub body: Vec<Statement>
+    pub body: Vec<Statement>,
+
+    // upvalue_refs[i] is accessible as LValue::Upvalue(i) within this function.
+    // the UpvalueRef upvalue_refs[i] needs to be evaluated to a Value when this function is instantiated.
+    // The resulting Value will always be a TablePtr.
+    pub upvalue_refs: Vec<UpvalueRef>,
+}
+
+// you can only closure local & already closured variables.
+#[derive(Debug, Clone)]
+pub enum UpvalueRef {
+    Local(LocalId),
+    Upvalue(UpvalueId),
 }
 
 #[derive(Debug, Default)]
