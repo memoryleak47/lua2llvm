@@ -91,10 +91,16 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
             }
         }
     } else {
-        if idx == Value::Num((data.length+1) as f64) { // the next entry
-            data.length += 1;
+        data.entries.push((idx.clone(), val));
+
+        if idx == Value::Num((data.length+1) as f64) {
+            // recalculate length
+            for i in (data.length+1).. {
+                if data.entries.iter().any(|(x, _)| x == &Value::Num(i as f64)) {
+                    data.length = i;
+                } else { break; }
+            }
         }
-        data.entries.push((idx, val));
     }
 }
 
