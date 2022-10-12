@@ -75,13 +75,29 @@ fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
 }
 
 fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
-    let entries = &mut ctxt.heap[ptr].entries;
+    if idx == Value::Nil {
+        panic!("setting index with nil is forbidden in lua!");
+    }
 
-    entries.retain(|(k, _)| *k != idx);
-    if idx != Value::Nil {
-        entries.push((idx, val));
+    let data: &mut TableData = ctxt.heap.get_mut(ptr).expect("table_set got dangling pointer!");
+    data.entries.retain(|(x, _)| *x != idx);
+    if val == Value::Nil { // Value::Nil means it's not there, so just don't add it!
+        if idx == Value::Num((data.length) as f64) {
+            // recalculate length (lua does it the same way)
+            for i in 1.. {
+                if data.entries.iter().any(|(x, _)| x == &Value::Num(i as f64)) {
+                    data.length = i;
+                } else { break; }
+            }
+        }
+    } else {
+        if idx == Value::Num((data.length+1) as f64) { // the next entry
+            data.length += 1;
+        }
+        data.entries.push((idx, val));
     }
 }
+
 
 fn table_next(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Vec<Value> {
     let data = &ctxt.heap[ptr];
