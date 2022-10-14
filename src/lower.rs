@@ -866,12 +866,22 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     fid
 }
 
-// will add closure table wrapping.
+// Will add closure table wrapping.
+// Will also add return {} if it's missing.
 fn postprocess_fn(body: &mut Vec<ir::Statement>, fns: &[LitFunction], mut next_node: usize) {
     // those locals need to be table wrapped!
     let upvalue_locals: HashSet<LocalId> = find_upvalue_locals(body, fns);
 
     postprocess_body(body, &upvalue_locals, &mut next_node);
+
+    if !matches!(body.last(), Some(ir::Statement::ReturnTable(_))) {
+        let t = next_node; next_node += 1;
+        let zero = next_node; next_node += 1;
+        body.push(ir::Statement::Compute(t, ir::Expr::NewTable));
+        body.push(ir::Statement::Compute(zero, ir::Expr::Num(0.0)));
+        body.push(ir::Statement::Store(ir::LValue::Index(t, zero), zero));
+        body.push(ir::Statement::ReturnTable(t));
+    }
 }
 
 fn postprocess_body(body: &mut Vec<ir::Statement>, upvalue_locals: &HashSet<LocalId>, next_node: &mut usize) {

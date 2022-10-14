@@ -349,7 +349,7 @@ fn exec_fn(f: FnId, argtable: TablePtr, upvalues: &[Value], ctxt: &mut Ctxt) -> 
     match flow {
         ControlFlow::Break => panic!("cannot break, if you are not in a loop!"),
         ControlFlow::ReturnTable(t) => t,
-        ControlFlow::End => empty(ctxt),
+        ControlFlow::End => panic!("function ended without returning!"),
     }
 }
 
