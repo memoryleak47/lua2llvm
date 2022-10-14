@@ -865,8 +865,8 @@ fn postprocess_body(body: &mut Vec<ir::Statement>, upvalue_locals: &HashSet<Loca
                 if upvalue_locals.contains(&lid) {
                     // insert x = {} directly after local x
                     let n = *next_node; *next_node += 1;
-                    body.insert(i, ir::Statement::Compute(n, ir::Expr::NewTable));
-                    body.insert(i+1, ir::Statement::Store(ir::LValue::Local(lid), n));
+                    body.insert(i+1, ir::Statement::Compute(n, ir::Expr::NewTable));
+                    body.insert(i+2, ir::Statement::Store(ir::LValue::Local(lid), n));
 
                     // skip the newly created statements.
                     i += 2;
