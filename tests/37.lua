@@ -1,5 +1,5 @@
-local x = 1
+local x = 1;
 (function()
     (function() x = 2 end)()
-end)()
+end)();
 print(x)
