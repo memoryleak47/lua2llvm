@@ -34,9 +34,6 @@ pub enum LValue {
     // literally variables created with the "local" keyword in this fn
     Local(LocalId),
 
-    // local variables from some outer function
-    Upvalue(UpvalueId),
-
     Global(GlobalId),
 
     // both table and idx will be evaluated to a Value, left-side needs to be Value::TablePtr.
@@ -59,6 +56,9 @@ pub enum Statement {
 #[derive(Debug)]
 pub enum Expr {
     LValue(LValue),
+    // Upvalue(i) is no LValue as it's only used as Upvalue(i)[1].
+    Upvalue(UpvalueId),
+
     Argtable, // the table where all function arguments are stored in sequentially
     FnCall(/*func: */ Node, /* input-table: */ Node),
     NewTable, // equivalent to {}

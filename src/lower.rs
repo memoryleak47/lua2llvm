@@ -333,13 +333,17 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
                 }
             }
             if let Some((uid, _)) = ctxt.upvalues.get(s) {
-                return ir::LValue::Upvalue(*uid);
+                let uid = *uid;
+                let one = mk_compute(ir::Expr::Num(1.0), ctxt);
+                let upv = mk_compute(ir::Expr::Upvalue(uid), ctxt);
+                return ir::LValue::Index(upv, one);
             }
             if let Some(uref) = ctxt.upvalue_candidates.get(s) {
                 let uid = ctxt.upvalues.len();
                 ctxt.upvalues.insert(s.clone(), (uid, uref.clone()));
 
-                return ir::LValue::Upvalue(uid);
+                // recursive call which will now match the if let Some() block above.
+                return lower_lvalue(lvalue, ctxt);
             }
             if let Some(gid) = ctxt.ir.globals.iter().position(|x| x == s) {
                 return ir::LValue::Global(gid);

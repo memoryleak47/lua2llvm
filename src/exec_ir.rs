@@ -167,7 +167,6 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::LValue(LValue::Local(lid)) => ctxt.locals[*lid].clone(),
         Expr::LValue(LValue::Global(gid)) => ctxt.globals[*gid].clone(),
-        Expr::LValue(LValue::Upvalue(uid)) => ctxt.upvalues[*uid].clone(),
         Expr::LValue(LValue::Index(t, idx)) => {
             let t = ctxt.nodes[*t].clone();
             let idx = ctxt.nodes[*idx].clone();
@@ -175,6 +174,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             let Value::TablePtr(t) = t else { panic!("indexing into non-table!") };
             table_get(t, idx, ctxt)
         },
+        Expr::Upvalue(uid) => ctxt.upvalues[*uid].clone(),
         Expr::Argtable => Value::TablePtr(ctxt.argtable),
         Expr::FnCall(f, argt) => {
             let f = ctxt.nodes[*f].clone();
@@ -286,10 +286,6 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 match lval {
                     Local(lid) => { ctxt.locals[*lid] = val; },
                     Global(gid) => { ctxt.globals[*gid] = val; },
-                    Upvalue(uid) => {
-                        eprintln!("setting an LValue::Upvalue doesn't really make sense!");
-                        ctxt.upvalues[*uid] = val;
-                    },
                     Index(t, idx) => {
                         let idx = ctxt.nodes[*idx].clone();
                         let Value::TablePtr(t) = ctxt.nodes[*t].clone() else { panic!("indexing into non-table!") };

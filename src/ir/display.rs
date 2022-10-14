@@ -79,7 +79,6 @@ fn display_lvalue(lvalue: &LValue, f: &mut Formatter<'_>) -> fmt::Result {
     use LValue::*;
     match lvalue {
         Local(lid) => write!(f, "l{}", lid),
-        Upvalue(uid) => write!(f, "u{}", uid),
         Global(gid) => write!(f, "g{}", gid),
         Index(t, i) => write!(f, "n{}[n{}]", t, i),
     }
@@ -124,6 +123,7 @@ fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
         BinOp(kind, l, r) => write!(f, "n{} {} n{}", l, display_binop(kind), r),
         UnOp(kind, r) => write!(f, "{} n{}", display_unop(kind), r),
         Num(x) => write!(f, "{}", x),
+        Upvalue(uid) => write!(f, "u{}", uid),
         Bool(b) => write!(f, "{}", b),
         Nil => write!(f, "nil"),
         Str(s) => write!(f, "\"{}\"", s),
