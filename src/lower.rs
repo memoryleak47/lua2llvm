@@ -13,12 +13,11 @@ struct Ctxt {
     locals: Vec<HashMap<String, LocalId>>,
 
     // the entries of this table were previously in upvalue_candidates and had at least one occurence.
-    // UpvalueId is the resulting Id, and UpvalueRef shows which variable was closured from the parent frame.
-    upvalues: HashMap<String, (UpvalueId, UpvalueRef)>,
+    // UpvalueId is the resulting id within this function.
+    upvalues: HashMap<String, UpvalueId>,
 
-    // contains all potentially closurable local variables of the parent function.
-    // always look in `upvalues` first, in order to prevent double-closuring of the same variable.
-    upvalue_candidates: HashMap<String, UpvalueRef>,
+    // contains all variables, which are defined somewhere in a super-function scope.
+    upvalue_candidates: HashSet<String>,
 
     next_local: usize,
 
@@ -332,15 +331,15 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
                     return ir::LValue::Local(*lid);
                 }
             }
-            if let Some((uid, _)) = ctxt.upvalues.get(s) {
+            if let Some(uid) = ctxt.upvalues.get(s) {
                 let uid = *uid;
                 let one = mk_compute(ir::Expr::Num(1.0), ctxt);
                 let upv = mk_compute(ir::Expr::Upvalue(uid), ctxt);
                 return ir::LValue::Index(upv, one);
             }
-            if let Some(uref) = ctxt.upvalue_candidates.get(s) {
+            if ctxt.upvalue_candidates.contains(s) {
                 let uid = ctxt.upvalues.len();
-                ctxt.upvalues.insert(s.clone(), (uid, uref.clone()));
+                ctxt.upvalues.insert(s.clone(), uid);
 
                 // recursive call which will now match the if let Some() block above.
                 return lower_lvalue(lvalue, ctxt);
@@ -710,25 +709,39 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     };
     ctxt.ir.fns.push(dummy_lit_fn);
 
+    enum IncompleteUpvalueRef {
+        Super, // to check which super-function variable this correesponds to check their strings!
+        Local(LocalId),
+        Upvalue(UpvalueId),
+    }
+
     let mut current_fn = fid;
     let mut locals = vec![HashMap::new()];
     let mut body = Vec::new();
     let mut next_node = 0;
     let mut next_local = 0;
-    let mut upvalues: HashMap<String, (UpvalueId, UpvalueRef)> = HashMap::new();
-    let mut upvalue_candidates: HashMap<String, UpvalueRef> = HashMap::new();
+    let mut upvalues: HashMap<String, UpvalueId> = HashMap::new();
+    let mut upvalue_candidates: HashSet<String>;
+
+    // shows what the upvalue_candidates actually refer to in the parent frame.
+    let mut upvalue_candidates_iref: HashMap<String, IncompleteUpvalueRef> = HashMap::new();
     let mut ellipsis_node = None;
 
     // fill upvalue_candidates, order of those is important:
     // local candidates overwrite upvalue candidates; inner local candidates overwrite outer local candidates!
-    for (k, (uid, _)) in ctxt.upvalues.iter() {
-        upvalue_candidates.insert(k.clone(), UpvalueRef::Upvalue(*uid));
+    for s in ctxt.upvalue_candidates.iter() {
+        upvalue_candidates_iref.insert(s.clone(), IncompleteUpvalueRef::Super);
+    }
+    for (s, uid) in ctxt.upvalues.iter() {
+        upvalue_candidates_iref.insert(s.clone(), IncompleteUpvalueRef::Upvalue(*uid));
     }
     for loc in ctxt.locals.iter() {
         for (k, lid) in loc {
-            upvalue_candidates.insert(k.clone(), UpvalueRef::Local(*lid));
+            upvalue_candidates_iref.insert(k.clone(), IncompleteUpvalueRef::Local(*lid));
         }
     }
+
+    upvalue_candidates = upvalue_candidates_iref.keys().cloned().collect();
 
     std::mem::swap(&mut ctxt.current_fn, &mut current_fn);
     std::mem::swap(&mut ctxt.locals, &mut locals);
@@ -821,10 +834,26 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
 
     let upvalue_refs = {
-        let mut ret = vec![/*some tmp: */ UpvalueRef::Local(0); upvalues.len()];
-        for (uid, uref) in upvalues.values() {
-            ret[*uid] = uref.clone();
+        let mut ret = vec![/*some tmp: */ UpvalueRef::Local(usize::MAX); upvalues.len()];
+        for (s, uid) in upvalues.iter() {
+            let uref = match upvalue_candidates_iref[s] {
+                IncompleteUpvalueRef::Super => {
+                    let uid2 = ctxt.upvalues.len();
+                    ctxt.upvalues.insert(s.clone(), uid2);
+
+                    UpvalueRef::Upvalue(uid2)
+                },
+                IncompleteUpvalueRef::Local(lid) => {
+                    UpvalueRef::Local(lid)
+                },
+                IncompleteUpvalueRef::Upvalue(uid) => {
+                    UpvalueRef::Upvalue(uid)
+                },
+            };
+            ret[*uid] = uref;
         }
+
+        assert!(ret.iter().all(|x| x != &UpvalueRef::Local(usize::MAX)));
 
         ret
     };
