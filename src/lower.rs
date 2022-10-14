@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ast::*;
 use crate::ir::{self, FnId, LocalId, GlobalId, IR, LitFunction, Node, UpvalueId, UpvalueRef};
@@ -807,6 +807,8 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
         }
 
         lower_body(statements, ctxt);
+
+        postprocess_fn(&mut ctxt.body, &ctxt.ir.fns, ctxt.next_node);
     }
 
     std::mem::swap(&mut ctxt.current_fn, &mut current_fn);
@@ -833,4 +835,91 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     };
 
     fid
+}
+
+// will add closure table wrapping.
+fn postprocess_fn(body: &mut Vec<ir::Statement>, fns: &[LitFunction], mut next_node: usize) {
+    // those locals need to be table wrapped!
+    let upvalue_locals: HashSet<LocalId> = find_upvalue_locals(body, fns);
+
+    postprocess_body(body, &upvalue_locals, &mut next_node);
+}
+
+fn postprocess_body(body: &mut Vec<ir::Statement>, upvalue_locals: &HashSet<LocalId>, next_node: &mut usize) {
+    let mut i = 0;
+
+    // i says where the the statement containing the LValue 
+    let wrap_lid = |i: &mut usize, lid: LocalId, body: &mut Vec<ir::Statement>, next_node: &mut usize| -> ir::LValue {
+        let l = *next_node; *next_node += 1;
+        let r = *next_node; *next_node += 1;
+        body.insert(*i, ir::Statement::Compute(l, ir::Expr::LValue(ir::LValue::Local(lid))));
+        body.insert(*i+1, ir::Statement::Compute(r, ir::Expr::Num(1.0)));
+        *i += 2;
+        ir::LValue::Index(l, r)
+    };
+
+    while i < body.len() {
+        match &mut body[i] {
+            ir::Statement::Local(lid) => {
+                let lid = *lid;
+                if upvalue_locals.contains(&lid) {
+                    // insert x = {} directly after local x
+                    let n = *next_node; *next_node += 1;
+                    body.insert(i, ir::Statement::Compute(n, ir::Expr::NewTable));
+                    body.insert(i+1, ir::Statement::Store(ir::LValue::Local(lid), n));
+
+                    // skip the newly created statements.
+                    i += 2;
+                }
+            },
+            ir::Statement::Store(ir::LValue::Local(lid), n) => {
+                let (lid, n) = (*lid, *n);
+                if upvalue_locals.contains(&lid) {
+                    let lval = wrap_lid(&mut i, lid, body, next_node);
+                    body[i] = ir::Statement::Store(lval, n);
+                }
+            },
+            ir::Statement::Compute(n, ir::Expr::LValue(ir::LValue::Local(lid))) => {
+                let (n, lid) = (*n, *lid);
+                if upvalue_locals.contains(&lid) {
+                    let lval = wrap_lid(&mut i, lid, body, next_node);
+                    body[i] = ir::Statement::Compute(n, ir::Expr::LValue(lval));
+                }
+            },
+            ir::Statement::If(_, thenbody, elsebody) => {
+                postprocess_body(thenbody, upvalue_locals, next_node);
+                postprocess_body(elsebody, upvalue_locals, next_node);
+            },
+            ir::Statement::Loop(body) => {
+                postprocess_body(body, upvalue_locals, next_node);
+            },
+            _ => {},
+        }
+        i += 1;
+    }
+}
+
+fn find_upvalue_locals(statements: &[ir::Statement], fns: &[LitFunction]) -> HashSet<LocalId> {
+    let mut set = HashSet::new();
+    for st in statements {
+        match st {
+            ir::Statement::Compute(_, ir::Expr::LitFunction(fnid)) => {
+                for x in &fns[*fnid].upvalue_refs {
+                    if let UpvalueRef::Local(lid) = x {
+                        set.insert(*lid);
+                    }
+                }
+            },
+            ir::Statement::If(_, thenbody, elsebody) => {
+                set.extend(find_upvalue_locals(thenbody, fns));
+                set.extend(find_upvalue_locals(elsebody, fns));
+            },
+            ir::Statement::Loop(body) => {
+                set.extend(find_upvalue_locals(body, fns));
+            },
+            _ => {},
+        }
+    }
+
+    set
 }

@@ -84,7 +84,7 @@ pub struct LitFunction {
 }
 
 // you can only closure local & already closured variables.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UpvalueRef {
     Local(LocalId),
     Upvalue(UpvalueId),
