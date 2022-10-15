@@ -31,6 +31,27 @@ struct Ctxt {
     ellipsis_node: Option<Node>,
 }
 
+impl Ctxt {
+    fn in_block(&mut self, f: impl FnOnce(&mut Ctxt)) -> Vec<ir::Statement> {
+        self.locals.push(Default::default());
+        let mut body = Vec::new();
+        std::mem::swap(&mut self.body, &mut body);
+        f(self);
+        std::mem::swap(&mut self.body, &mut body);
+        self.locals.pop().unwrap();
+
+        body
+    }
+}
+
+fn mk_num(x: impl Into<f64>, ctxt: &mut Ctxt) -> Node {
+    let node = mk_node(ctxt);
+    let expr = ir::Expr::Num(x.into());
+    push_st(ir::Statement::Compute(node, expr), ctxt);
+
+    node
+}
+
 fn mk_node(ctxt: &mut Ctxt) -> Node {
     let node = ctxt.next_node;
     ctxt.next_node += 1;
@@ -59,8 +80,7 @@ pub fn lower(ast: &Ast) -> IR {
 fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
     let (n, tabled) = lower_expr(expr, ctxt);
     if tabled {
-        let x = mk_compute(ir::Expr::Num(1.0), ctxt);
-        let x = ir::Expr::LValue(ir::LValue::Index(n, x));
+        let x = ir::Expr::LValue(ir::LValue::Index(n, mk_num(1.0, ctxt)));
         let x = mk_compute(x, ctxt);
 
         x
@@ -75,19 +95,11 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
     let (val, tabled) = lower_expr(expr, ctxt);
     if tabled {
         // `orig_t_len = #t`
-        let orig_t_len: Node = {
-            let orig_len = counter-1;
-            let orig_len = ir::Expr::Num(orig_len as f64);
-
-            mk_compute(orig_len, ctxt)
-        };
+        let orig_t_len = mk_num((counter-1) as f64, ctxt);
 
         // `len = val[0]`
         let len: Node = {
-            let idx = ir::Expr::Num(0.0);
-            let idx = mk_compute(idx, ctxt);
-
-            let lval = ir::LValue::Index(val, idx);
+            let lval = ir::LValue::Index(val, mk_num(0.0, ctxt));
             let lval = ir::Expr::LValue(lval);
 
             mk_compute(lval, ctxt)
@@ -98,15 +110,12 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         let i_var: ir::LValue = ir::LValue::Local(i_var);
 
         // `i = 1`
-        let one = ir::Expr::Num(1.0);
-        let one: Node = mk_compute(one, ctxt);
+        let one = mk_num(1.0, ctxt);
         push_st(ir::Statement::Store(i_var.clone(), one), ctxt);
 
-        let mut body = Vec::new();
-        std::mem::swap(&mut ctxt.body, &mut body);
+        let body = ctxt.in_block(|ctxt| {
+            // `loop {`
 
-        // `loop {`
-        {
             // `if i > len: break`
             let i = ir::Expr::LValue(i_var.clone());
             let i: Node = mk_compute(i, ctxt);
@@ -130,10 +139,10 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
             let r = mk_compute(r, ctxt);
             let store = ir::Statement::Store(i_var.clone(), r);
             push_st(store, ctxt);
-        }
-        // `}`
 
-        std::mem::swap(&mut ctxt.body, &mut body);
+            // `}`
+        });
+
         push_st(ir::Statement::Loop(body), ctxt);
 
         if calc_length {
@@ -141,23 +150,20 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
             let i = ir::Expr::LValue(i_var.clone());
             let i: Node = mk_compute(i, ctxt);
 
-            let r = ir::Expr::Num(counter as f64 - 2.0);
-            let r: Node = mk_compute(r, ctxt);
-            let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, r);
+            let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, mk_num(counter as f64 - 2.0, ctxt));
             let x = mk_compute(x, ctxt);
 
             let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
             push_st(ir::Statement::Store(ir::LValue::Index(t, zero), x), ctxt);
         }
     } else {
-        let idx = mk_compute(ir::Expr::Num(counter as f64), ctxt);
+        let idx = mk_num(counter as f64, ctxt);
         let lval = ir::LValue::Index(t, idx);
         push_st(ir::Statement::Store(lval, val), ctxt);
 
         if calc_length {
             let len = idx; // length of array is the same as the highest index.
-            let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
-            let lval = ir::LValue::Index(t, zero);
+            let lval = ir::LValue::Index(t, mk_num(0.0, ctxt));
             push_st(ir::Statement::Store(lval, len), ctxt);
         }
     }
@@ -169,7 +175,7 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> Node {
     let t = mk_compute(ir::Expr::NewTable, ctxt);
 
     if calc_length && fields.is_empty() {
-        let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
+        let zero = mk_num(0.0, ctxt);
         push_st(ir::Statement::Store(ir::LValue::Index(t, zero), zero), ctxt);
         return t;
     }
@@ -181,8 +187,7 @@ fn lower_table(fields: &[Field], calc_length: bool, ctxt: &mut Ctxt) -> Node {
                 if i == fields.len() - 1 {
                     push_last_table_expr(t, counter, expr, calc_length, ctxt);
                 } else {
-                    let idx = ir::Expr::Num(counter as f64);
-                    let idx = mk_compute(idx, ctxt);
+                    let idx = mk_num(counter as f64, ctxt);
 
                     counter += 1;
                     let lval = ir::LValue::Index(t, idx);
@@ -237,13 +242,10 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
             let v = ir::LValue::Local(mk_local(ctxt));
             push_st(ir::Statement::Store(v.clone(), l), ctxt);
 
-            let mut if_body = Vec::new();
-            std::mem::swap(&mut ctxt.body, &mut if_body);
-
-            let r: Node = lower_expr1(r, ctxt);
-            push_st(ir::Statement::Store(v.clone(), r), ctxt);
-
-            std::mem::swap(&mut ctxt.body, &mut if_body);
+            let if_body = ctxt.in_block(|ctxt| {
+                let r: Node = lower_expr1(r, ctxt);
+                push_st(ir::Statement::Store(v.clone(), r), ctxt);
+            });
 
             push_st(ir::Statement::If(l, if_body, Vec::new()), ctxt);
 
@@ -254,13 +256,10 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
             let v = ir::LValue::Local(mk_local(ctxt));
             push_st(ir::Statement::Store(v.clone(), l), ctxt);
 
-            let mut else_body = Vec::new();
-            std::mem::swap(&mut ctxt.body, &mut else_body);
-
-            let r: Node = lower_expr1(r, ctxt);
-            push_st(ir::Statement::Store(v.clone(), r), ctxt);
-
-            std::mem::swap(&mut ctxt.body, &mut else_body);
+            let else_body = ctxt.in_block(|ctxt| {
+                let r: Node = lower_expr1(r, ctxt);
+                push_st(ir::Statement::Store(v.clone(), r), ctxt);
+            });
 
             push_st(ir::Statement::If(l, Vec::new(), else_body), ctxt);
 
@@ -314,7 +313,7 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
         },
 
         // literals
-        Expr::Literal(Literal::Num(i)) => mk_compute(ir::Expr::Num(*i), ctxt),
+        Expr::Literal(Literal::Num(i)) => mk_num(*i as f64, ctxt),
         Expr::Literal(Literal::Bool(b)) => mk_compute(ir::Expr::Bool(*b), ctxt),
         Expr::Literal(Literal::Str(s)) => mk_compute(ir::Expr::Str(s.clone()), ctxt),
         Expr::Literal(Literal::Nil) => mk_compute(ir::Expr::Nil, ctxt),
@@ -333,7 +332,7 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
             }
             if let Some(uid) = ctxt.upvalues.get(s) {
                 let uid = *uid;
-                let one = mk_compute(ir::Expr::Num(1.0), ctxt);
+                let one = mk_num(1.0, ctxt);
                 let upv = mk_compute(ir::Expr::Upvalue(uid), ctxt);
                 return ir::LValue::Index(upv, one);
             }
@@ -411,7 +410,7 @@ fn lower_assign(lvalues: &[ir::LValue], exprs: &[Expr], ctxt: &mut Ctxt) {
     for i in min..max {
         let expr = if tabled {
             let i = i - min + 1; // starting at 1
-            let x = mk_compute(ir::Expr::Num(i as f64), ctxt);
+            let x = mk_num(i as f64, ctxt);
             let x = ir::Expr::LValue(ir::LValue::Index(last, x));
 
             x
@@ -467,32 +466,20 @@ fn lower_if(ifblocks: &[IfBlock], optelse: &Option<Vec<Statement>>, ctxt: &mut C
     let IfBlock(cond, ifbody) = ifblocks[0].clone();
     let cond = lower_expr1(&cond, ctxt);
 
-    let mut low_ifbody = Vec::new();
-    std::mem::swap(&mut low_ifbody, &mut ctxt.body);
-    ctxt.locals.push(Default::default());
-    lower_body(&ifbody, ctxt);
-    ctxt.locals.pop().unwrap();
-    std::mem::swap(&mut low_ifbody, &mut ctxt.body);
+    let ifbody = ctxt.in_block(|ctxt| {
+        lower_body(&ifbody, ctxt);
+    });
 
-    let mut low_elsebody = Vec::new();
-    if ifblocks.len() == 1 {
-        if let Some(else_b) = optelse {
-            std::mem::swap(&mut low_elsebody, &mut ctxt.body);
-            ctxt.locals.push(Default::default());
-            lower_body(else_b, ctxt);
-            ctxt.locals.pop().unwrap();
-            std::mem::swap(&mut low_elsebody, &mut ctxt.body);
+    let elsebody = ctxt.in_block(|ctxt| {
+        if ifblocks.len() == 1 {
+            if let Some(else_b) = optelse {
+                lower_body(else_b, ctxt);
+            }
+        } else { // recursion!
+            lower_if(&ifblocks[1..], optelse, ctxt);
         }
-    } else { // recursion!
-        std::mem::swap(&mut low_elsebody, &mut ctxt.body);
-        ctxt.locals.push(Default::default());
-
-        lower_if(&ifblocks[1..], optelse, ctxt);
-
-        ctxt.locals.pop().unwrap();
-        std::mem::swap(&mut low_elsebody, &mut ctxt.body);
-    }
-    push_st(ir::Statement::If(cond, low_ifbody, low_elsebody), ctxt);
+    });
+    push_st(ir::Statement::If(cond, ifbody, elsebody), ctxt);
 }
 
 fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
@@ -527,45 +514,33 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 push_st(ir::Statement::Break, ctxt);
             }
             Statement::While(cond, body) => {
-                // in the while-loop there is a new scope!
-                ctxt.locals.push(Default::default());
+                let body = ctxt.in_block(|ctxt| {
+                    let cond = lower_expr1(cond, ctxt);
+                    push_st(ir::Statement::If(cond, vec![], vec![ir::Statement::Break]), ctxt);
 
-                let mut b = Vec::new();
-                std::mem::swap(&mut ctxt.body, &mut b);
+                    lower_body(body, ctxt);
+                });
 
-                let cond = lower_expr1(cond, ctxt);
-                push_st(ir::Statement::If(cond, vec![], vec![ir::Statement::Break]), ctxt);
-
-                lower_body(body, ctxt);
-
-                std::mem::swap(&mut ctxt.body, &mut b);
-                push_st(ir::Statement::Loop(b), ctxt);
-
-                ctxt.locals.pop().unwrap();
+                push_st(ir::Statement::Loop(body), ctxt);
             },
             Statement::Repeat(body, cond) => {
-                ctxt.locals.push(Default::default());
+                let body = ctxt.in_block(|ctxt| {
+                    lower_body(body, ctxt);
 
-                let mut b = Vec::new();
-                std::mem::swap(&mut ctxt.body, &mut b);
+                    let cond = lower_expr1(cond, ctxt);
+                    push_st(ir::Statement::If(cond, vec![ir::Statement::Break], vec![]), ctxt);
 
-                lower_body(body, ctxt);
+                });
 
-                let cond = lower_expr1(cond, ctxt);
-                push_st(ir::Statement::If(cond, vec![ir::Statement::Break], vec![]), ctxt);
+                push_st(ir::Statement::Loop(body), ctxt);
 
-                std::mem::swap(&mut ctxt.body, &mut b);
-                push_st(ir::Statement::Loop(b), ctxt);
-
-                ctxt.locals.pop().unwrap();
             },
             Statement::If(ifblocks, optelse) => { lower_if(ifblocks, optelse, ctxt); }
             Statement::Block(body) => {
-                ctxt.locals.push(Default::default());
-
-                lower_body(body, ctxt);
-
-                ctxt.locals.pop().unwrap();
+                let body = ctxt.in_block(|ctxt| {
+                    lower_body(body, ctxt);
+                });
+                ctxt.body.extend(body);
             },
             Statement::NumericFor(ident, start, stop, optstep, body) => {
                 let loc_var = ir::LValue::Local(mk_local(ctxt));
@@ -576,60 +551,57 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 let n_stop = lower_expr1(stop, ctxt);
                 let n_step = match optstep {
                     Some(x) => lower_expr1(x, ctxt),
-                    None => mk_compute(ir::Expr::Num(1.0), ctxt),
+                    None => mk_num(1.0, ctxt),
                 };
 
                 // loop:
 
-                let mut b = Vec::new();
-                std::mem::swap(&mut ctxt.body, &mut b);
+                let b = ctxt.in_block(|ctxt| {
+                    let n_var = mk_compute(ir::Expr::LValue(loc_var.clone()), ctxt);
 
-                let n_var = mk_compute(ir::Expr::LValue(loc_var.clone()), ctxt);
+                    // if step > 0
+                    let zero = mk_num(0.0, ctxt);
+                    let step_gt_0 = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Gt, n_step, zero), ctxt);
 
-                // if step > 0
-                let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
-                let step_gt_0 = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Gt, n_step, zero), ctxt);
+                    // if !(var <= limit): break
+                    let ifblock = ctxt.in_block(|ctxt| {
+                        let var_le_stop = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Le, n_var, n_stop), ctxt);
+                        push_st(ir::Statement::If(var_le_stop, vec![], vec![ir::Statement::Break]), ctxt);
+                    });
 
-                // if !(var <= limit): break
-                let mut ifblock = Vec::new();
-                std::mem::swap(&mut ctxt.body, &mut ifblock);
-                let var_le_stop = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Le, n_var, n_stop), ctxt);
-                push_st(ir::Statement::If(var_le_stop, vec![], vec![ir::Statement::Break]), ctxt);
-                std::mem::swap(&mut ctxt.body, &mut ifblock);
+                    // else:
+                    // if !(var >= limit): break
+                    let elseblock = ctxt.in_block(|ctxt| {
+                        let var_ge_stop = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Ge, n_var, n_stop), ctxt);
+                        push_st(ir::Statement::If(var_ge_stop, vec![], vec![ir::Statement::Break]), ctxt);
+                    });
 
-                // else:
-                // if !(var >= limit): break
-                let mut elseblock = Vec::new();
-                std::mem::swap(&mut ctxt.body, &mut elseblock);
-                let var_ge_stop = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Ge, n_var, n_stop), ctxt);
-                push_st(ir::Statement::If(var_ge_stop, vec![], vec![ir::Statement::Break]), ctxt);
-                std::mem::swap(&mut ctxt.body, &mut elseblock);
+                    // add this large if block!
+                    push_st(ir::Statement::If(step_gt_0, ifblock, elseblock), ctxt);
 
-                // add this large if block!
-                push_st(ir::Statement::If(step_gt_0, ifblock, elseblock), ctxt);
+                    // the actual body of the loop
+                    let tmp = ctxt.in_block(|ctxt| {
+                        // local v = var
+                        let v = mk_local(ctxt);
+                        let loc_v = ir::LValue::Local(v.clone());
 
-                // local v = var
-                let v = mk_local(ctxt);
-                let loc_v = ir::LValue::Local(v.clone());
-                let mut map: HashMap<_, _> = Default::default();
-                map.insert(ident.clone(), v.clone());
-                ctxt.locals.push(map);
+                        ctxt.locals.last_mut()
+                                   .unwrap()
+                                   .insert(ident.clone(), v.clone());
 
-                push_st(ir::Statement::Store(loc_v, n_var), ctxt);
+                        push_st(ir::Statement::Store(loc_v, n_var), ctxt);
 
-                // block
-                lower_body(body, ctxt);
+                        // block
+                        lower_body(body, ctxt);
+                    });
+                    ctxt.body.extend(tmp);
 
-                ctxt.locals.pop().unwrap();
-
-                // var = var + step
-                let n_var = mk_compute(ir::Expr::LValue(loc_var.clone()), ctxt);
-                let sum = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Plus, n_var, n_step), ctxt);
-                push_st(ir::Statement::Store(loc_var, sum), ctxt);
-
-                std::mem::swap(&mut ctxt.body, &mut b);
+                    // var = var + step
+                    let n_var = mk_compute(ir::Expr::LValue(loc_var.clone()), ctxt);
+                    let sum = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Plus, n_var, n_step), ctxt);
+                    push_st(ir::Statement::Store(loc_var, sum), ctxt);
+                });
                 push_st(ir::Statement::Loop(b), ctxt);
-
             },
             Statement::GenericFor(idents, exprs, body) => {
                 let (f, s, var) = (mk_local(ctxt), mk_local(ctxt), mk_local(ctxt));
@@ -637,57 +609,53 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 let lvals = vec![f_lval.clone(), s_lval.clone(), var_lval.clone()];
                 lower_assign(&lvals, exprs, ctxt);
 
-                let mut b = Vec::new();
-                std::mem::swap(&mut ctxt.body, &mut b);
+                let b = ctxt.in_block(|ctxt| {
+                    let n_f = mk_compute(ir::Expr::LValue(f_lval.clone()), ctxt);
+                    let n_s = mk_compute(ir::Expr::LValue(s_lval.clone()), ctxt);
+                    let n_var = mk_compute(ir::Expr::LValue(var_lval.clone()), ctxt);
 
-                let n_f = mk_compute(ir::Expr::LValue(f_lval.clone()), ctxt);
-                let n_s = mk_compute(ir::Expr::LValue(s_lval.clone()), ctxt);
-                let n_var = mk_compute(ir::Expr::LValue(var_lval.clone()), ctxt);
+                    let t = mk_compute(ir::Expr::NewTable, ctxt);
 
-                let t = mk_compute(ir::Expr::NewTable, ctxt);
+                    let zero = mk_num(0.0, ctxt);
+                    let one = mk_num(1.0, ctxt);
+                    let two = mk_num(2.0, ctxt);
 
-                let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
-                let one = mk_compute(ir::Expr::Num(1.0), ctxt);
-                let two = mk_compute(ir::Expr::Num(2.0), ctxt);
+                    // t[0] = 2
+                    push_st(ir::Statement::Store(ir::LValue::Index(t, zero), two), ctxt);
 
-                // t[0] = 2
-                push_st(ir::Statement::Store(ir::LValue::Index(t, zero), two), ctxt);
+                    // t[1] = s
+                    push_st(ir::Statement::Store(ir::LValue::Index(t, one), n_s), ctxt);
 
-                // t[1] = s
-                push_st(ir::Statement::Store(ir::LValue::Index(t, one), n_s), ctxt);
+                    // t[2] = var
+                    push_st(ir::Statement::Store(ir::LValue::Index(t, two), n_var), ctxt);
 
-                // t[2] = var
-                push_st(ir::Statement::Store(ir::LValue::Index(t, two), n_var), ctxt);
+                    // call f(s, var) which is equivalent to f(t), where t = {s, var}
+                    // rettable = f(s, var)
+                    let rettable = mk_compute(ir::Expr::FnCall(n_f, t), ctxt);
 
-                // call f(s, var) which is equivalent to f(t), where t = {s, var}
-                // rettable = f(s, var)
-                let rettable = mk_compute(ir::Expr::FnCall(n_f, t), ctxt);
+                    for (i, ident) in idents.iter().enumerate() {
+                        let local = mk_local(ctxt);
+                        ctxt.locals.last_mut()
+                                   .unwrap()
+                                   .insert(ident.clone(), local);
+                        let n_i = mk_num((i+1) as f64, ctxt);
 
-                let mut map = HashMap::new();
-                for (i, ident) in idents.iter().enumerate() {
-                    let local = mk_local(ctxt);
-                    map.insert(ident.clone(), local);
-                    let n_i = mk_compute(ir::Expr::Num((i+1) as f64), ctxt);
+                        // rettable_i = rettable[i]
+                        let rettable_i = mk_compute(ir::Expr::LValue(ir::LValue::Index(rettable, n_i)), ctxt);
+                        push_st(ir::Statement::Store(ir::LValue::Local(local), rettable_i), ctxt);
 
-                    // rettable_i = rettable[i]
-                    let rettable_i = mk_compute(ir::Expr::LValue(ir::LValue::Index(rettable, n_i)), ctxt);
-                    push_st(ir::Statement::Store(ir::LValue::Local(local), rettable_i), ctxt);
-
-                    if i == 0 {
-                        push_st(ir::Statement::Store(var_lval.clone(), rettable_i), ctxt);
+                        if i == 0 {
+                            push_st(ir::Statement::Store(var_lval.clone(), rettable_i), ctxt);
+                        }
                     }
-                }
 
-                let n_var = mk_compute(ir::Expr::LValue(var_lval.clone()), ctxt);
-                let n_nil = mk_compute(ir::Expr::Nil, ctxt);
-                let var_eq_nil = mk_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, n_var, n_nil), ctxt);
-                push_st(ir::Statement::If(var_eq_nil, vec![ir::Statement::Break], vec![]), ctxt);
+                    let n_var = mk_compute(ir::Expr::LValue(var_lval.clone()), ctxt);
+                    let n_nil = mk_compute(ir::Expr::Nil, ctxt);
+                    let var_eq_nil = mk_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, n_var, n_nil), ctxt);
+                    push_st(ir::Statement::If(var_eq_nil, vec![ir::Statement::Break], vec![]), ctxt);
 
-                ctxt.locals.push(map);
-                lower_body(body, ctxt);
-                ctxt.locals.pop().unwrap();
-
-                std::mem::swap(&mut ctxt.body, &mut b);
+                    lower_body(body, ctxt);
+                });
                 push_st(ir::Statement::Loop(b), ctxt);
             },
         }
@@ -759,8 +727,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
             let lid = mk_local(ctxt);
             // lua tables start with 1, not 0.
             let i = i + 1;
-            let i = ir::Expr::Num(i as f64);
-            let i = mk_compute(i, ctxt);
+            let i = mk_num(i as f64, ctxt);
             let idx = ir::LValue::Index(argtable, i);
             let idx = ir::Expr::LValue(idx);
             let node = mk_compute(idx, ctxt);
@@ -772,8 +739,8 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
         }
 
         if *variadic == Variadic::Yes {
-            let zero = mk_compute(ir::Expr::Num(0.0), ctxt);
-            let one = mk_compute(ir::Expr::Num(1.0), ctxt);
+            let zero = mk_num(0.0, ctxt);
+            let one = mk_num(1.0, ctxt);
 
             // ARG_LEN = args.len()
             // ARGT_LEN = argtable[0]
@@ -786,7 +753,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
             //   n[i] = argtable[i+ARG_LEN]
             //   i = i + 1
             // }
-            let arg_len = mk_compute(ir::Expr::Num(args.len() as f64), ctxt);
+            let arg_len = mk_num(args.len() as f64, ctxt);
             let argt_len = mk_compute(ir::Expr::LValue(ir::LValue::Index(argtable, zero)), ctxt);
             let e_len = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Minus, argt_len, arg_len), ctxt);
             let n = mk_compute(ir::Expr::NewTable, ctxt);
@@ -887,7 +854,7 @@ fn postprocess_fn(body: &mut Vec<ir::Statement>, fns: &[LitFunction], mut next_n
 fn postprocess_body(body: &mut Vec<ir::Statement>, upvalue_locals: &HashSet<LocalId>, next_node: &mut usize) {
     let mut i = 0;
 
-    // i says where the the statement containing the LValue 
+    // i says where the the statement containing the LValue
     let wrap_lid = |i: &mut usize, lid: LocalId, body: &mut Vec<ir::Statement>, next_node: &mut usize| -> ir::LValue {
         let l = *next_node; *next_node += 1;
         let r = *next_node; *next_node += 1;
