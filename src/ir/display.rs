@@ -18,11 +18,13 @@ impl Display for IR {
 }
 
 fn display_fn(id: FnId, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "f{}:\n", id)?;
+    write!(f, "function f{}:\n", id)?;
 
     for st in &ir.fns[id].body {
         display_statement(st, 2, ir, f)?;
     }
+
+    write!(f, "end\n\n")?;
 
     Ok(())
 }
@@ -46,33 +48,32 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, f: &mut Formatter<'_>
     write!(f, "{}", &indent)?;
 
     match st {
-        Local(lid) => write!(f, "local l{}\n", lid),
+        Local(lid) => write!(f, "local l{}", lid)?,
         Compute(n, e) => {
             write!(f, "n{} = ", n)?;
             display_expr(e, f)?;
-
-            write!(f, "\n")
         },
         Store(l, n) => {
             display_lvalue(l, f)?;
-
-            write!(f, " <- n{}\n", n)
+            write!(f, " <- n{}", n)?;
         }
-        Return(n) => write!(f, "return n{}\n", n),
+        Return(n) => write!(f, "return n{}", n)?,
         If(cond, body, else_body) => {
             write!(f, "if n{}:\n", cond)?;
             display_body(body, tabs+2, ir, f)?;
             write!(f, "{}else:\n", &indent)?;
-
-            display_body(else_body, tabs+2, ir, f)
+            display_body(else_body, tabs+2, ir, f)?;
+            write!(f, "{}end", &indent)?;
         },
         Loop(body) => {
             write!(f, "loop:\n")?;
-
-            display_body(body, tabs+2, ir, f)
+            display_body(body, tabs+2, ir, f)?;
+            write!(f, "{}end", &indent)?;
         },
-        Break => write!(f, "break\n"),
+        Break => write!(f, "break")?,
     }
+
+    write!(f, ";\n")
 }
 
 fn display_lvalue(lvalue: &LValue, f: &mut Formatter<'_>) -> fmt::Result {
