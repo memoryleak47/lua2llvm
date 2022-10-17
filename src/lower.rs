@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::ast::*;
-use crate::ir::{self, FnId, LocalId, GlobalId, IR, LitFunction, Node, UpvalueId, UpvalueRef};
+use crate::ir::{self, FnId, LocalId, GlobalId, IR, LitFunction, Node, UpvalueId};
 
 #[derive(Default)]
 struct Ctxt {
@@ -71,7 +71,7 @@ fn mk_compute(expr: ir::Expr, ctxt: &mut Ctxt) -> Node {
 
 pub fn lower(ast: &Ast) -> IR {
     let mut ctxt = Ctxt::default();
-    let id = lower_fn(&[], &Variadic::No, &ast.statements, /*is_main: */ true, &mut ctxt);
+    let (id, _) = lower_fn(&[], &Variadic::No, &ast.statements, /*is_main: */ true, &mut ctxt);
 
     let mut ir = ctxt.ir;
     ir.main_fn = id;
@@ -288,8 +288,8 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
             ctxt.ellipsis_node.expect("lowering `...` in non-variadic function!")
         },
         Expr::Literal(Literal::Function(args, variadic, body)) => {
-            let fid = lower_fn(args, variadic, body, false, ctxt);
-            let x = ir::Expr::LitFunction(fid);
+            let (fid, upnodes) = lower_fn(args, variadic, body, false, ctxt);
+            let x = ir::Expr::LitFunction(fid, upnodes);
 
             mk_compute(x, ctxt)
         },
@@ -669,14 +669,13 @@ fn push_st(st: ir::Statement, ctxt: &mut Ctxt) {
     ctxt.body.push(st);
 }
 
-fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_main: bool, ctxt: &mut Ctxt) -> FnId {
+fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_main: bool, ctxt: &mut Ctxt) -> (FnId, Vec<Node>) {
     let fid = ctxt.ir.fns.len();
 
     // this dummy allows us to have a fixed id before lowering of this fn is done.
     // this is necessary eg. for closuring.
     let dummy_lit_fn = LitFunction {
         body: Vec::new(),
-        upvalue_refs: Vec::new(),
     };
     ctxt.ir.fns.push(dummy_lit_fn);
 
@@ -801,7 +800,13 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
 
         lower_body(statements, ctxt);
 
-        postprocess_fn(&mut ctxt.body, &ctxt.ir.fns, ctxt.next_node);
+        // add `return` if missing
+        if !matches!(ctxt.body.last(), Some(ir::Statement::Return(_))) {
+            let t = mk_compute(ir::Expr::NewTable, ctxt);
+            let zero = mk_num(0.0, ctxt);
+            push_st(ir::Statement::Store(ir::LValue::Index(t, zero), zero), ctxt);
+            push_st(ir::Statement::Return(t), ctxt);
+        }
     }
 
     std::mem::swap(&mut ctxt.current_fn, &mut current_fn);
@@ -813,132 +818,35 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
     std::mem::swap(&mut ctxt.upvalue_candidates, &mut upvalue_candidates);
     std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
 
-    let upvalue_refs = {
-        let mut ret = vec![/*some tmp: */ UpvalueRef::Local(usize::MAX); upvalues.len()];
+    let upvalue_nodes = {
+        let mut ret = vec![usize::MAX; upvalues.len()];
         for (s, uid) in upvalues.iter() {
-            let uref = match upvalue_candidates_iref[s] {
+            let expr = match upvalue_candidates_iref[s] {
                 IncompleteUpvalueRef::Super => {
                     let uid2 = ctxt.upvalues.len();
                     ctxt.upvalues.insert(s.clone(), uid2);
 
-                    UpvalueRef::Upvalue(uid2)
+                    ir::Expr::Upvalue(uid2)
                 },
                 IncompleteUpvalueRef::Local(lid) => {
-                    UpvalueRef::Local(lid)
+                    ir::Expr::LValue(ir::LValue::Local(lid))
                 },
                 IncompleteUpvalueRef::Upvalue(uid) => {
-                    UpvalueRef::Upvalue(uid)
+                    ir::Expr::Upvalue(uid)
                 },
             };
-            ret[*uid] = uref;
+            let n = mk_compute(expr, ctxt);
+            ret[*uid] = n;
         }
 
-        assert!(ret.iter().all(|x| x != &UpvalueRef::Local(usize::MAX)));
+        assert!(ret.iter().all(|x| x != &usize::MAX));
 
         ret
     };
 
     ctxt.ir.fns[fid] = LitFunction {
         body,
-        upvalue_refs,
     };
 
-    fid
-}
-
-// Will add closure table wrapping.
-// Will also add return {} if it's missing.
-fn postprocess_fn(body: &mut Vec<ir::Statement>, fns: &[LitFunction], mut next_node: usize) {
-    // those locals need to be table wrapped!
-    let upvalue_locals: HashSet<LocalId> = find_upvalue_locals(body, fns);
-
-    postprocess_body(body, &upvalue_locals, &mut next_node);
-
-    if !matches!(body.last(), Some(ir::Statement::Return(_))) {
-        let t = next_node; next_node += 1;
-        let zero = next_node; next_node += 1;
-        body.push(ir::Statement::Compute(t, ir::Expr::NewTable));
-        body.push(ir::Statement::Compute(zero, ir::Expr::Num(0.0)));
-        body.push(ir::Statement::Store(ir::LValue::Index(t, zero), zero));
-        body.push(ir::Statement::Return(t));
-    }
-}
-
-fn postprocess_body(body: &mut Vec<ir::Statement>, upvalue_locals: &HashSet<LocalId>, next_node: &mut usize) {
-    let mut i = 0;
-
-    // i says where the the statement containing the LValue
-    let wrap_lid = |i: &mut usize, lid: LocalId, body: &mut Vec<ir::Statement>, next_node: &mut usize| -> ir::LValue {
-        let l = *next_node; *next_node += 1;
-        let r = *next_node; *next_node += 1;
-        body.insert(*i, ir::Statement::Compute(l, ir::Expr::LValue(ir::LValue::Local(lid))));
-        body.insert(*i+1, ir::Statement::Compute(r, ir::Expr::Num(1.0)));
-        *i += 2;
-        ir::LValue::Index(l, r)
-    };
-
-    while i < body.len() {
-        match &mut body[i] {
-            ir::Statement::Local(lid) => {
-                let lid = *lid;
-                if upvalue_locals.contains(&lid) {
-                    // insert x = {} directly after local x
-                    let n = *next_node; *next_node += 1;
-                    body.insert(i+1, ir::Statement::Compute(n, ir::Expr::NewTable));
-                    body.insert(i+2, ir::Statement::Store(ir::LValue::Local(lid), n));
-
-                    // skip the newly created statements.
-                    i += 2;
-                }
-            },
-            ir::Statement::Store(ir::LValue::Local(lid), n) => {
-                let (lid, n) = (*lid, *n);
-                if upvalue_locals.contains(&lid) {
-                    let lval = wrap_lid(&mut i, lid, body, next_node);
-                    body[i] = ir::Statement::Store(lval, n);
-                }
-            },
-            ir::Statement::Compute(n, ir::Expr::LValue(ir::LValue::Local(lid))) => {
-                let (n, lid) = (*n, *lid);
-                if upvalue_locals.contains(&lid) {
-                    let lval = wrap_lid(&mut i, lid, body, next_node);
-                    body[i] = ir::Statement::Compute(n, ir::Expr::LValue(lval));
-                }
-            },
-            ir::Statement::If(_, thenbody, elsebody) => {
-                postprocess_body(thenbody, upvalue_locals, next_node);
-                postprocess_body(elsebody, upvalue_locals, next_node);
-            },
-            ir::Statement::Loop(body) => {
-                postprocess_body(body, upvalue_locals, next_node);
-            },
-            _ => {},
-        }
-        i += 1;
-    }
-}
-
-fn find_upvalue_locals(statements: &[ir::Statement], fns: &[LitFunction]) -> HashSet<LocalId> {
-    let mut set = HashSet::new();
-    for st in statements {
-        match st {
-            ir::Statement::Compute(_, ir::Expr::LitFunction(fnid)) => {
-                for x in &fns[*fnid].upvalue_refs {
-                    if let UpvalueRef::Local(lid) = x {
-                        set.insert(*lid);
-                    }
-                }
-            },
-            ir::Statement::If(_, thenbody, elsebody) => {
-                set.extend(find_upvalue_locals(thenbody, fns));
-                set.extend(find_upvalue_locals(elsebody, fns));
-            },
-            ir::Statement::Loop(body) => {
-                set.extend(find_upvalue_locals(body, fns));
-            },
-            _ => {},
-        }
-    }
-
-    set
+    (fid, upvalue_nodes)
 }

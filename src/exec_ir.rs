@@ -1,4 +1,4 @@
-use crate::ir::{FnId, IR, Statement, Expr, LValue, BinOpKind, UnOpKind, UpvalueRef};
+use crate::ir::{FnId, IR, Statement, Expr, LValue, BinOpKind, UnOpKind};
 
 type TablePtr = usize;
 
@@ -201,19 +201,12 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             ret
         },
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
-        Expr::LitFunction(fnid) => {
+        Expr::LitFunction(fnid, upnodes) => {
             // evaluate all things we need to closure!
             let func = &ctxt.ir.fns[*fnid];
             let mut upvalues: Vec<Value> = Vec::new();
-            for uref in &func.upvalue_refs {
-                match uref {
-                    UpvalueRef::Local(lid) => {
-                        upvalues.push(ctxt.locals[*lid].clone());
-                    },
-                    UpvalueRef::Upvalue(uid) => {
-                        upvalues.push(ctxt.upvalues[*uid].clone());
-                    },
-                }
+            for n in upnodes {
+                upvalues.push(ctxt.nodes[*n].clone());
             }
 
             Value::LitFn(*fnid, upvalues)

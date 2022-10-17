@@ -1,6 +1,7 @@
 pub use crate::ast::UnOpKind;
 
 mod display;
+mod parse;
 
 // Note that even though, lower.rs only returns tables from functions, and Arg is always a table too.
 // This is no constraint for the IR itself.
@@ -66,7 +67,7 @@ pub enum Expr {
     Arg,
     FnCall(/*func: */ Node, /* arg: */ Node),
     NewTable, // equivalent to {}
-    LitFunction(FnId),
+    LitFunction(FnId, /*upnodes: */ Vec<Node>),
     NativeFn(/*name: */ String),
     BinOp(BinOpKind, Node, Node),
     UnOp(UnOpKind, Node),
@@ -80,18 +81,7 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub struct LitFunction {
-    pub body: Vec<Statement>,
-
-    // upvalue_refs[i] is accessible as LValue::Upvalue(i) within this function.
-    // the UpvalueRef upvalue_refs[i] needs to be evaluated to a Value when this function is instantiated.
-    pub upvalue_refs: Vec<UpvalueRef>,
-}
-
-// you can only closure local & already closured variables.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum UpvalueRef {
-    Local(LocalId),
-    Upvalue(UpvalueId),
+    pub body: Vec<Statement>
 }
 
 #[derive(Debug, Default)]

@@ -1,4 +1,4 @@
-use crate::ir::{IR, FnId, Statement, LValue, Expr, BinOpKind, UnOpKind, UpvalueRef};
+use crate::ir::{IR, FnId, Statement, LValue, Expr, BinOpKind, UnOpKind};
 use std::fmt::{self, Display, Formatter};
 
 // functions: f<id>
@@ -124,17 +124,13 @@ fn display_expr(expr: &Expr, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
         Arg => write!(f, "arg")?,
         FnCall(n, t) => write!(f, "n{}(n{})", n, t)?,
         NewTable => write!(f, "{{}}")?,
-        LitFunction(fid) => {
+        LitFunction(fid, upvalues) => {
             write!(f, "f{}<", fid)?;
-            let litfn = &ir.fns[*fid];
-            for (i, x) in litfn.upvalue_refs.iter().enumerate() {
+            for (i, x) in upvalues.iter().enumerate() {
                 if i != 0 {
                     write!(f, ", ")?;
                 }
-                match x {
-                    UpvalueRef::Upvalue(uid) => write!(f, "u{}", *uid)?,
-                    UpvalueRef::Local(lid) => write!(f, "l{}", *lid)?,
-                }
+                write!(f, "n{}", x)?;
             }
             write!(f, ">")?;
         }
