@@ -1,4 +1,4 @@
-use crate::ir::{IR, FnId, Statement, LValue, Expr, BinOpKind, UnOpKind};
+use crate::ir::{IR, FnId, Statement, LValue, Expr, BinOpKind, UnOpKind, UpvalueRef};
 use std::fmt::{self, Display, Formatter};
 
 // functions: f<id>
@@ -10,15 +10,19 @@ use std::fmt::{self, Display, Formatter};
 impl Display for IR {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for id in 0..self.fns.len() {
-            display_fn(id, self, f)?;
+            display_fn(id, id == self.main_fn, self, f)?;
         }
 
         Ok(())
     }
 }
 
-fn display_fn(id: FnId, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "function f{}:\n", id)?;
+fn display_fn(id: FnId, is_main: bool, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
+    if is_main {
+        write!(f, "main function f{}:\n", id)?;
+    } else {
+        write!(f, "function f{}:\n", id)?;
+    }
 
     for st in &ir.fns[id].body {
         display_statement(st, 2, ir, f)?;
@@ -51,7 +55,7 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, f: &mut Formatter<'_>
         Local(lid) => write!(f, "local l{}", lid)?,
         Compute(n, e) => {
             write!(f, "n{} = ", n)?;
-            display_expr(e, f)?;
+            display_expr(e, ir, f)?;
         },
         Store(l, n) => {
             display_lvalue(l, f)?;
@@ -113,21 +117,36 @@ fn display_unop(kind: &UnOpKind) -> &'static str {
     }
 }
 
-fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
+fn display_expr(expr: &Expr, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
     use Expr::*;
     match expr {
-        LValue(l) => display_lvalue(l, f),
-        Arg => write!(f, "arg"),
-        FnCall(n, t) => write!(f, "n{}(n{})", n, t),
-        NewTable => write!(f, "{{}}"),
-        LitFunction(fid) => write!(f, "f{}", fid),
-        NativeFn(s) => write!(f, "native fn \"{}\"", s),
-        BinOp(kind, l, r) => write!(f, "n{} {} n{}", l, display_binop(kind), r),
-        UnOp(kind, r) => write!(f, "{} n{}", display_unop(kind), r),
-        Num(x) => write!(f, "{}", x),
-        Upvalue(uid) => write!(f, "u{}", uid),
-        Bool(b) => write!(f, "{}", b),
-        Nil => write!(f, "nil"),
-        Str(s) => write!(f, "\"{}\"", s),
+        LValue(l) => display_lvalue(l, f)?,
+        Arg => write!(f, "arg")?,
+        FnCall(n, t) => write!(f, "n{}(n{})", n, t)?,
+        NewTable => write!(f, "{{}}")?,
+        LitFunction(fid) => {
+            write!(f, "f{}<", fid)?;
+            let litfn = &ir.fns[*fid];
+            for (i, x) in litfn.upvalue_refs.iter().enumerate() {
+                if i != 0 {
+                    write!(f, ", ")?;
+                }
+                match x {
+                    UpvalueRef::Upvalue(uid) => write!(f, "u{}", *uid)?,
+                    UpvalueRef::Local(lid) => write!(f, "l{}", *lid)?,
+                }
+            }
+            write!(f, ">")?;
+        }
+        NativeFn(s) => write!(f, "native fn \"{}\"", s)?,
+        BinOp(kind, l, r) => write!(f, "n{} {} n{}", l, display_binop(kind), r)?,
+        UnOp(kind, r) => write!(f, "{} n{}", display_unop(kind), r)?,
+        Num(x) => write!(f, "{}", x)?,
+        Upvalue(uid) => write!(f, "u{}", uid)?,
+        Bool(b) => write!(f, "{}", b)?,
+        Nil => write!(f, "nil")?,
+        Str(s) => write!(f, "\"{}\"", s)?,
     }
+
+    Ok(())
 }
