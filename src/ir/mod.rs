@@ -63,6 +63,7 @@ pub enum Expr {
     FnCall(/*func: */ Node, /* input-table: */ Node),
     NewTable, // equivalent to {}
     LitFunction(FnId),
+    NativeFn(/*name: */ String),
     BinOp(BinOpKind, Node, Node),
     UnOp(UnOpKind, Node),
 
@@ -94,5 +95,4 @@ pub enum UpvalueRef {
 pub struct IR {
     pub fns: Vec<LitFunction>,
     pub main_fn: FnId,
-    pub globals: Vec<String>,
 }

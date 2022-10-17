@@ -12,6 +12,9 @@ struct Ctxt {
     // the Vec<> is pushed() & popped() for blocks, NOT functions.
     locals: Vec<HashMap<String, LocalId>>,
 
+    // global variables
+    globals: HashMap<String, GlobalId>,
+
     // the entries of this table were previously in upvalue_candidates and had at least one occurence.
     // UpvalueId is the resulting id within this function.
     upvalues: HashMap<String, UpvalueId>,
@@ -68,7 +71,7 @@ fn mk_compute(expr: ir::Expr, ctxt: &mut Ctxt) -> Node {
 
 pub fn lower(ast: &Ast) -> IR {
     let mut ctxt = Ctxt::default();
-    let id = lower_fn(&[], &Variadic::No, &ast.statements, &mut ctxt);
+    let id = lower_fn(&[], &Variadic::No, &ast.statements, /*is_main: */ true, &mut ctxt);
 
     let mut ir = ctxt.ir;
     ir.main_fn = id;
@@ -285,7 +288,7 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
             ctxt.ellipsis_node.expect("lowering `...` in non-variadic function!")
         },
         Expr::Literal(Literal::Function(args, variadic, body)) => {
-            let fid = lower_fn(args, variadic, body, ctxt);
+            let fid = lower_fn(args, variadic, body, false, ctxt);
             let x = ir::Expr::LitFunction(fid);
 
             mk_compute(x, ctxt)
@@ -343,11 +346,11 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> ir::LValue {
                 // recursive call which will now match the if let Some() block above.
                 return lower_lvalue(lvalue, ctxt);
             }
-            if let Some(gid) = ctxt.ir.globals.iter().position(|x| x == s) {
-                return ir::LValue::Global(gid);
+            if let Some(gid) = ctxt.globals.get(s) {
+                return ir::LValue::Global(*gid);
             } else {
-                let gid = ctxt.ir.globals.len();
-                ctxt.ir.globals.push(s.clone());
+                let gid = ctxt.globals.len();
+                ctxt.globals.insert(s.clone(), gid);
                 return ir::LValue::Global(gid);
             }
         },
@@ -666,7 +669,7 @@ fn push_st(st: ir::Statement, ctxt: &mut Ctxt) {
     ctxt.body.push(st);
 }
 
-fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt: &mut Ctxt) -> FnId {
+fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_main: bool, ctxt: &mut Ctxt) -> FnId {
     let fid = ctxt.ir.fns.len();
 
     // this dummy allows us to have a fixed id before lowering of this fn is done.
@@ -721,6 +724,16 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], ctxt
     std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
 
     {
+        if is_main {
+            let nfs = ["print", "type", "pairs", "next"];
+            for f in nfs {
+                let gid = ctxt.globals.len();
+                ctxt.globals.insert(String::from(f), gid);
+                let n = mk_compute(ir::Expr::NativeFn(String::from(f)), ctxt);
+                push_st(ir::Statement::Store(ir::LValue::Global(gid), n), ctxt);
+            }
+        }
+
         let argtable = mk_compute(ir::Expr::Argtable, ctxt);
 
         for (i, arg) in args.iter().enumerate() {

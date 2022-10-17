@@ -3,9 +3,16 @@ use crate::ir::{FnId, IR, Statement, Expr, LValue, BinOpKind, UnOpKind, UpvalueR
 type TablePtr = usize;
 
 type NativeFn = fn(TablePtr, &mut Ctxt) -> TablePtr;
-type NativeFnId = usize;
 
-static NATIVE_FNS: [NativeFn; 4] = [print_fn, next_fn, pairs_fn, type_fn];
+fn lookup_native_fn(s: &str) -> NativeFn {
+    match s {
+        "print" => print_fn,
+        "type" => type_fn,
+        "next" => next_fn,
+        "pairs" => pairs_fn,
+        _ => panic!("native fn \"{}\" not found", s),
+    }
+}
 
 fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     let Value::Num(count) = table_get(t, Value::Num(0.0), ctxt) else { panic!("non-numeric table[0]!") };
@@ -42,7 +49,7 @@ fn next_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
 fn pairs_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     let arg = table_get(t, Value::Num(1.0), ctxt);
 
-    wrap_vec(vec![Value::NativeFn(1), arg, Value::Nil], ctxt)
+    wrap_vec(vec![Value::NativeFn("next".to_string()), arg, Value::Nil], ctxt)
 }
 
 fn type_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
@@ -140,7 +147,7 @@ enum Value {
     Bool(bool),
     TablePtr(TablePtr),
     Str(String),
-    NativeFn(NativeFnId),
+    NativeFn(/*name: */ String),
     LuaFn(FnId, /*upvalues: */ Vec<Value>),
     Num(f64),
 }
@@ -166,7 +173,7 @@ struct TableData {
 fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::LValue(LValue::Local(lid)) => ctxt.locals[*lid].clone(),
-        Expr::LValue(LValue::Global(gid)) => ctxt.globals[*gid].clone(),
+        Expr::LValue(LValue::Global(gid)) => ctxt.globals.get(*gid).cloned().unwrap_or(Value::Nil),
         Expr::LValue(LValue::Index(t, idx)) => {
             let t = ctxt.nodes[*t].clone();
             let idx = ctxt.nodes[*idx].clone();
@@ -183,7 +190,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             let Value::TablePtr(argt) = argt else { panic!("function called with non-table argtable!") };
             let retptr = match f {
                 Value::LuaFn(f_id, upvalues) => exec_fn(f_id, argt, &upvalues[..], ctxt),
-                Value::NativeFn(i) => (NATIVE_FNS[i])(argt, ctxt),
+                Value::NativeFn(s) => (lookup_native_fn(&s))(argt, ctxt),
                 v => panic!("trying to execute non-function value! {:?}", v),
             };
 
@@ -207,6 +214,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
 
             Value::LuaFn(*fnid, upvalues)
         },
+        Expr::NativeFn(s) => Value::NativeFn(s.clone()),
         Expr::BinOp(kind, l, r) => {
             let l = ctxt.nodes[*l].clone();
             let r = ctxt.nodes[*r].clone();
@@ -285,7 +293,12 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 let val = ctxt.nodes[*n].clone();
                 match lval {
                     Local(lid) => { ctxt.locals[*lid] = val; },
-                    Global(gid) => { ctxt.globals[*gid] = val; },
+                    Global(gid) => {
+                        while ctxt.globals.len() <= *gid {
+                            ctxt.globals.push(Value::Nil);
+                        }
+                        ctxt.globals[*gid] = val;
+                    },
                     Index(t, idx) => {
                         let idx = ctxt.nodes[*idx].clone();
                         let Value::TablePtr(t) = ctxt.nodes[*t].clone() else { panic!("indexing into non-table!") };
@@ -371,29 +384,13 @@ fn alloc_table(ctxt: &mut Ctxt) -> TablePtr {
 pub fn exec(ir: &IR) {
     let mut ctxt = Ctxt {
         heap: Vec::new(),
-        globals: vec![Value::Nil; ir.globals.len()],
+        globals: Vec::new(),
         ir,
         argtable: 0,
         locals: Vec::new(),
         nodes: Vec::new(),
         upvalues: Vec::new(),
     };
-
-    if let Some(i) = ir.globals.iter().position(|x| x == "print") {
-        ctxt.globals[i] = Value::NativeFn(0);
-    }
-
-    if let Some(i) = ir.globals.iter().position(|x| x == "next") {
-        ctxt.globals[i] = Value::NativeFn(1);
-    }
-
-    if let Some(i) = ir.globals.iter().position(|x| x == "pairs") {
-        ctxt.globals[i] = Value::NativeFn(2);
-    }
-
-    if let Some(i) = ir.globals.iter().position(|x| x == "type") {
-        ctxt.globals[i] = Value::NativeFn(3);
-    }
 
     let argtable = empty(&mut ctxt);
 

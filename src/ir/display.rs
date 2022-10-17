@@ -120,6 +120,7 @@ fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
         FnCall(n, t) => write!(f, "n{}(n{})", n, t),
         NewTable => write!(f, "{{}}"),
         LitFunction(fid) => write!(f, "f{}", fid),
+        NativeFn(s) => write!(f, "native fn \"{}\"", s),
         BinOp(kind, l, r) => write!(f, "n{} {} n{}", l, display_binop(kind), r),
         UnOp(kind, r) => write!(f, "{} n{}", display_unop(kind), r),
         Num(x) => write!(f, "{}", x),
