@@ -52,12 +52,9 @@ fn new_ctxt() -> Ctxt {
 
 fn compile_ir(ir: &IR, ctxt: &mut Ctxt) {
     unsafe {
-/*
         let mut argts_print = [ctxt.i32t];
         let print_type = LLVMFunctionType(ctxt.voidt, argts_print.as_mut_ptr(), 1, 0);
         let print = LLVMAddFunction(ctxt.module, b"extra_print\0".as_ptr() as *const _, print_type);
-        // ctxt.fns.insert("print".to_string(), print); 
-*/
 
         // create main
         let main_function_type = LLVMFunctionType(ctxt.i32t, [].as_mut_ptr(), 0, 0);
@@ -66,22 +63,24 @@ fn compile_ir(ir: &IR, ctxt: &mut Ctxt) {
         ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.context, main_function, b"entry\0".as_ptr() as *const _);
         LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
 
-        for f in &ir.fns {
-            compile_fn(f, ctxt);
+        // print something:
+        {
+            let n12 = LLVMConstInt(ctxt.i32t, 12, 0);
+            let mut args: Vec<LLVMValueRef> = vec![n12];
+            let mut fn_ty_args: Vec<LLVMTypeRef> = args.iter().map(|_| ctxt.i32t).collect();
+            let fn_ty = LLVMFunctionType(ctxt.voidt, fn_ty_args.as_mut_ptr(), fn_ty_args.len() as u32, 0);
+            LLVMBuildCall2(
+                /*builder: */ ctxt.builder,
+                /*type: */ fn_ty,
+                /*Fn: */ print,
+                /*Args: */ args.as_mut_ptr(),
+                /*Num Args: */ args.len() as u32,
+                /*Name: */ EMPTY,
+            );
         }
 
         let zero = LLVMConstInt(ctxt.i32t, 0, 0);
         LLVMBuildRet(ctxt.builder, zero);
-    }
-}
-
-fn compile_fn(func: &LitFunction, ctxt: &mut Ctxt) {
-    unsafe {
-        for st in &func.body {
-            match st {
-               _ => {/* TODO */},
-            }
-        }
     }
 }
 
