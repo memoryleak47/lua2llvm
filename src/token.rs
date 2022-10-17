@@ -137,6 +137,7 @@ pub fn tokenize(code: &str) -> Vec<Token> {
                             'n' => s.push('\n'),
                             't' => s.push('\t'),
                             'r' => s.push('\r'),
+                            t if t == terminator => s.push(t),
                             _ => panic!("invalid \\<char> sequence!"),
                         }
                         i += 1;
