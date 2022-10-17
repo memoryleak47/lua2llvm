@@ -1,4 +1,4 @@
-use crate::ir::{FnId, IR, Statement, Expr, LValue, BinOpKind, UnOpKind};
+use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, UnOpKind};
 
 type TablePtr = usize;
 
@@ -154,12 +154,10 @@ enum Value {
 
 struct Ctxt<'ir> {
     heap: Vec<TableData>,
-    globals: Vec<Value>,
     ir: &'ir IR,
 
     // function-local:
     arg: Value,
-    locals: Vec<Value>,
     nodes: Vec<Value>,
     upvalues: Vec<Value>,
 }
@@ -172,13 +170,11 @@ struct TableData {
 
 fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     match expr {
-        Expr::LValue(LValue::Local(lid)) => ctxt.locals[*lid].clone(),
-        Expr::LValue(LValue::Global(gid)) => ctxt.globals.get(*gid).cloned().unwrap_or(Value::Nil),
-        Expr::LValue(LValue::Index(t, idx)) => {
+        Expr::Index(t, idx) => {
             let t = ctxt.nodes[*t].clone();
             let idx = ctxt.nodes[*idx].clone();
 
-            let Value::TablePtr(t) = t else { panic!("indexing into non-table!") };
+            let Value::TablePtr(t) = t else { panic!("indexing into non-table {:?}!", t) };
             table_get(t, idx, ctxt)
         },
         Expr::Upvalue(uid) => ctxt.upvalues[*uid].clone(),
@@ -203,7 +199,6 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
         Expr::LitFunction(fnid, upnodes) => {
             // evaluate all things we need to closure!
-            let func = &ctxt.ir.fns[*fnid];
             let mut upvalues: Vec<Value> = Vec::new();
             for n in upnodes {
                 upvalues.push(ctxt.nodes[*n].clone());
@@ -272,12 +267,6 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
     for st in statements {
         use Statement::*;
         match st {
-            Local(lid) => {
-                while ctxt.locals.len() < lid+1 {
-                    ctxt.locals.push(Value::Nil);
-                }
-                ctxt.locals[*lid] = Value::Nil;
-            },
             Compute(n, expr) => {
                 let val = exec_expr(expr, ctxt);
                 while ctxt.nodes.len() < *n+1 {
@@ -285,23 +274,12 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 }
                 ctxt.nodes[*n] = val;
             }
-            Store(lval, n) => {
-                use LValue::*;
+            Store(t, idx, n) => {
+                let t = ctxt.nodes[*t].clone();
+                let idx = ctxt.nodes[*idx].clone();
                 let val = ctxt.nodes[*n].clone();
-                match lval {
-                    Local(lid) => { ctxt.locals[*lid] = val; },
-                    Global(gid) => {
-                        while ctxt.globals.len() <= *gid {
-                            ctxt.globals.push(Value::Nil);
-                        }
-                        ctxt.globals[*gid] = val;
-                    },
-                    Index(t, idx) => {
-                        let idx = ctxt.nodes[*idx].clone();
-                        let Value::TablePtr(t) = ctxt.nodes[*t].clone() else { panic!("indexing into non-table!") };
-                        table_set(t, idx, val, ctxt);
-                    },
-                }
+                let Value::TablePtr(t) = t.clone() else { panic!("indexing into non-table!") };
+                table_set(t, idx, val, ctxt);
             },
             Return(n) => {
                 let v = ctxt.nodes[*n].clone();
@@ -338,19 +316,16 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
 }
 
 fn exec_fn(f: FnId, arg: Value, upvalues: &[Value], ctxt: &mut Ctxt) -> Value {
-    let mut locals = Vec::new();
     let mut nodes = Vec::new();
     let mut arg = arg;
     let mut upvalues = upvalues.to_vec();
 
-    std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut arg, &mut ctxt.arg);
     std::mem::swap(&mut upvalues, &mut ctxt.upvalues);
 
     let flow = exec_body(&ctxt.ir.fns[f].body, ctxt);
 
-    std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut arg, &mut ctxt.arg);
     std::mem::swap(&mut upvalues, &mut ctxt.upvalues);
@@ -380,10 +355,8 @@ fn alloc_table(ctxt: &mut Ctxt) -> TablePtr {
 pub fn exec(ir: &IR) {
     let mut ctxt = Ctxt {
         heap: Vec::new(),
-        globals: Vec::new(),
         ir,
         arg: Value::Nil,
-        locals: Vec::new(),
         nodes: Vec::new(),
         upvalues: Vec::new(),
     };

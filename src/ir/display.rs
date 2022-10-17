@@ -1,9 +1,7 @@
-use crate::ir::{IR, FnId, Statement, LValue, Expr, BinOpKind, UnOpKind};
+use crate::ir::{IR, FnId, Statement, Expr, BinOpKind, UnOpKind};
 use std::fmt::{self, Display, Formatter};
 
 // functions: f<id>
-// locals: l<id>
-// globals: g<id>
 // nodes: n<id>
 // upvalues: u<id>
 
@@ -52,14 +50,12 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, f: &mut Formatter<'_>
     write!(f, "{}", &indent)?;
 
     match st {
-        Local(lid) => write!(f, "local l{}", lid)?,
         Compute(n, e) => {
             write!(f, "n{} = ", n)?;
-            display_expr(e, ir, f)?;
+            display_expr(e, f)?;
         },
-        Store(l, n) => {
-            display_lvalue(l, f)?;
-            write!(f, " <- n{}", n)?;
+        Store(t, i, n) => {
+            write!(f, "n{}[n{}] <- n{}", t, i, n)?;
         }
         Return(n) => write!(f, "return n{}", n)?,
         If(cond, body, else_body) => {
@@ -78,15 +74,6 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, f: &mut Formatter<'_>
     }
 
     write!(f, ";\n")
-}
-
-fn display_lvalue(lvalue: &LValue, f: &mut Formatter<'_>) -> fmt::Result {
-    use LValue::*;
-    match lvalue {
-        Local(lid) => write!(f, "l{}", lid),
-        Global(gid) => write!(f, "g{}", gid),
-        Index(t, i) => write!(f, "n{}[n{}]", t, i),
-    }
 }
 
 fn display_binop(kind: &BinOpKind) -> &'static str {
@@ -117,10 +104,10 @@ fn display_unop(kind: &UnOpKind) -> &'static str {
     }
 }
 
-fn display_expr(expr: &Expr, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
+fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
     use Expr::*;
     match expr {
-        LValue(l) => display_lvalue(l, f)?,
+        Index(t, i) => write!(f, "n{}[n{}]", t, i)?,
         Arg => write!(f, "arg")?,
         FnCall(n, t) => write!(f, "n{}(n{})", n, t)?,
         NewTable => write!(f, "{{}}")?,

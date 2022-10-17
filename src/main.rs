@@ -14,7 +14,8 @@ use lower::lower;
 
 mod exec_ir;
 
-mod compile;
+// TODO
+// mod compile;
 
 fn main() {
     let args: Vec<String> = std::env::args()
@@ -26,6 +27,7 @@ fn main() {
     let tokens = token::tokenize(&code);
     let ast = parse::parse(&tokens).expect("Ast::parse failed!");
     let ir = lower(&ast);
-    compile::compile(&ir);
+    eprintln!("{}", &ir);
+    //compile::compile(&ir);
     exec_ir::exec(&ir);
 }
