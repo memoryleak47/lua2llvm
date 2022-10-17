@@ -58,7 +58,7 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, f: &mut Formatter<'_>
 
             write!(f, " <- n{}\n", n)
         }
-        ReturnTable(n) => write!(f, "return n{}\n", n),
+        Return(n) => write!(f, "return n{}\n", n),
         If(cond, body, else_body) => {
             write!(f, "if n{}:\n", cond)?;
             display_body(body, tabs+2, ir, f)?;
@@ -116,7 +116,7 @@ fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
     use Expr::*;
     match expr {
         LValue(l) => display_lvalue(l, f),
-        Argtable => write!(f, "argtable"),
+        Arg => write!(f, "arg"),
         FnCall(n, t) => write!(f, "n{}(n{})", n, t),
         NewTable => write!(f, "{{}}"),
         LitFunction(fid) => write!(f, "f{}", fid),

@@ -511,7 +511,7 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             Statement::FunctionCall(call) => { lower_fn_call(call, ctxt); },
             Statement::Return(exprs) => {
                 let t = table_wrap_exprlist(exprs, ctxt);
-                push_st(ir::Statement::ReturnTable(t), ctxt);
+                push_st(ir::Statement::Return(t), ctxt);
             },
             Statement::Break => {
                 push_st(ir::Statement::Break, ctxt);
@@ -734,7 +734,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
             }
         }
 
-        let argtable = mk_compute(ir::Expr::Argtable, ctxt);
+        let argtable = mk_compute(ir::Expr::Arg, ctxt);
 
         for (i, arg) in args.iter().enumerate() {
             let lid = mk_local(ctxt);
@@ -854,13 +854,13 @@ fn postprocess_fn(body: &mut Vec<ir::Statement>, fns: &[LitFunction], mut next_n
 
     postprocess_body(body, &upvalue_locals, &mut next_node);
 
-    if !matches!(body.last(), Some(ir::Statement::ReturnTable(_))) {
+    if !matches!(body.last(), Some(ir::Statement::Return(_))) {
         let t = next_node; next_node += 1;
         let zero = next_node; next_node += 1;
         body.push(ir::Statement::Compute(t, ir::Expr::NewTable));
         body.push(ir::Statement::Compute(zero, ir::Expr::Num(0.0)));
         body.push(ir::Statement::Store(ir::LValue::Index(t, zero), zero));
-        body.push(ir::Statement::ReturnTable(t));
+        body.push(ir::Statement::Return(t));
     }
 }
 

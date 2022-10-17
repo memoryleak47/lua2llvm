@@ -2,6 +2,10 @@ pub use crate::ast::UnOpKind;
 
 mod display;
 
+// Note that even though, lower.rs only returns tables from functions, and Arg is always a table too.
+// This is no constraint for the IR itself.
+// Further, upvalues might not be tables, but can be any Value (which will be closured per value).
+
 // the same as ast::BinOpKind but without And & Or.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOpKind {
@@ -47,7 +51,7 @@ pub enum Statement {
     Local(LocalId),
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
     Store(LValue, Node), // store the value from the Node in the LValue
-    ReturnTable(Node), // Node needs to be a table
+    Return(Node),
     If(Node, /*then*/ Vec<Statement>, /*else*/ Vec<Statement>),
     Loop(Vec<Statement>), // loops until a break happens
     Break,
@@ -59,8 +63,8 @@ pub enum Expr {
     // Upvalue(i) is no LValue as it's only used as Upvalue(i)[1].
     Upvalue(UpvalueId),
 
-    Argtable, // the table where all function arguments are stored in sequentially
-    FnCall(/*func: */ Node, /* input-table: */ Node),
+    Arg,
+    FnCall(/*func: */ Node, /* arg: */ Node),
     NewTable, // equivalent to {}
     LitFunction(FnId),
     NativeFn(/*name: */ String),
@@ -80,7 +84,6 @@ pub struct LitFunction {
 
     // upvalue_refs[i] is accessible as LValue::Upvalue(i) within this function.
     // the UpvalueRef upvalue_refs[i] needs to be evaluated to a Value when this function is instantiated.
-    // The resulting Value will always be a TablePtr.
     pub upvalue_refs: Vec<UpvalueRef>,
 }
 

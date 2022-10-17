@@ -26,7 +26,7 @@ fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
             Value::Str(s) => print!("{}", s),
             Value::TablePtr(ptr) => print!("table {}", ptr),
             Value::NativeFn(_) => print!("<native-fn>"),
-            Value::LuaFn(..) => print!("<lua-fn>"),
+            Value::LitFn(..) => print!("<lit-fn>"),
             Value::Num(x) => print!("{}", x),
         }
         if i == count-1 {
@@ -39,7 +39,7 @@ fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     empty(ctxt)
 }
 
-fn next_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
+fn next_fn(t: TablePtr, ctxt: &mut Ctxt) ->TablePtr {
     let Value::TablePtr(tt) = table_get(t, Value::Num(1.0), ctxt) else { panic!("calling next on non-table!") };
     let r = table_get(t, Value::Num(2.0), ctxt);
 
@@ -61,7 +61,7 @@ fn type_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
         Value::TablePtr(_) => "table",
         Value::Str(_) => "string",
         Value::NativeFn(_) => "function",
-        Value::LuaFn(..) => "function",
+        Value::LitFn(..) => "function",
         Value::Num(_) => "number",
     };
 
@@ -70,7 +70,7 @@ fn type_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
 
 enum ControlFlow {
     Break,
-    ReturnTable(TablePtr),
+    Return(Value),
     End,
 }
 
@@ -148,7 +148,7 @@ enum Value {
     TablePtr(TablePtr),
     Str(String),
     NativeFn(/*name: */ String),
-    LuaFn(FnId, /*upvalues: */ Vec<Value>),
+    LitFn(FnId, /*upvalues: */ Vec<Value>),
     Num(f64),
 }
 
@@ -158,7 +158,7 @@ struct Ctxt<'ir> {
     ir: &'ir IR,
 
     // function-local:
-    argtable: TablePtr,
+    arg: Value,
     locals: Vec<Value>,
     nodes: Vec<Value>,
     upvalues: Vec<Value>,
@@ -182,19 +182,23 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             table_get(t, idx, ctxt)
         },
         Expr::Upvalue(uid) => ctxt.upvalues[*uid].clone(),
-        Expr::Argtable => Value::TablePtr(ctxt.argtable),
-        Expr::FnCall(f, argt) => {
+        Expr::Arg => ctxt.arg.clone(),
+        Expr::FnCall(f, arg) => {
             let f = ctxt.nodes[*f].clone();
-            let argt = ctxt.nodes[*argt].clone();
+            let arg = ctxt.nodes[*arg].clone();
 
-            let Value::TablePtr(argt) = argt else { panic!("function called with non-table argtable!") };
-            let retptr = match f {
-                Value::LuaFn(f_id, upvalues) => exec_fn(f_id, argt, &upvalues[..], ctxt),
-                Value::NativeFn(s) => (lookup_native_fn(&s))(argt, ctxt),
+            let ret = match f {
+                Value::LitFn(f_id, upvalues) => exec_fn(f_id, arg, &upvalues[..], ctxt),
+                Value::NativeFn(s) => {
+                    let Value::TablePtr(argt) = arg else { panic!("calling NativeFn with wrong arg!") };
+                    let r = (lookup_native_fn(&s))(argt, ctxt);
+
+                    Value::TablePtr(r)
+                },
                 v => panic!("trying to execute non-function value! {:?}", v),
             };
 
-            Value::TablePtr(retptr)
+            ret
         },
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
         Expr::LitFunction(fnid) => {
@@ -212,7 +216,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
                 }
             }
 
-            Value::LuaFn(*fnid, upvalues)
+            Value::LitFn(*fnid, upvalues)
         },
         Expr::NativeFn(s) => Value::NativeFn(s.clone()),
         Expr::BinOp(kind, l, r) => {
@@ -306,10 +310,9 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                     },
                 }
             },
-            ReturnTable(t) => {
-                let t = ctxt.nodes[*t].clone();
-                let Value::TablePtr(t) = t else { panic!("returning non-table!") };
-                return ControlFlow::ReturnTable(t);
+            Return(n) => {
+                let v = ctxt.nodes[*n].clone();
+                return ControlFlow::Return(v);
             },
             If(cond, then_body, else_body) => {
                 let cond = ctxt.nodes[*cond].clone();
@@ -330,7 +333,7 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                     match exec_body(body, ctxt) {
                         ControlFlow::Break => break,
                         ControlFlow::End => {},
-                        ret@ControlFlow::ReturnTable(_) => return ret,
+                        ret@ControlFlow::Return(_) => return ret,
                     }
                 }
             },
@@ -341,27 +344,27 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
     ControlFlow::End
 }
 
-fn exec_fn(f: FnId, argtable: TablePtr, upvalues: &[Value], ctxt: &mut Ctxt) -> TablePtr {
+fn exec_fn(f: FnId, arg: Value, upvalues: &[Value], ctxt: &mut Ctxt) -> Value {
     let mut locals = Vec::new();
     let mut nodes = Vec::new();
-    let mut argtable = argtable;
+    let mut arg = arg;
     let mut upvalues = upvalues.to_vec();
 
     std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
-    std::mem::swap(&mut argtable, &mut ctxt.argtable);
+    std::mem::swap(&mut arg, &mut ctxt.arg);
     std::mem::swap(&mut upvalues, &mut ctxt.upvalues);
 
     let flow = exec_body(&ctxt.ir.fns[f].body, ctxt);
 
     std::mem::swap(&mut locals, &mut ctxt.locals);
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
-    std::mem::swap(&mut argtable, &mut ctxt.argtable);
+    std::mem::swap(&mut arg, &mut ctxt.arg);
     std::mem::swap(&mut upvalues, &mut ctxt.upvalues);
 
     match flow {
         ControlFlow::Break => panic!("cannot break, if you are not in a loop!"),
-        ControlFlow::ReturnTable(t) => t,
+        ControlFlow::Return(v) => v,
         ControlFlow::End => panic!("function ended without returning!"),
     }
 }
@@ -386,13 +389,13 @@ pub fn exec(ir: &IR) {
         heap: Vec::new(),
         globals: Vec::new(),
         ir,
-        argtable: 0,
+        arg: Value::Nil,
         locals: Vec::new(),
         nodes: Vec::new(),
         upvalues: Vec::new(),
     };
 
-    let argtable = empty(&mut ctxt);
+    let arg = Value::TablePtr(empty(&mut ctxt));
 
-    exec_fn(ir.main_fn, argtable, &[], &mut ctxt);
+    exec_fn(ir.main_fn, arg, &[], &mut ctxt);
 }
