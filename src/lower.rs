@@ -662,7 +662,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
             }
         }
 
-        if !args.is_empty() {
+        if !args.is_empty() || *variadic == Variadic::Yes {
             // function args
             let argtable = mk_compute(ir::Expr::Arg, ctxt);
 
