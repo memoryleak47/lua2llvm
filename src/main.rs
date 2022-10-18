@@ -26,6 +26,7 @@ fn main() {
     let tokens = token::tokenize(&code);
     let ast = parse::parse(&tokens).expect("Ast::parse failed!");
     let ir = lower(&ast);
+    // eprintln!("{}", &ir);
     compile::compile(&ir);
     exec_ir::exec(&ir);
 }

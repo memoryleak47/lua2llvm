@@ -9,9 +9,9 @@ void err(const char* msg) {
 }
 
 // index into the vector `tables` is table_ptr.
-using table_ptr = unsigned int;
+using table_ptr = uint64_t;
 
-enum tag_t : char {
+enum tag_t : uint64_t {
     DOUBLE = 0,
     TABLE_PTR = 1,
     FN = 2,
@@ -20,9 +20,11 @@ enum tag_t : char {
 
 struct Value {
     tag_t tag;
-    double d;
-    table_ptr t;
-    Value (*f)(Value);
+    union {
+        table_ptr t;
+        double d;
+        Value (*f)(Value);
+    };
 };
 
 struct TableEntry {
