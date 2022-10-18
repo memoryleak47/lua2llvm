@@ -107,7 +107,7 @@ Value print(Value t) {
     if (v.tag == TABLE_PTR) std::cout << "table ptr" << std::endl;
     if (v.tag == FN) std::cout << "function" << std::endl;
     if (v.tag == NIL) std::cout << "nil" << std::endl;
-    
+
     Value ret = new_table();
     table_set(ret, num(0), num(0));
     return ret;

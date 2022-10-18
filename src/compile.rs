@@ -6,6 +6,18 @@ use llvm::prelude::*;
 
 const EMPTY: *const i8 = b"\0".as_ptr() as *const _;
 
+#[derive(Clone)]
+enum Public { Yes, No }
+
+#[derive(Clone)]
+struct ExtraFn {
+    f: LLVMValueRef,
+    ftype: LLVMTypeRef,
+
+    // public means that the user is allowed to call this function using a NativeFn.
+    public: Public,
+}
+
 struct Ctxt {
     context: LLVMContextRef,
     module: LLVMModuleRef,
@@ -18,7 +30,7 @@ struct Ctxt {
     nodes: HashMap<Node, LLVMValueRef>,
 
     // functions defined in extra/
-    extra_fns: HashMap<String, (/*fn: */ LLVMValueRef, /*fn type: */ LLVMTypeRef)>,
+    extra_fns: HashMap<String, ExtraFn>,
 }
 
 pub fn compile(ir: &IR) {
@@ -41,54 +53,6 @@ pub fn compile(ir: &IR) {
 
         let mut extra_fns = HashMap::new();
 
-        // declare print
-        {
-            let mut args = [value_type];
-            let ftype = LLVMFunctionType(value_type, args.as_mut_ptr(), args.len() as u32, 0);
-            let f = LLVMAddFunction(module, b"print\0".as_ptr() as *const _, ftype);
-            extra_fns.insert("print".to_string(), (f, ftype));
-        }
-
-        // declare table_set
-        {
-            let mut args = [value_type, value_type, value_type];
-            let ftype = LLVMFunctionType(value_type, args.as_mut_ptr(), args.len() as u32, 0);
-            let f = LLVMAddFunction(module, b"table_set\0".as_ptr() as *const _, ftype);
-            extra_fns.insert("table_set".to_string(), (f, ftype));
-        }
-
-        // declare table_get
-        {
-            let mut args = [value_type, value_type];
-            let ftype = LLVMFunctionType(value_type, args.as_mut_ptr(), args.len() as u32, 0);
-            let f = LLVMAddFunction(module, b"table_get\0".as_ptr() as *const _, ftype);
-            extra_fns.insert("table_get".to_string(), (f, ftype));
-        }
-
-        // declare num
-        {
-            let mut args = [f64_type];
-            let ftype = LLVMFunctionType(value_type, args.as_mut_ptr(), args.len() as u32, 0);
-            let f = LLVMAddFunction(module, b"num\0".as_ptr() as *const _, ftype);
-            extra_fns.insert("num".to_string(), (f, ftype));
-        }
-
-        // declare nil
-        {
-            let mut args = [];
-            let ftype = LLVMFunctionType(value_type, args.as_mut_ptr(), args.len() as u32, 0);
-            let f = LLVMAddFunction(module, b"nil\0".as_ptr() as *const _, ftype);
-            extra_fns.insert("nil".to_string(), (f, ftype));
-        }
-
-        // declare new_table
-        {
-            let mut args = [];
-            let ftype = LLVMFunctionType(value_type, args.as_mut_ptr(), args.len() as u32, 0);
-            let f = LLVMAddFunction(module, b"new_table\0".as_ptr() as *const _, ftype);
-            extra_fns.insert("new_table".to_string(), (f, ftype));
-        }
-
         let mut ctxt = Ctxt {
             context,
             module,
@@ -101,21 +65,42 @@ pub fn compile(ir: &IR) {
             extra_fns,
         };
 
+        // private:
+        declare_extra_fn("new_table", value_type, &[], Public::No, &mut ctxt);
+        declare_extra_fn("table_set", void_type, &[value_type, value_type, value_type], Public::No, &mut ctxt);
+        declare_extra_fn("table_get", value_type, &[value_type, value_type], Public::No, &mut ctxt);
+        declare_extra_fn("num", value_type, &[f64_type], Public::No, &mut ctxt);
+        declare_extra_fn("nil", value_type, &[], Public::No, &mut ctxt);
+
+        // public:
+        declare_extra_fn("print", value_type, &[value_type], Public::Yes, &mut ctxt);
+
         compile_mainfn(&ir.fns[ir.main_fn], ir, &mut ctxt);
 
         LLVMDumpModule(ctxt.module);
     }
 }
 
-fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
+fn declare_extra_fn(fname: &str, ret: LLVMTypeRef, args: &[LLVMTypeRef], public: Public, ctxt: &mut Ctxt) {
     unsafe {
-        let mut args = [];
-        let (nil, nil_type) = ctxt.extra_fns["nil"].clone();
+        let mut args: Vec<LLVMTypeRef> = args.iter().cloned().collect();
+        let ftype = LLVMFunctionType(ret, args.as_mut_ptr(), args.len() as u32, 0);
+        let name = format!("{}\0", fname);
+        let f = LLVMAddFunction(ctxt.module, name.as_bytes().as_ptr() as *const _, ftype);
+        let extra_fn = ExtraFn { f, ftype, public };
+        ctxt.extra_fns.insert(fname.to_string(), extra_fn);
+    }
+}
+
+fn call_extra_fn(fname: &str, args: &[LLVMValueRef], ctxt: &mut Ctxt) -> LLVMValueRef {
+    unsafe {
+        let extra_fn = ctxt.extra_fns[fname].clone();
+        let mut args: Vec<LLVMValueRef> = args.iter().cloned().collect();
 
         LLVMBuildCall2(
             /*builder: */ ctxt.builder,
-            /*type: */ nil_type,
-            /*Fn: */ nil,
+            /*type: */ extra_fn.ftype,
+            /*Fn: */ extra_fn.f,
             /*Args: */ args.as_mut_ptr(),
             /*Num Args: */ args.len() as u32,
             /*Name: */ EMPTY,
@@ -123,35 +108,20 @@ fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
     }
 }
 
+fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
+    call_extra_fn("nil", &[], ctxt)
+}
+
 fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         match e {
             Expr::Num(x) => {
-                let mut args = [LLVMConstReal(ctxt.f64_type, *x)];
-                let (num, num_type) = ctxt.extra_fns["num"].clone();
-
-                LLVMBuildCall2(
-                    /*builder: */ ctxt.builder,
-                    /*type: */ num_type,
-                    /*Fn: */ num,
-                    /*Args: */ args.as_mut_ptr(),
-                    /*Num Args: */ args.len() as u32,
-                    /*Name: */ EMPTY,
-                )
+                let x = LLVMConstReal(ctxt.f64_type, *x);
+                call_extra_fn("num", &[x], ctxt)
             },
             Expr::Nil => nil(ctxt),
             Expr::NewTable => {
-                let mut args = [];
-                let (new_table, new_table_type) = ctxt.extra_fns["new_table"].clone();
-
-                LLVMBuildCall2(
-                    /*builder: */ ctxt.builder,
-                    /*type: */ new_table_type,
-                    /*Fn: */ new_table,
-                    /*Args: */ args.as_mut_ptr(),
-                    /*Num Args: */ args.len() as u32,
-                    /*Name: */ EMPTY,
-                )
+                call_extra_fn("new_table", &[], ctxt)
             }
             Expr::NativeFn(s) => {
                 println!("ignoring Expr::NativeFn");
@@ -159,32 +129,15 @@ fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
                 nil(ctxt)
             },
             Expr::Index(t, i) => {
-                let mut args = [ctxt.nodes[t], ctxt.nodes[i]];
-
-                let (table_get, table_get_type) = ctxt.extra_fns["table_get"].clone();
-                LLVMBuildCall2(
-                    /*builder: */ ctxt.builder,
-                    /*type: */ table_get_type,
-                    /*Fn: */ table_get,
-                    /*Args: */ args.as_mut_ptr(),
-                    /*Num Args: */ args.len() as u32,
-                    /*Name: */ EMPTY,
-                )
+                let args = [ctxt.nodes[t], ctxt.nodes[i]];
+                call_extra_fn("table_get", &args, ctxt)
             },
             Expr::FnCall(_, arg) => {
                 println!("assuming FnCall is print");
 
-                let mut args = [ctxt.nodes[arg]];
+                let args = [ctxt.nodes[arg]];
 
-                let (print, print_type) = ctxt.extra_fns["print"].clone();
-                LLVMBuildCall2(
-                    /*builder: */ ctxt.builder,
-                    /*type: */ print_type,
-                    /*Fn: */ print,
-                    /*Args: */ args.as_mut_ptr(),
-                    /*Num Args: */ args.len() as u32,
-                    /*Name: */ EMPTY,
-                )
+                call_extra_fn("print", &args, ctxt)
             }
             _ => {
                 println!("ignoring other Expr!");
@@ -211,16 +164,8 @@ fn compile_mainfn(f: &LitFunction, ir: &IR, ctxt: &mut Ctxt) {
                     ctxt.nodes.insert(*n, vref);
                 },
                 Statement::Store(t, i, v) => {
-                    let mut args = [ctxt.nodes[t], ctxt.nodes[i], ctxt.nodes[v]];
-                    let (table_set, table_set_type) = ctxt.extra_fns["table_set"].clone();
-                    LLVMBuildCall2(
-                        /*builder: */ ctxt.builder,
-                        /*type: */ table_set_type,
-                        /*Fn: */ table_set,
-                        /*Args: */ args.as_mut_ptr(),
-                        /*Num Args: */ args.len() as u32,
-                        /*Name: */ EMPTY,
-                    );
+                    let args = [ctxt.nodes[t], ctxt.nodes[i], ctxt.nodes[v]];
+                    call_extra_fn("table_set", &args, ctxt);
                 },
                 _ => {/* TODO */},
             }
