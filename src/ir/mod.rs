@@ -2,9 +2,6 @@ pub use crate::ast::UnOpKind;
 
 mod display;
 
-// TODO
-// mod parse;
-
 // Note that even though, lower.rs only returns tables from functions, and Arg is always a table too.
 // This is no constraint for the IR itself.
 // Further, upvalues might not be tables, but can be any Value (which will be closured per value).
