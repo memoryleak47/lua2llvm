@@ -78,7 +78,6 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("table_set", void_type, &[value_type, value_type, value_type], &mut ctxt);
         declare_extra_fn("table_get", value_type, &[value_type, value_type], &mut ctxt);
         declare_extra_fn("lookup_native_fn", value_type, &[u64_type], &mut ctxt);
-        declare_extra_fn("fn_call", value_type, &[value_type, value_type], &mut ctxt);
 
         compile_mainfn(&ir.fns[ir.main_fn], &mut ctxt);
 
@@ -149,6 +148,40 @@ fn num(x: f64, ctxt: &mut Ctxt) -> LLVMValueRef {
     }
 }
 
+fn fn_call(f: LLVMValueRef, arg: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
+    // TODO add check that f is actually a function
+    unsafe {
+        let fspace = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
+        LLVMBuildStore(ctxt.builder, f, fspace);
+
+        let f = fspace;
+
+        let i32t = LLVMInt32TypeInContext(ctxt.context);
+        let zero = LLVMConstInt(i32t, 0, 0);
+        let one = LLVMConstInt(i32t, 1, 0);
+        let mut indices = [zero, one];
+        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, f, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
+
+        let mut args = [ctxt.value_type];
+        let t = LLVMFunctionType(ctxt.value_type, args.as_mut_ptr(), args.len() as _, 0);
+        let t = LLVMPointerType(t, 0);
+        let t2 = LLVMPointerType(t, 0);
+        let ep = LLVMBuildBitCast(ctxt.builder, ep, t2, EMPTY);
+        let actual = LLVMBuildLoad2(ctxt.builder, t, ep, EMPTY);
+
+        let mut fargs = [arg];
+
+        LLVMBuildCall2(
+            /*builder: */ ctxt.builder,
+            /*type: */ t,
+            /*Fn: */ actual,
+            /*Args: */ fargs.as_mut_ptr(),
+            /*Num Args: */ fargs.len() as u32,
+            /*Name: */ EMPTY,
+        )
+    }
+}
+
 fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         match e {
@@ -166,8 +199,10 @@ fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
                 call_extra_fn("table_get", &args, ctxt)
             },
             Expr::FnCall(f, arg) => {
-                let args = [ctxt.nodes[f], ctxt.nodes[arg]];
-                call_extra_fn("fn_call", &args, ctxt)
+                let f = ctxt.nodes[f];
+                let arg = ctxt.nodes[arg];
+
+                fn_call(f, arg, ctxt)
             }
             _ => {
                 println!("ignoring other Expr!");

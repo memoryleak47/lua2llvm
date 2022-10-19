@@ -75,11 +75,6 @@ Value num(double d) {
     return v;
 }
 
-Value fn_call(Value f, Value arg) {
-    if (f.tag != FN) err("calling fn_call with non-function!");
-    return f.f(arg);
-}
-
 // required for n_[n_] <- n_;
 void table_set(Value t, Value key, Value val) {
     if (t.tag != TABLE_PTR) err("table_get called on non-table!");
