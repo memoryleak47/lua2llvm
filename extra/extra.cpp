@@ -13,10 +13,12 @@ void err(const char* msg) {
 using table_ptr = uint64_t;
 
 enum tag_t : uint64_t {
-    DOUBLE = 0,
-    TABLE_PTR = 1,
-    FN = 2,
-    NIL = 3,
+    TABLE_PTR = 0,
+    FN = 1,
+    NIL = 2,
+    NUM = 3,
+    STR = 4,
+    BOOL = 5,
 };
 
 struct Value {
@@ -41,7 +43,7 @@ static std::vector<TableData> tables;
 
 bool eq(Value a, Value b) {
     if (a.tag != b.tag) return false;
-    if (a.tag == DOUBLE) return a.d == b.d;
+    if (a.tag == NUM) return a.d == b.d;
     if (a.tag == TABLE_PTR) return a.t == b.t;
     if (a.tag == FN) return a.f == b.f;
     if (a.tag == NIL) return true;
@@ -68,7 +70,7 @@ Value nil() {
 
 Value num(double d) {
     Value v;
-    v.tag = DOUBLE;
+    v.tag = NUM;
     v.d = d;
     return v;
 }
@@ -109,7 +111,7 @@ Value table_get(Value t, Value key) {
 // hence table-wrapped!
 Value print(Value t) {
     Value v = table_get(t, num(1));
-    if (v.tag == DOUBLE) std::cout << v.d << std::endl;
+    if (v.tag == NUM) std::cout << v.d << std::endl;
     if (v.tag == TABLE_PTR) std::cout << "table ptr" << std::endl;
     if (v.tag == FN) std::cout << "function" << std::endl;
     if (v.tag == NIL) std::cout << "nil" << std::endl;

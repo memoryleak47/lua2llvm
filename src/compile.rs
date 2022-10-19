@@ -6,6 +6,18 @@ use llvm::prelude::*;
 
 const EMPTY: *const i8 = b"\0".as_ptr() as *const _;
 
+#[allow(non_camel_case_types)]
+#[allow(dead_code)]
+enum Tag {
+    TABLE_PTR = 0,
+    FN = 1,
+    NIL = 2,
+    NUM = 3,
+    STR = 4,
+    BOOL = 5,
+}
+
+
 #[derive(Clone)]
 struct ExtraFn {
     f: LLVMValueRef,
@@ -109,7 +121,7 @@ fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
         let zero = LLVMConstInt(i32t, 0, 0);
         let mut indices = [zero, zero];
         let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, /*NIL = */ 3, 0), ep);
+        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, Tag::NIL as u64, 0), ep);
         LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY)
     }
 }
@@ -124,7 +136,7 @@ fn num(x: f64, ctxt: &mut Ctxt) -> LLVMValueRef {
 
         let mut indices = [zero, zero];
         let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, /*DOUBLE = */ 0, 0), ep);
+        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, Tag::NUM as u64, 0), ep);
 
         let mut indices = [zero, one];
         let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
