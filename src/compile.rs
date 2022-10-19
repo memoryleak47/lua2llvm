@@ -46,7 +46,7 @@ pub fn compile(ir: &IR) {
 
         let nodes = HashMap::new();
 
-        let mut extra_fns = HashMap::new();
+        let extra_fns = HashMap::new();
 
         let mut ctxt = Ctxt {
             context,
@@ -66,11 +66,10 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("table_set", void_type, &[value_type, value_type, value_type], &mut ctxt);
         declare_extra_fn("table_get", value_type, &[value_type, value_type], &mut ctxt);
         declare_extra_fn("num", value_type, &[f64_type], &mut ctxt);
-        declare_extra_fn("nil", value_type, &[], &mut ctxt);
         declare_extra_fn("lookup_native_fn", value_type, &[u64_type], &mut ctxt);
         declare_extra_fn("fn_call", value_type, &[value_type, value_type], &mut ctxt);
 
-        compile_mainfn(&ir.fns[ir.main_fn], ir, &mut ctxt);
+        compile_mainfn(&ir.fns[ir.main_fn], &mut ctxt);
 
         LLVMDumpModule(ctxt.module);
     }
@@ -104,7 +103,16 @@ fn call_extra_fn(fname: &str, args: &[LLVMValueRef], ctxt: &mut Ctxt) -> LLVMVal
 }
 
 fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
-    call_extra_fn("nil", &[], ctxt)
+    unsafe {
+        let i32t = LLVMInt32TypeInContext(ctxt.context);
+
+        let v = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
+        let zero = LLVMConstInt(i32t, 0, 0);
+        let mut indices = [zero, zero];
+        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
+        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, /*NIL = */ 3, 0), ep);
+        LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY)
+    }
 }
 
 fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
@@ -139,7 +147,7 @@ fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     }
 }
 
-fn compile_mainfn(f: &LitFunction, ir: &IR, ctxt: &mut Ctxt) {
+fn compile_mainfn(f: &LitFunction, ctxt: &mut Ctxt) {
     unsafe {
         // create main
         let main_function_type = LLVMFunctionType(ctxt.void_type, [].as_mut_ptr(), 0, 0);
