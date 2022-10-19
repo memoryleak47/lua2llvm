@@ -102,8 +102,7 @@ Value table_get(Value t, Value key) {
     return nil();
 }
 
-// user-accessible function
-// hence table-wrapped!
+// table-wrapped native fns:
 Value print(Value t) {
     Value v = table_get(t, num(1));
     if (v.tag == NUM) std::cout << v.d << std::endl;
@@ -135,24 +134,6 @@ Value type(Value t) {
     Value ret = new_table();
     table_set(ret, num(0), num(0));
     return ret;
-}
-
-Value lookup_native_fn(uint64_t i) {
-    Value v;
-    v.tag = FN;
-    if (i == 0) {
-        v.f = print;
-    } else if (i == 1) {
-        v.f = next;
-    } else if (i == 2) {
-        v.f = pairs;
-    } else if (i == 3) {
-        v.f = type;
-    } else {
-        std::cout << "unsupported native_fn " << i << std::endl;
-        err("...");
-    }
-    return v;
 }
 
 }
