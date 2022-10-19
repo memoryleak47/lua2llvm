@@ -65,7 +65,6 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("new_table", value_type, &[], &mut ctxt);
         declare_extra_fn("table_set", void_type, &[value_type, value_type, value_type], &mut ctxt);
         declare_extra_fn("table_get", value_type, &[value_type, value_type], &mut ctxt);
-        declare_extra_fn("num", value_type, &[f64_type], &mut ctxt);
         declare_extra_fn("lookup_native_fn", value_type, &[u64_type], &mut ctxt);
         declare_extra_fn("fn_call", value_type, &[value_type, value_type], &mut ctxt);
 
@@ -115,14 +114,34 @@ fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
     }
 }
 
+fn num(x: f64, ctxt: &mut Ctxt) -> LLVMValueRef {
+    unsafe {
+        let i32t = LLVMInt32TypeInContext(ctxt.context);
+
+        let v = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
+        let zero = LLVMConstInt(i32t, 0, 0);
+        let one = LLVMConstInt(i32t, 1, 0);
+
+        let mut indices = [zero, zero];
+        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
+        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, /*DOUBLE = */ 0, 0), ep);
+
+        let mut indices = [zero, one];
+        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
+        let f64ptr = LLVMPointerType(ctxt.f64_type, 0);
+        let ep = LLVMBuildBitCast(ctxt.builder, ep, f64ptr, EMPTY);
+        let real = LLVMConstReal(ctxt.f64_type, x);
+        LLVMBuildStore(ctxt.builder, real, ep);
+
+        LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY)
+    }
+}
+
 fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         match e {
-            Expr::Num(x) => {
-                let x = LLVMConstReal(ctxt.f64_type, *x);
-                call_extra_fn("num", &[x], ctxt)
-            },
             Expr::Nil => nil(ctxt),
+            Expr::Num(x) => num(*x, ctxt),
             Expr::NewTable => {
                 call_extra_fn("new_table", &[], ctxt)
             }
