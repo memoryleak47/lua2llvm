@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::*;
-use crate::ir::{self, FnId, IR, LitFunction, Node};
+use crate::ir::{self, FnId, IR, LitFunction, Node, NATIVE_FNS};
 
 #[derive(Default)]
 struct Ctxt {
@@ -654,11 +654,10 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
         
         // global environment functions
         if is_main {
-            let nfs = ["print", "type", "pairs", "next"];
-            for f in nfs {
-                let n = mk_compute(ir::Expr::NativeFn(String::from(f)), ctxt);
+            for (i, f) in NATIVE_FNS.iter().enumerate() {
+                let n = mk_compute(ir::Expr::NativeFn(i), ctxt);
                 let t = mk_table_with(n, ctxt);
-                ctxt.locals.last_mut().unwrap().insert(String::from(f), t);
+                ctxt.locals.last_mut().unwrap().insert(String::from(*f), t);
             }
         }
 

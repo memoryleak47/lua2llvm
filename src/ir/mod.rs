@@ -27,6 +27,9 @@ pub type FnId = usize;
 
 pub type UpvalueId = usize;
 
+pub type NativeFnId = usize;
+pub const NATIVE_FNS: [&'static str; 4] = ["print", "next", "pairs", "type"];
+
 #[derive(Debug)]
 pub enum Statement {
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
@@ -47,7 +50,7 @@ pub enum Expr {
     FnCall(/*func: */ Node, /* arg: */ Node),
     NewTable, // equivalent to {}
     LitFunction(FnId, /*upnodes: */ Vec<Node>),
-    NativeFn(/*name: */ String),
+    NativeFn(NativeFnId),
     BinOp(BinOpKind, Node, Node),
     UnOp(UnOpKind, Node),
 

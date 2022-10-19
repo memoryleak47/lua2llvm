@@ -1,16 +1,16 @@
-use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, UnOpKind};
+use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, UnOpKind, NativeFnId, NATIVE_FNS};
 
 type TablePtr = usize;
 
 type NativeFn = fn(TablePtr, &mut Ctxt) -> TablePtr;
 
-fn lookup_native_fn(s: &str) -> NativeFn {
-    match s {
+fn lookup_native_fn_impl(i: NativeFnId) -> NativeFn {
+    match NATIVE_FNS[i] {
         "print" => print_fn,
-        "type" => type_fn,
         "next" => next_fn,
         "pairs" => pairs_fn,
-        _ => panic!("native fn \"{}\" not found", s),
+        "type" => type_fn,
+        _ => panic!("unknown native fn {}", i),
     }
 }
 
@@ -39,7 +39,7 @@ fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     empty(ctxt)
 }
 
-fn next_fn(t: TablePtr, ctxt: &mut Ctxt) ->TablePtr {
+fn next_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     let Value::TablePtr(tt) = table_get(t, Value::Num(1.0), ctxt) else { panic!("calling next on non-table!") };
     let r = table_get(t, Value::Num(2.0), ctxt);
 
@@ -49,7 +49,7 @@ fn next_fn(t: TablePtr, ctxt: &mut Ctxt) ->TablePtr {
 fn pairs_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     let arg = table_get(t, Value::Num(1.0), ctxt);
 
-    wrap_vec(vec![Value::NativeFn("next".to_string()), arg, Value::Nil], ctxt)
+    wrap_vec(vec![Value::NativeFn(1), arg, Value::Nil], ctxt)
 }
 
 fn type_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
@@ -147,7 +147,7 @@ enum Value {
     Bool(bool),
     TablePtr(TablePtr),
     Str(String),
-    NativeFn(/*name: */ String),
+    NativeFn(NativeFnId),
     LitFn(FnId, /*upvalues: */ Vec<Value>),
     Num(f64),
 }
@@ -185,9 +185,9 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
 
             let ret = match f {
                 Value::LitFn(f_id, upvalues) => exec_fn(f_id, arg, &upvalues[..], ctxt),
-                Value::NativeFn(s) => {
+                Value::NativeFn(i) => {
                     let Value::TablePtr(argt) = arg else { panic!("calling NativeFn with wrong arg!") };
-                    let r = (lookup_native_fn(&s))(argt, ctxt);
+                    let r = (lookup_native_fn_impl(i))(argt, ctxt);
 
                     Value::TablePtr(r)
                 },

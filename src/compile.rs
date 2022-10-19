@@ -7,15 +7,9 @@ use llvm::prelude::*;
 const EMPTY: *const i8 = b"\0".as_ptr() as *const _;
 
 #[derive(Clone)]
-enum Public { Yes, No }
-
-#[derive(Clone)]
 struct ExtraFn {
     f: LLVMValueRef,
     ftype: LLVMTypeRef,
-
-    // public means that the user is allowed to call this function using a NativeFn.
-    public: Public,
 }
 
 struct Ctxt {
@@ -25,6 +19,7 @@ struct Ctxt {
     value_type: LLVMTypeRef,
     void_type: LLVMTypeRef,
     f64_type: LLVMTypeRef,
+    u64_type: LLVMTypeRef,
     bb: LLVMBasicBlockRef,
 
     nodes: HashMap<Node, LLVMValueRef>,
@@ -39,11 +34,11 @@ pub fn compile(ir: &IR) {
         let module = LLVMModuleCreateWithNameInContext(b"luamod\0".as_ptr() as *const _, context);
         let builder = LLVMCreateBuilderInContext(context);
         let f64_type = LLVMDoubleTypeInContext(context);
+        let u64_type = LLVMInt64TypeInContext(context);
 
         let void_type = LLVMVoidType();
         let value_type = {
-            let uint64t = LLVMInt64TypeInContext(context);
-            let mut elements = [uint64t, uint64t];
+            let mut elements = [u64_type, u64_type];
 
             LLVMStructTypeInContext(context, elements.as_mut_ptr(), elements.len() as u32, 0)
         };
@@ -60,20 +55,20 @@ pub fn compile(ir: &IR) {
             value_type,
             void_type,
             f64_type,
+            u64_type,
             bb,
             nodes,
             extra_fns,
         };
 
         // private:
-        declare_extra_fn("new_table", value_type, &[], Public::No, &mut ctxt);
-        declare_extra_fn("table_set", void_type, &[value_type, value_type, value_type], Public::No, &mut ctxt);
-        declare_extra_fn("table_get", value_type, &[value_type, value_type], Public::No, &mut ctxt);
-        declare_extra_fn("num", value_type, &[f64_type], Public::No, &mut ctxt);
-        declare_extra_fn("nil", value_type, &[], Public::No, &mut ctxt);
-
-        // public:
-        declare_extra_fn("print", value_type, &[value_type], Public::Yes, &mut ctxt);
+        declare_extra_fn("new_table", value_type, &[], &mut ctxt);
+        declare_extra_fn("table_set", void_type, &[value_type, value_type, value_type], &mut ctxt);
+        declare_extra_fn("table_get", value_type, &[value_type, value_type], &mut ctxt);
+        declare_extra_fn("num", value_type, &[f64_type], &mut ctxt);
+        declare_extra_fn("nil", value_type, &[], &mut ctxt);
+        declare_extra_fn("lookup_native_fn", value_type, &[u64_type], &mut ctxt);
+        declare_extra_fn("fn_call", value_type, &[value_type, value_type], &mut ctxt);
 
         compile_mainfn(&ir.fns[ir.main_fn], ir, &mut ctxt);
 
@@ -81,20 +76,20 @@ pub fn compile(ir: &IR) {
     }
 }
 
-fn declare_extra_fn(fname: &str, ret: LLVMTypeRef, args: &[LLVMTypeRef], public: Public, ctxt: &mut Ctxt) {
+fn declare_extra_fn(fname: &str, ret: LLVMTypeRef, args: &[LLVMTypeRef], ctxt: &mut Ctxt) {
     unsafe {
         let mut args: Vec<LLVMTypeRef> = args.iter().cloned().collect();
         let ftype = LLVMFunctionType(ret, args.as_mut_ptr(), args.len() as u32, 0);
         let name = format!("{}\0", fname);
         let f = LLVMAddFunction(ctxt.module, name.as_bytes().as_ptr() as *const _, ftype);
-        let extra_fn = ExtraFn { f, ftype, public };
+        let extra_fn = ExtraFn { f, ftype };
         ctxt.extra_fns.insert(fname.to_string(), extra_fn);
     }
 }
 
 fn call_extra_fn(fname: &str, args: &[LLVMValueRef], ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
-        let extra_fn = ctxt.extra_fns[fname].clone();
+        let extra_fn: &ExtraFn = ctxt.extra_fns.get(fname).unwrap_or_else(|| panic!("unknown extra fn \"{}\"", fname));
         let mut args: Vec<LLVMValueRef> = args.iter().cloned().collect();
 
         LLVMBuildCall2(
@@ -123,21 +118,17 @@ fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
             Expr::NewTable => {
                 call_extra_fn("new_table", &[], ctxt)
             }
-            Expr::NativeFn(s) => {
-                println!("ignoring Expr::NativeFn");
-
-                nil(ctxt)
+            Expr::NativeFn(i) => {
+                let i = LLVMConstInt(ctxt.u64_type, *i as u64, 0);
+                call_extra_fn("lookup_native_fn", &[i], ctxt)
             },
             Expr::Index(t, i) => {
                 let args = [ctxt.nodes[t], ctxt.nodes[i]];
                 call_extra_fn("table_get", &args, ctxt)
             },
-            Expr::FnCall(_, arg) => {
-                println!("assuming FnCall is print");
-
-                let args = [ctxt.nodes[arg]];
-
-                call_extra_fn("print", &args, ctxt)
+            Expr::FnCall(f, arg) => {
+                let args = [ctxt.nodes[f], ctxt.nodes[arg]];
+                call_extra_fn("fn_call", &args, ctxt)
             }
             _ => {
                 println!("ignoring other Expr!");

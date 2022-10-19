@@ -1,5 +1,6 @@
 #include <vector>
 #include <iostream>
+#include <cstring>
 
 extern "C" {
 
@@ -72,6 +73,11 @@ Value num(double d) {
     return v;
 }
 
+Value fn_call(Value f, Value arg) {
+    if (f.tag != FN) err("calling fn_call with non-function!");
+    return f.f(arg);
+}
+
 // required for n_[n_] <- n_;
 void table_set(Value t, Value key, Value val) {
     if (t.tag != TABLE_PTR) err("table_get called on non-table!");
@@ -111,6 +117,45 @@ Value print(Value t) {
     Value ret = new_table();
     table_set(ret, num(0), num(0));
     return ret;
+}
+
+Value next(Value t) {
+    // TODO
+    Value ret = new_table();
+    table_set(ret, num(0), num(0));
+    return ret;
+}
+
+Value pairs(Value t) {
+    // TODO
+    Value ret = new_table();
+    table_set(ret, num(0), num(0));
+    return ret;
+}
+
+Value type(Value t) {
+    // TODO
+    Value ret = new_table();
+    table_set(ret, num(0), num(0));
+    return ret;
+}
+
+Value lookup_native_fn(uint64_t i) {
+    Value v;
+    v.tag = FN;
+    if (i == 0) {
+        v.f = print;
+    } else if (i == 1) {
+        v.f = next;
+    } else if (i == 2) {
+        v.f = pairs;
+    } else if (i == 3) {
+        v.f = type;
+    } else {
+        std::cout << "unsupported native_fn " << i << std::endl;
+        err("...");
+    }
+    return v;
 }
 
 }
