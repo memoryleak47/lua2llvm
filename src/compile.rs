@@ -32,12 +32,17 @@ struct Ctxt {
     f64_type: LLVMTypeRef,
     u64_type: LLVMTypeRef,
     v2v_ftype: LLVMTypeRef,
+    v2v_fptr_type: LLVMTypeRef,
     bb: LLVMBasicBlockRef,
 
     nodes: HashMap<Node, LLVMValueRef>,
 
     // functions defined in extra/
     extra_fns: HashMap<String, ExtraFn>,
+
+    lit_fns: HashMap<FnId, LLVMValueRef>,
+
+    start_fn: LLVMValueRef,
 }
 
 pub fn compile(ir: &IR) {
@@ -57,9 +62,17 @@ pub fn compile(ir: &IR) {
 
         let v2v_ftype = {
             let mut args = [value_type];
-            let t = LLVMFunctionType(value_type, args.as_mut_ptr(), args.len() as _, 0);
-            LLVMPointerType(t, 0)
+            LLVMFunctionType(value_type, args.as_mut_ptr(), args.len() as _, 0)
         };
+        let v2v_fptr_type = LLVMPointerType(v2v_ftype, 0);
+
+        let start_fn = {
+            let mut args = [];
+            let start_function_type = LLVMFunctionType(void_type, args.as_mut_ptr(), args.len() as _, 0);
+
+            LLVMAddFunction(module, b"main\0".as_ptr() as *const _, start_function_type)
+        };
+        let lit_fns = HashMap::new();
 
         let bb = 0 as *mut _;
 
@@ -76,9 +89,12 @@ pub fn compile(ir: &IR) {
             f64_type,
             u64_type,
             v2v_ftype,
+            v2v_fptr_type,
             bb,
             nodes,
             extra_fns,
+            start_fn,
+            lit_fns,
         };
 
         // table implementation:
@@ -92,7 +108,19 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("pairs", value_type, &[value_type], &mut ctxt);
         declare_extra_fn("type", value_type, &[value_type], &mut ctxt);
 
-        compile_mainfn(&ir.fns[ir.main_fn], &mut ctxt);
+        // declare lit fns
+        for (fid, _) in ir.fns.iter().enumerate() {
+            let name = format!("f{}\0", fid);
+            let function = LLVMAddFunction(module, name.as_bytes().as_ptr() as *const _, v2v_ftype);
+            ctxt.lit_fns.insert(fid, function);
+        }
+
+        compile_start_fn(ir.main_fn, &mut ctxt);
+
+        // compile lit fns
+        for (fid, lit_f) in ir.fns.iter().enumerate() {
+            compile_fn(ctxt.lit_fns[&fid], lit_f, &mut ctxt);
+        }
 
         LLVMDumpModule(ctxt.module);
     }
@@ -195,10 +223,9 @@ fn fn_call(f: LLVMValueRef, arg: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef 
     }
 }
 
-fn lookup_native_fn(i: NativeFnId, ctxt: &mut Ctxt) -> LLVMValueRef {
-    let s = NATIVE_FNS[i];
-    let f = ctxt.extra_fns[s].f;
 
+// f should be generated using LLVMAddFunction.
+fn make_fn_value(f: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         let i32t = LLVMInt32TypeInContext(ctxt.context);
 
@@ -212,12 +239,18 @@ fn lookup_native_fn(i: NativeFnId, ctxt: &mut Ctxt) -> LLVMValueRef {
 
         let mut indices = [zero, one];
         let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-        let ftype = LLVMPointerType(ctxt.v2v_ftype, 0);
+        let ftype = LLVMPointerType(ctxt.v2v_fptr_type, 0);
         let ep = LLVMBuildBitCast(ctxt.builder, ep, ftype, EMPTY);
         LLVMBuildStore(ctxt.builder, f, ep);
 
         LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY)
     }
+}
+
+fn lookup_native_fn(i: NativeFnId, ctxt: &mut Ctxt) -> LLVMValueRef {
+    let s = NATIVE_FNS[i];
+    let f = ctxt.extra_fns[s].f;
+    make_fn_value(f, ctxt)
 }
 
 fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
@@ -228,6 +261,7 @@ fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
             call_extra_fn("new_table", &[], ctxt)
         }
         Expr::NativeFn(i) => lookup_native_fn(*i, ctxt),
+        Expr::LitFunction(fid, _upnodes) => make_fn_value(ctxt.lit_fns[fid], ctxt),
         Expr::Index(t, i) => {
             let args = [ctxt.nodes[t], ctxt.nodes[i]];
             call_extra_fn("table_get", &args, ctxt)
@@ -246,16 +280,36 @@ fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     }
 }
 
-fn compile_mainfn(f: &LitFunction, ctxt: &mut Ctxt) {
+fn compile_start_fn(main_fn: FnId, ctxt: &mut Ctxt) {
     unsafe {
-        // create main
-        let main_function_type = LLVMFunctionType(ctxt.void_type, [].as_mut_ptr(), 0, 0);
-        let main_function = LLVMAddFunction(ctxt.module, b"main\0".as_ptr() as *const _, main_function_type);
+        let start_fn = ctxt.start_fn;
 
-        ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.context, main_function, b"entry\0".as_ptr() as *const _);
+        ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.context, start_fn, b"entry\0".as_ptr() as *const _);
         LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
 
-        for st in &f.body {
+        let v = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
+        let v = LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY);
+
+        let mut args = [v];
+        LLVMBuildCall2(
+            /*builder: */ ctxt.builder,
+            /*type: */ ctxt.v2v_ftype,
+            /*Fn: */ ctxt.lit_fns[&main_fn],
+            /*Args: */ args.as_mut_ptr(),
+            /*Num Args: */ args.len() as u32,
+            /*Name: */ EMPTY,
+        );
+
+        LLVMBuildRetVoid(ctxt.builder);
+    }
+}
+
+fn compile_fn(val_f: LLVMValueRef, lit_f: &LitFunction, ctxt: &mut Ctxt) {
+    unsafe {
+        ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.context, val_f, b"entry\0".as_ptr() as *const _);
+        LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
+
+        for st in &lit_f.body {
             match st {
                 Statement::Compute(n, e) => {
                     let vref = compile_expr(e, ctxt);
@@ -265,12 +319,15 @@ fn compile_mainfn(f: &LitFunction, ctxt: &mut Ctxt) {
                     let args = [ctxt.nodes[t], ctxt.nodes[i], ctxt.nodes[v]];
                     call_extra_fn("table_set", &args, ctxt);
                 },
+                Statement::Return(v) => {
+                    let v = ctxt.nodes[v];
+                    LLVMBuildRet(ctxt.builder, v);
+                },
                 _ => {/* TODO */},
             }
         }
-
-        LLVMBuildRetVoid(ctxt.builder);
     }
+
 }
 
 impl Drop for Ctxt {
