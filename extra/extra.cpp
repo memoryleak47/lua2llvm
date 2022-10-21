@@ -5,9 +5,9 @@
 extern "C" {
 
 // index into the vector `tables` is table_ptr.
-using table_ptr = uint64_t;
+using table_ptr = int64_t;
 
-enum tag_t : uint64_t {
+enum tag_t : int64_t {
     TABLE_PTR = 0,
     FN = 1,
     NIL = 2,

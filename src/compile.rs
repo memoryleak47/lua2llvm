@@ -30,7 +30,7 @@ struct Ctxt {
     value_type: LLVMTypeRef,
     void_type: LLVMTypeRef,
     f64_type: LLVMTypeRef,
-    u64_type: LLVMTypeRef,
+    i64_type: LLVMTypeRef,
     v2v_ftype: LLVMTypeRef,
     v2v_fptr_type: LLVMTypeRef,
     bb: LLVMBasicBlockRef,
@@ -51,11 +51,11 @@ pub fn compile(ir: &IR) {
         let module = LLVMModuleCreateWithNameInContext(b"luamod\0".as_ptr() as *const _, context);
         let builder = LLVMCreateBuilderInContext(context);
         let f64_type = LLVMDoubleTypeInContext(context);
-        let u64_type = LLVMInt64TypeInContext(context);
+        let i64_type = LLVMInt64TypeInContext(context);
 
         let void_type = LLVMVoidType();
         let value_type = {
-            let mut elements = [u64_type, u64_type];
+            let mut elements = [i64_type, i64_type];
 
             LLVMStructTypeInContext(context, elements.as_mut_ptr(), elements.len() as u32, 0)
         };
@@ -87,7 +87,7 @@ pub fn compile(ir: &IR) {
             value_type,
             void_type,
             f64_type,
-            u64_type,
+            i64_type,
             v2v_ftype,
             v2v_fptr_type,
             bb,
@@ -155,7 +155,7 @@ fn call_extra_fn(fname: &str, args: &[LLVMValueRef], ctxt: &mut Ctxt) -> LLVMVal
 
 fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
-        let mut vals = [LLVMConstInt(ctxt.u64_type, Tag::NIL as _, 0), LLVMGetUndef(ctxt.u64_type)];
+        let mut vals = [LLVMConstInt(ctxt.i64_type, Tag::NIL as _, 0), LLVMGetUndef(ctxt.i64_type)];
         LLVMConstStructInContext(ctxt.context, vals.as_mut_ptr(), vals.len() as _, 0)
     }
 }
@@ -163,9 +163,9 @@ fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
 fn num(x: f64, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         let val = LLVMConstReal(ctxt.f64_type, x);
-        let val = LLVMBuildBitCast(ctxt.builder, val, ctxt.u64_type, EMPTY);
+        let val = LLVMBuildBitCast(ctxt.builder, val, ctxt.i64_type, EMPTY);
 
-        let mut vals = [LLVMConstInt(ctxt.u64_type, Tag::NUM as _, 0), val];
+        let mut vals = [LLVMConstInt(ctxt.i64_type, Tag::NUM as _, 0), val];
         LLVMConstStructInContext(ctxt.context, vals.as_mut_ptr(), vals.len() as _, 0)
     }
 }
@@ -192,9 +192,9 @@ fn fn_call(f_val: LLVMValueRef, arg: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValue
 // f should be generated using LLVMAddFunction.
 fn make_fn_value(f: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
-        let val = LLVMBuildPtrToInt(ctxt.builder, f, ctxt.u64_type, EMPTY);
+        let val = LLVMBuildPtrToInt(ctxt.builder, f, ctxt.i64_type, EMPTY);
 
-        let mut vals = [LLVMConstInt(ctxt.u64_type, Tag::FN as _, 0), val];
+        let mut vals = [LLVMConstInt(ctxt.i64_type, Tag::FN as _, 0), val];
         LLVMConstStructInContext(ctxt.context, vals.as_mut_ptr(), vals.len() as _, 0)
     }
 }
