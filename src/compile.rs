@@ -272,8 +272,8 @@ fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
 
             fn_call(f, arg, ctxt)
         }
-        _ => {
-            println!("ignoring other Expr!");
+        x => {
+            println!("ignoring other Expr {:?}!", x);
 
             nil(ctxt)
         },

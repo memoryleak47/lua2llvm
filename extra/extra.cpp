@@ -4,11 +4,6 @@
 
 extern "C" {
 
-void err(const char* msg) {
-    std::cout << "ERROR: " << msg << std::endl;
-    exit(1);
-}
-
 // index into the vector `tables` is table_ptr.
 using table_ptr = uint64_t;
 
@@ -48,7 +43,8 @@ bool eq(Value a, Value b) {
     if (a.tag == FN) return a.f == b.f;
     if (a.tag == NIL) return true;
 
-    err("invalid tag in eq!");
+    std::cout << "invalid tag in eq!" << std::endl;
+    exit(1);
     return false;
 }
 
@@ -77,8 +73,14 @@ Value num(double d) {
 
 // required for n_[n_] <- n_;
 void table_set(Value t, Value key, Value val) {
-    if (t.tag != TABLE_PTR) err("table_get called on non-table!");
-    if (key.tag == NIL) err("table_get called with nil index!");
+    if (t.tag != TABLE_PTR) {
+        std::cout << "table_get called on non-table value with tag " << t.tag << "!" << std::endl;
+        exit(1);
+    }
+    if (key.tag == NIL) {
+        std::cout << "table_get called with nil index!" << std::endl;
+        exit(1);
+    }
     std::vector<TableEntry>& entries = tables[t.t].entries;
     for (auto& e : entries) {
         if (eq(e.key, key)) {
@@ -94,7 +96,10 @@ void table_set(Value t, Value key, Value val) {
 
 // required for n_ =  n_[n_];
 Value table_get(Value t, Value key) {
-    if (t.tag != TABLE_PTR) err("table_get called on non-table!");
+    if (t.tag != TABLE_PTR) {
+        std::cout << "table_set called on non-table value with tag " << t.tag << "!" << std::endl;
+        exit(1);
+    }
     std::vector<TableEntry>& entries = tables[t.t].entries;
     for (auto e : entries) {
         if (eq(e.key, key)) return e.value;
