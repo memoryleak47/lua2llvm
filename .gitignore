@@ -1,6 +1,4 @@
 /target
 Cargo.lock
-file.ll
-extra/extra.o
-exe
+build
 file.lua

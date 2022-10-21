@@ -7,7 +7,7 @@ extern "C" {
 // index into the vector `tables` is table_ptr.
 using table_ptr = int64_t;
 
-enum tag_t : int64_t {
+enum tag_t : int32_t {
     TABLE_PTR = 0,
     FN = 1,
     NIL = 2,
@@ -18,6 +18,7 @@ enum tag_t : int64_t {
 
 struct Value {
     tag_t tag;
+    int32_t upvalue_stack_index;
     union {
         table_ptr t;
         double d;
@@ -40,22 +41,21 @@ bool eq(Value a, Value b) {
     if (a.tag != b.tag) return false;
     if (a.tag == NUM) return a.d == b.d;
     if (a.tag == TABLE_PTR) return a.t == b.t;
-    if (a.tag == FN) return a.f == b.f;
+    if (a.tag == FN) return a.upvalue_stack_index == b.upvalue_stack_index && a.f == b.f;
     if (a.tag == NIL) return true;
 
-    std::cout << "invalid tag in eq!" << std::endl;
+    std::cout << "invalid tag (" << a.tag << ") in eq!" << std::endl;
     exit(1);
     return false;
 }
 
 // required for n_ <- {};
-Value new_table() {
-    Value out;
+void new_table(Value *out) {
     table_ptr t = tables.size();
     tables.push_back({});
-    out.tag = TABLE_PTR;
-    out.t = t;
-    return out;
+
+    out->tag = TABLE_PTR;
+    out->t = t;
 }
 
 Value nil() {
@@ -72,73 +72,78 @@ Value num(double d) {
 }
 
 // required for n_[n_] <- n_;
-void table_set(Value t, Value key, Value val) {
-    if (t.tag != TABLE_PTR) {
-        std::cout << "table_get called on non-table value with tag " << t.tag << "!" << std::endl;
+void table_set(Value* t, Value* key, Value* val) {
+    if (t->tag != TABLE_PTR) {
+        std::cout << "table_set called on non-table value with tag " << t->tag << "!" << std::endl;
         exit(1);
     }
-    if (key.tag == NIL) {
-        std::cout << "table_get called with nil index!" << std::endl;
+    if (key->tag == NIL) {
+        std::cout << "table_set called with nil index!" << std::endl;
         exit(1);
     }
-    std::vector<TableEntry>& entries = tables[t.t].entries;
+    std::vector<TableEntry>& entries = tables[t->t].entries;
     for (auto& e : entries) {
-        if (eq(e.key, key)) {
-            e.value = val;
+        if (eq(e.key, *key)) {
+            e.value = *val;
             return;
         }
     }
     TableEntry e;
-    e.key = key;
-    e.value = val;
+    e.key = *key;
+    e.value = *val;
     entries.push_back(e);
 }
 
 // required for n_ =  n_[n_];
-Value table_get(Value t, Value key) {
-    if (t.tag != TABLE_PTR) {
-        std::cout << "table_set called on non-table value with tag " << t.tag << "!" << std::endl;
+void table_get(Value *t, Value *key, Value *out) {
+    if (t->tag != TABLE_PTR) {
+        std::cout << "table_get called on non-table value with tag " << t->tag << "!" << std::endl;
         exit(1);
     }
-    std::vector<TableEntry>& entries = tables[t.t].entries;
+    std::vector<TableEntry>& entries = tables[t->t].entries;
     for (auto e : entries) {
-        if (eq(e.key, key)) return e.value;
+        if (eq(e.key, *key)) {
+            *out = e.value;
+            return;
+        }
     }
-    return nil();
+    *out = nil();
 }
 
 // table-wrapped native fns:
-Value print(Value t) {
-    Value v = table_get(t, num(1));
+void print(Value *t, int32_t i, Value *out) {
+    Value one = num(1);
+    Value v;
+    table_get(t, &one, &v);
     if (v.tag == NUM) std::cout << v.d << std::endl;
     if (v.tag == TABLE_PTR) std::cout << "table ptr" << std::endl;
     if (v.tag == FN) std::cout << "function" << std::endl;
     if (v.tag == NIL) std::cout << "nil" << std::endl;
 
-    Value ret = new_table();
-    table_set(ret, num(0), num(0));
-    return ret;
+    new_table(out);
+    Value zero = num(0);
+    table_set(out, &zero, &zero);
 }
 
-Value next(Value t) {
+void next(Value t, int32_t i, Value *out) {
     // TODO
-    Value ret = new_table();
-    table_set(ret, num(0), num(0));
-    return ret;
+    new_table(out);
+    Value zero = num(0);
+    table_set(out, &zero, &zero);
 }
 
-Value pairs(Value t) {
+void pairs(Value t, int32_t i, Value *out) {
     // TODO
-    Value ret = new_table();
-    table_set(ret, num(0), num(0));
-    return ret;
+    new_table(out);
+    Value zero = num(0);
+    table_set(out, &zero, &zero);
 }
 
-Value type(Value t) {
+void type(Value t, int32_t i, Value *out) {
     // TODO
-    Value ret = new_table();
-    table_set(ret, num(0), num(0));
-    return ret;
+    new_table(out);
+    Value zero = num(0);
+    table_set(out, &zero, &zero);
 }
 
 }
