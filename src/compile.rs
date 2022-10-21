@@ -109,7 +109,7 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("type", value_type, &[value_type], &mut ctxt);
 
         // declare lit fns
-        for (fid, _) in ir.fns.iter().enumerate() {
+        for fid in 0..ir.fns.len() {
             let name = format!("f{}\0", fid);
             let function = LLVMAddFunction(module, name.as_bytes().as_ptr() as *const _, v2v_ftype);
             ctxt.lit_fns.insert(fid, function);
@@ -118,8 +118,8 @@ pub fn compile(ir: &IR) {
         compile_start_fn(ir.main_fn, &mut ctxt);
 
         // compile lit fns
-        for (fid, lit_f) in ir.fns.iter().enumerate() {
-            compile_fn(ctxt.lit_fns[&fid], lit_f, &mut ctxt);
+        for fid in 0..ir.fns.len() {
+            compile_fn(ctxt.lit_fns[&fid], fid, ir, &mut ctxt);
         }
 
         LLVMDumpModule(ctxt.module);
@@ -237,7 +237,7 @@ fn lookup_native_fn(i: NativeFnId, ctxt: &mut Ctxt) -> LLVMValueRef {
     make_fn_value(f, ctxt)
 }
 
-fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
+fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef {
     match e {
         Expr::Nil => nil(ctxt),
         Expr::Num(x) => num(*x, ctxt),
@@ -256,6 +256,11 @@ fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
 
             fn_call(f, arg, ctxt)
         }
+        Expr::Arg => {
+            unsafe {
+                LLVMGetParam(ctxt.lit_fns[&current_fn], 0)
+            }
+        },
         x => {
             println!("ignoring other Expr {:?}!", x);
 
@@ -288,15 +293,16 @@ fn compile_start_fn(main_fn: FnId, ctxt: &mut Ctxt) {
     }
 }
 
-fn compile_fn(val_f: LLVMValueRef, lit_f: &LitFunction, ctxt: &mut Ctxt) {
+fn compile_fn(val_f: LLVMValueRef, fn_id: FnId, ir: &IR, ctxt: &mut Ctxt) {
     unsafe {
         ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.context, val_f, b"entry\0".as_ptr() as *const _);
         LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
 
+        let lit_f = &ir.fns[fn_id];
         for st in &lit_f.body {
             match st {
                 Statement::Compute(n, e) => {
-                    let vref = compile_expr(e, ctxt);
+                    let vref = compile_expr(e, fn_id, ctxt);
                     ctxt.nodes.insert(*n, vref);
                 },
                 Statement::Store(t, i, v) => {
