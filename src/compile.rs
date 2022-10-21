@@ -189,33 +189,17 @@ fn num(x: f64, ctxt: &mut Ctxt) -> LLVMValueRef {
     }
 }
 
-fn fn_call(f: LLVMValueRef, arg: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
+fn fn_call(f_val: LLVMValueRef, arg: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
     // TODO add check that f is actually a function
     unsafe {
-        let fspace = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
-        LLVMBuildStore(ctxt.builder, f, fspace);
-
-        let f = fspace;
-
-        let i32t = LLVMInt32TypeInContext(ctxt.context);
-        let zero = LLVMConstInt(i32t, 0, 0);
-        let one = LLVMConstInt(i32t, 1, 0);
-        let mut indices = [zero, one];
-        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, f, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-
-        let mut args = [ctxt.value_type];
-        let t = LLVMFunctionType(ctxt.value_type, args.as_mut_ptr(), args.len() as _, 0);
-        let t = LLVMPointerType(t, 0);
-        let t2 = LLVMPointerType(t, 0);
-        let ep = LLVMBuildBitCast(ctxt.builder, ep, t2, EMPTY);
-        let actual = LLVMBuildLoad2(ctxt.builder, t, ep, EMPTY);
+        let f /* i64 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
+        let f /* Value (*fn)(Value) */ = LLVMBuildIntToPtr(ctxt.builder, f, ctxt.v2v_fptr_type, EMPTY);
 
         let mut fargs = [arg];
-
         LLVMBuildCall2(
             /*builder: */ ctxt.builder,
-            /*type: */ t,
-            /*Fn: */ actual,
+            /*type: */ ctxt.v2v_ftype,
+            /*Fn: */ f,
             /*Args: */ fargs.as_mut_ptr(),
             /*Num Args: */ fargs.len() as u32,
             /*Name: */ EMPTY,
