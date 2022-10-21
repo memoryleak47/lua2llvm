@@ -155,37 +155,18 @@ fn call_extra_fn(fname: &str, args: &[LLVMValueRef], ctxt: &mut Ctxt) -> LLVMVal
 
 fn nil(ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
-        let i32t = LLVMInt32TypeInContext(ctxt.context);
-
-        let v = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
-        let zero = LLVMConstInt(i32t, 0, 0);
-        let mut indices = [zero, zero];
-        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, Tag::NIL as u64, 0), ep);
-        LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY)
+        let mut vals = [LLVMConstInt(ctxt.u64_type, Tag::NIL as _, 0), LLVMGetUndef(ctxt.u64_type)];
+        LLVMConstStructInContext(ctxt.context, vals.as_mut_ptr(), vals.len() as _, 0)
     }
 }
 
 fn num(x: f64, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
-        let i32t = LLVMInt32TypeInContext(ctxt.context);
+        let val = LLVMConstReal(ctxt.f64_type, x);
+        let val = LLVMBuildBitCast(ctxt.builder, val, ctxt.u64_type, EMPTY);
 
-        let v = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
-        let zero = LLVMConstInt(i32t, 0, 0);
-        let one = LLVMConstInt(i32t, 1, 0);
-
-        let mut indices = [zero, zero];
-        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, Tag::NUM as u64, 0), ep);
-
-        let mut indices = [zero, one];
-        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-        let f64ptr = LLVMPointerType(ctxt.f64_type, 0);
-        let ep = LLVMBuildBitCast(ctxt.builder, ep, f64ptr, EMPTY);
-        let real = LLVMConstReal(ctxt.f64_type, x);
-        LLVMBuildStore(ctxt.builder, real, ep);
-
-        LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY)
+        let mut vals = [LLVMConstInt(ctxt.u64_type, Tag::NUM as _, 0), val];
+        LLVMConstStructInContext(ctxt.context, vals.as_mut_ptr(), vals.len() as _, 0)
     }
 }
 
@@ -211,23 +192,10 @@ fn fn_call(f_val: LLVMValueRef, arg: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValue
 // f should be generated using LLVMAddFunction.
 fn make_fn_value(f: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
-        let i32t = LLVMInt32TypeInContext(ctxt.context);
+        let val = LLVMBuildPtrToInt(ctxt.builder, f, ctxt.u64_type, EMPTY);
 
-        let v = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
-        let zero = LLVMConstInt(i32t, 0, 0);
-        let one = LLVMConstInt(i32t, 1, 0);
-
-        let mut indices = [zero, zero];
-        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-        LLVMBuildStore(ctxt.builder, LLVMConstInt(ctxt.u64_type, Tag::FN as u64, 0), ep);
-
-        let mut indices = [zero, one];
-        let ep = LLVMBuildGEP2(ctxt.builder, ctxt.value_type, v, indices.as_mut_ptr(), indices.len() as u32, EMPTY);
-        let ftype = LLVMPointerType(ctxt.v2v_fptr_type, 0);
-        let ep = LLVMBuildBitCast(ctxt.builder, ep, ftype, EMPTY);
-        LLVMBuildStore(ctxt.builder, f, ep);
-
-        LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY)
+        let mut vals = [LLVMConstInt(ctxt.u64_type, Tag::FN as _, 0), val];
+        LLVMConstStructInContext(ctxt.context, vals.as_mut_ptr(), vals.len() as _, 0)
     }
 }
 
@@ -276,8 +244,7 @@ fn compile_start_fn(main_fn: FnId, ctxt: &mut Ctxt) {
         ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.context, start_fn, b"entry\0".as_ptr() as *const _);
         LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
 
-        let v = LLVMBuildAlloca(ctxt.builder, ctxt.value_type, EMPTY);
-        let v = LLVMBuildLoad2(ctxt.builder, ctxt.value_type, v, EMPTY);
+        let v = nil(ctxt);
 
         let mut args = [v];
         LLVMBuildCall2(
