@@ -102,13 +102,17 @@ pub fn compile(ir: &IR) {
         };
 
         // table implementation:
-        declare_extra_fn("new_table", &[ctxt.value_ptr_t()], &mut ctxt);
-        declare_extra_fn("table_set", &[ctxt.value_ptr_t(); 3], &mut ctxt);
-        declare_extra_fn("table_get", &[ctxt.value_ptr_t(); 3], &mut ctxt);
+        declare_extra_fn("new_table", ctxt.void_t(), &[ctxt.value_ptr_t()], &mut ctxt);
+        declare_extra_fn("table_set", ctxt.void_t(), &[ctxt.value_ptr_t(); 3], &mut ctxt);
+        declare_extra_fn("table_get", ctxt.void_t(), &[ctxt.value_ptr_t(); 3], &mut ctxt);
+
+        // upvalue implementation:
+        declare_extra_fn("uvstack_push", ctxt.i32_t(), &[ctxt.value_ptr_t()], &mut ctxt);
+        declare_extra_fn("uvstack_get", ctxt.void_t(), &[ctxt.i32_t(), ctxt.value_ptr_t()], &mut ctxt);
 
         // native functions:
         for fname in NATIVE_FNS {
-            declare_extra_fn(fname, &[ctxt.value_ptr_t(), ctxt.i32_t(), ctxt.value_ptr_t()], &mut ctxt);
+            declare_extra_fn(fname, ctxt.void_t(), &[ctxt.value_ptr_t(), ctxt.i32_t(), ctxt.value_ptr_t()], &mut ctxt);
         }
 
         // declare lit fns
@@ -129,10 +133,10 @@ pub fn compile(ir: &IR) {
     }
 }
 
-fn declare_extra_fn(fname: &str, args: &[LLVMTypeRef], ctxt: &mut Ctxt) {
+fn declare_extra_fn(fname: &str, ret: LLVMTypeRef, args: &[LLVMTypeRef], ctxt: &mut Ctxt) {
     unsafe {
         let mut args: Vec<LLVMTypeRef> = args.iter().cloned().collect();
-        let ftype = LLVMFunctionType(ctxt.void_t(), args.as_mut_ptr(), args.len() as u32, 0);
+        let ftype = LLVMFunctionType(ret, args.as_mut_ptr(), args.len() as u32, 0);
         let name = format!("{}\0", fname);
         let f = LLVMAddFunction(ctxt.module, name.as_bytes().as_ptr() as *const _, ftype);
         let extra_fn = ExtraFn { f, ftype };
@@ -184,12 +188,12 @@ fn num(x: f64, ctxt: &mut Ctxt) -> LLVMValueRef {
 fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* Value */ {
     // TODO add check that f is actually a function
     unsafe {
-        let upvalue_stack_index /* i32 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
+        let uvstack_index /* i32 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
         let f /* i64 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 2, EMPTY);
         let f /* Value (*fn)(Value) */ = LLVMBuildIntToPtr(ctxt.builder, f, ctxt.v2v_ptr_t(), EMPTY);
 
         let out = alloc(ctxt);
-        let mut fargs = [alloc_val(arg, ctxt), upvalue_stack_index, out];
+        let mut fargs = [alloc_val(arg, ctxt), uvstack_index, out];
         LLVMBuildCall2(
             /*builder: */ ctxt.builder,
             /*type: */ ctxt.v2v_t(),
@@ -205,63 +209,87 @@ fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef /* Val
 
 
 // f should be generated using LLVMAddFunction of type v2v_t.
-// upvalue_stack_index needs to be 0 for 0-closure functions.
-fn make_fn_value(f: LLVMValueRef, upvalue_stack_index: i32, ctxt: &mut Ctxt) -> LLVMValueRef {
+// uvstack_index needs to be 0 for 0-closure functions.
+fn make_fn_value(f: LLVMValueRef, uvstack_index: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         let val = LLVMBuildPtrToInt(ctxt.builder, f, ctxt.i64_t(), EMPTY);
 
-        let mut vals = [
-            LLVMConstInt(ctxt.i32_t(), Tag::FN as _, 0),
-            LLVMConstInt(ctxt.i32_t(), upvalue_stack_index as _, 0),
-            val
-        ];
-        LLVMConstStructInContext(ctxt.context, vals.as_mut_ptr(), vals.len() as _, 0)
+        let tag = LLVMConstInt(ctxt.i32_t(), Tag::FN as _, 0);
+
+        let a = LLVMGetPoison(ctxt.value_t());
+        let a = LLVMBuildInsertValue(ctxt.builder, a, tag, 0, EMPTY);
+        let a = LLVMBuildInsertValue(ctxt.builder, a, uvstack_index, 1, EMPTY);
+        let a = LLVMBuildInsertValue(ctxt.builder, a, val, 2, EMPTY);
+
+        a
     }
 }
 
 fn mk_native_fn(i: NativeFnId, ctxt: &mut Ctxt) -> LLVMValueRef {
-    let s = NATIVE_FNS[i];
-    let f = ctxt.extra_fns[s].f;
+    unsafe {
+        let s = NATIVE_FNS[i];
+        let f = ctxt.extra_fns[s].f;
+        let zero = LLVMConstInt(ctxt.i32_t(), 0, 0);
 
-    make_fn_value(f, 0, ctxt)
+        make_fn_value(f, zero, ctxt)
+    }
 }
 
 fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef {
-    match e {
-        Expr::Nil => nil(ctxt),
-        Expr::Num(x) => num(*x, ctxt),
-        Expr::NewTable => {
-            let var = alloc(ctxt);
-            call_extra_fn("new_table", &[var], ctxt);
+    unsafe { 
+        match e {
+            Expr::Nil => nil(ctxt),
+            Expr::Num(x) => num(*x, ctxt),
+            Expr::NewTable => {
+                let var = alloc(ctxt);
+                call_extra_fn("new_table", &[var], ctxt);
 
-            load_val(var, ctxt)
-        }
-        Expr::NativeFn(i) => mk_native_fn(*i, ctxt),
-        Expr::LitFunction(fid, _upnodes) => make_fn_value(ctxt.lit_fns[fid], 0, ctxt), // TODO upnodes
-        Expr::Index(t, i) => {
-            let t = alloc_val(ctxt.nodes[t], ctxt); // TODO this breaks!
-            let i = alloc_val(ctxt.nodes[i], ctxt);
-            let out = alloc(ctxt);
-            call_extra_fn("table_get", &[t, i, out], ctxt);
-            load_val(out, ctxt)
-        },
-        Expr::FnCall(f, arg) => {
-            let f = ctxt.nodes[f];
-            let arg = ctxt.nodes[arg];
+                load_val(var, ctxt)
+            }
+            Expr::NativeFn(i) => mk_native_fn(*i, ctxt),
+            Expr::LitFunction(fid, upnodes) => {
+                let mut opt /*: Option<LLVM i32> */ = None;
+                for n in upnodes {
+                    let v = alloc_val(ctxt.nodes[n], ctxt);
+                    let o = call_extra_fn("uvstack_push", &[v], ctxt);
+                    if opt.is_none() { opt = Some(o); }
+                }
+                let i = opt.unwrap_or_else(|| LLVMConstInt(ctxt.i32_t(), 0, 0));
+                make_fn_value(ctxt.lit_fns[fid], i, ctxt)
+            },
+            Expr::Index(t, i) => {
+                let t = alloc_val(ctxt.nodes[t], ctxt);
+                let i = alloc_val(ctxt.nodes[i], ctxt);
+                let out = alloc(ctxt);
+                call_extra_fn("table_get", &[t, i, out], ctxt);
+                load_val(out, ctxt)
+            },
+            Expr::FnCall(f, arg) => {
+                let f = ctxt.nodes[f];
+                let arg = ctxt.nodes[arg];
 
-            fn_call(f, arg, ctxt)
-        }
-        Expr::Arg => {
-            unsafe {
+                fn_call(f, arg, ctxt)
+            }
+            Expr::Arg => {
                 let param = LLVMGetParam(ctxt.lit_fns[&current_fn], 0);
                 load_val(param, ctxt)
-            }
-        },
-        x => {
-            println!("ignoring other Expr {:?}!", x);
+            },
+            Expr::Upvalue(i) => {
+                let base /* LLVM i32 */ = LLVMGetParam(ctxt.lit_fns[&current_fn], 1);
+                let offset /* LLVM i32 */  = LLVMConstInt(ctxt.i32_t(), *i as _, 0);
+                let idx /* LLVM i32 */ = LLVMBuildAdd(ctxt.builder, base, offset, EMPTY);
 
-            nil(ctxt)
-        },
+                let var = alloc(ctxt);
+                call_extra_fn("uvstack_get", &[idx, var], ctxt);
+
+                load_val(var, ctxt)
+            },
+            x => {
+                println!("ignoring other Expr {:?}!", x);
+
+                nil(ctxt)
+            },
+        }
     }
 }
 

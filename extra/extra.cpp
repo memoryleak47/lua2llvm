@@ -18,7 +18,7 @@ enum tag_t : int32_t {
 
 struct Value {
     tag_t tag;
-    int32_t upvalue_stack_index;
+    int32_t uvstack_index;
     union {
         table_ptr t;
         double d;
@@ -41,7 +41,7 @@ bool eq(Value a, Value b) {
     if (a.tag != b.tag) return false;
     if (a.tag == NUM) return a.d == b.d;
     if (a.tag == TABLE_PTR) return a.t == b.t;
-    if (a.tag == FN) return a.upvalue_stack_index == b.upvalue_stack_index && a.f == b.f;
+    if (a.tag == FN) return a.uvstack_index == b.uvstack_index && a.f == b.f;
     if (a.tag == NIL) return true;
 
     std::cout << "invalid tag (" << a.tag << ") in eq!" << std::endl;
@@ -108,6 +108,19 @@ void table_get(Value *t, Value *key, Value *out) {
         }
     }
     *out = nil();
+}
+
+// upvalue-stack functions:
+static std::vector<Value> uvstack;
+
+int32_t uvstack_push(Value* v) {
+    int32_t i = uvstack.size();
+    uvstack.push_back(*v);
+    return i;
+}
+
+void uvstack_get(int32_t idx, Value* out) {
+    *out = uvstack[idx];
 }
 
 // table-wrapped native fns:
