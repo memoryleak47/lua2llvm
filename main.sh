@@ -3,13 +3,17 @@
 echo compiling lua2llvm ...
 cargo b
 
-[ ! -d build ] && mkdir build
+rm -r build
+mkdir build
 
 echo running lua2llvm ...
 ./target/debug/lua2llvm file.lua 2> build/file.ll
 
-echo compiling extra.cpp ...
-clang++ extra/extra.cpp -S -emit-llvm -o build/extra.ll
+echo compiling extra files
+for x in $(cd extra; ls *.cpp)
+do
+    clang++ "extra/$x" -S -emit-llvm -o "build/${x%.cpp}.ll"
+done
 
 echo running clang ...
 clang++ build/*.ll -o build/exe
