@@ -25,6 +25,8 @@ pub struct Ctxt {
     pub lit_fns: HashMap<FnId, LLVMValueRef>,
 
     pub start_fn: LLVMValueRef,
+
+    pub current_fid: FnId,
 }
 
 impl Ctxt {
@@ -52,6 +54,7 @@ impl Ctxt {
                 extra_fns: Default::default(),
                 start_fn,
                 lit_fns: Default::default(),
+                current_fid: 0,
             }
         }
     }
@@ -88,6 +91,14 @@ impl Ctxt {
 
     pub fn v2v_ptr_t(&mut self) -> LLVMTypeRef {
         unsafe { LLVMPointerType(self.v2v_t(), 0) }
+    }
+
+    pub fn i8_t(&mut self) -> LLVMTypeRef {
+        unsafe { LLVMInt8TypeInContext(self.llctxt) }
+    }
+
+    pub fn str_t(&mut self) -> LLVMTypeRef {
+        unsafe { LLVMPointerType(self.i8_t(), 0) }
     }
 }
 

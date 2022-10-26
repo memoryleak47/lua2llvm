@@ -59,8 +59,37 @@ pub fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef
 }
 
 fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* Value */ {
-    // TODO add check that f is actually a function
     unsafe {
+        let current_fn = ctxt.lit_fns[&ctxt.current_fid];
+
+        // check tag
+        let tag /* i32 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 0, EMPTY);
+        let correct_tag = LLVMConstInt(ctxt.i32_t(), Tag::FN as _, 0);
+        let cond = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntNE, tag, correct_tag, EMPTY);
+
+        let errblock = LLVMAppendBasicBlockInContext(ctxt.llctxt, current_fn, EMPTY);
+        let goodblock = LLVMAppendBasicBlockInContext(ctxt.llctxt, current_fn, EMPTY);
+
+        LLVMBuildCondBr(ctxt.builder, cond, errblock, goodblock);
+
+        // errblock:
+        LLVMPositionBuilderAtEnd(ctxt.builder, errblock);
+
+        let s = "trying to call non-function!\0";
+        let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
+        let s = LLVMBuildBitCast(ctxt.builder, s, ctxt.str_t(), EMPTY);
+        call_extra_fn("puts", &[s], ctxt);
+
+        let one = LLVMConstInt(ctxt.i32_t(), 1, 0);
+        call_extra_fn("exit", &[one], ctxt);
+
+        LLVMBuildUnreachable(ctxt.builder);
+
+        // the rest is in goodblock.
+        ctxt.bb = goodblock;
+        LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
+
+        // call fn
         let uvstack_index /* i32 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
         let f /* i64 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 2, EMPTY);
         let f /* Value (*fn)(Value) */ = LLVMBuildIntToPtr(ctxt.builder, f, ctxt.v2v_ptr_t(), EMPTY);

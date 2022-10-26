@@ -2,6 +2,7 @@ use super::*;
 
 pub fn compile_fn(val_f: LLVMValueRef, fn_id: FnId, ir: &IR, ctxt: &mut Ctxt) {
     unsafe {
+        ctxt.current_fid = fn_id;
         ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, b"entry\0".as_ptr() as *const _);
         LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
 
