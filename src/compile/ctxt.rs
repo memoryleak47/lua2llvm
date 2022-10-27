@@ -3,6 +3,7 @@ use crate::ir::*;
 use std::collections::HashMap;
 use llvm::core::*;
 use llvm::prelude::*;
+use llvm::target_machine::LLVMGetDefaultTargetTriple;
 
 
 #[derive(Clone)]
@@ -34,6 +35,9 @@ impl Ctxt {
         unsafe {
             let llctxt = LLVMContextCreate();
             let module = LLVMModuleCreateWithNameInContext(b"luamod\0".as_ptr() as *const _, llctxt);
+            let target = LLVMGetDefaultTargetTriple();
+            LLVMSetTarget(module, target);
+
             let builder = LLVMCreateBuilderInContext(llctxt);
 
             let start_fn = {
