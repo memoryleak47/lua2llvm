@@ -1,6 +1,7 @@
 #include "value.h"
 #include "table.h"
 #include "utils.h"
+#include "ops.h"
 
 extern "C" {
 
@@ -22,10 +23,47 @@ void print(Value *t, int32_t i, Value *out) {
 }
 
 void next(Value *t, int32_t i, Value *out) {
-    // TODO
-    new_table(out);
     Value zero = num(0);
-    table_set(out, &zero, &zero);
+    Value one = num(1);
+    Value two = num(2);
+
+    Value table_arg;
+    Value key_arg;
+
+    table_get(t, &one, &table_arg);
+    table_get(t, &two, &key_arg);
+
+    if (table_arg.tag != TABLE_PTR) {
+        std::cout << "called next on non-table!\n";
+        exit(1);
+    }
+
+    auto& entries = tables[table_arg.t].entries;
+
+    Value l_out = {.tag = NIL};
+    Value r_out = {.tag = NIL};
+
+    if (key_arg.tag == NIL) {
+        if (entries.size() > 0) {
+            l_out = entries[0].key;
+            r_out = entries[0].value;
+        }
+    } else {
+        for (int i = 0; i < entries.size(); i++) {
+            if (eq(&entries[i].key, &key_arg)) {
+                if (entries.size() > i+1) {
+                    l_out = entries[i+1].key;
+                    r_out = entries[i+1].value;
+                }
+                break;
+            }
+        }
+    }
+
+    new_table(out);
+    table_set(out, &zero, &two);
+    table_set(out, &one, &l_out);
+    table_set(out, &two, &r_out);
 }
 
 void pairs(Value *t, int32_t i, Value *out) {

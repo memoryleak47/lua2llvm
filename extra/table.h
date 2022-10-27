@@ -1,4 +1,17 @@
 #include "value.h"
+#include <vector>
+
+struct TableEntry {
+    Value key;
+    Value value;
+};
+
+struct TableData {
+    std::vector<TableEntry> entries;
+    int length;
+};
+
+extern std::vector<TableData> tables;
 
 extern "C" {
 

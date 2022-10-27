@@ -3,17 +3,7 @@
 #include "utils.h"
 #include "ops.h"
 
-struct TableEntry {
-    Value key;
-    Value value;
-};
-
-struct TableData {
-    std::vector<TableEntry> entries;
-    int length;
-};
-
-static std::vector<TableData> tables;
+std::vector<TableData> tables;
 
 extern "C" {
 
