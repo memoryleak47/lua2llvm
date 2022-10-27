@@ -1,6 +1,8 @@
 use super::*;
 
-pub fn compile_body(body: &[Statement], ctxt: &mut Ctxt) {
+enum Terminated { Yes, No }
+
+fn compile_body(body: &[Statement], ctxt: &mut Ctxt) -> Terminated {
     unsafe {
         for st in body {
             match st {
@@ -20,6 +22,8 @@ pub fn compile_body(body: &[Statement], ctxt: &mut Ctxt) {
                     let out = LLVMGetParam(f, 2);
                     LLVMBuildStore(ctxt.builder, v, out);
                     LLVMBuildRetVoid(ctxt.builder);
+
+                    return Terminated::Yes;
                 },
                 Statement::If(cond, thenbody, elsebody) => {
                     let f = ctxt.lit_fns[&ctxt.current_fid];
@@ -33,18 +37,49 @@ pub fn compile_body(body: &[Statement], ctxt: &mut Ctxt) {
                     LLVMBuildCondBr(ctxt.builder, cond, thenbb, elsebb);
 
                     LLVMPositionBuilderAtEnd(ctxt.builder, thenbb);
-                    compile_body(thenbody, ctxt);
-                    LLVMBuildBr(ctxt.builder, postbb);
+                    if let Terminated::No = compile_body(thenbody, ctxt) {
+                        LLVMBuildBr(ctxt.builder, postbb);
+                    }
 
                     LLVMPositionBuilderAtEnd(ctxt.builder, elsebb);
-                    compile_body(elsebody, ctxt);
-                    LLVMBuildBr(ctxt.builder, postbb);
+                    if let Terminated::No = compile_body(elsebody, ctxt) {
+                        LLVMBuildBr(ctxt.builder, postbb);
+                    }
 
                     LLVMPositionBuilderAtEnd(ctxt.builder, postbb);
                 },
-                _ => {/* TODO */},
+                Statement::Loop(body) => {
+                    let f = ctxt.lit_fns[&ctxt.current_fid];
+
+                    let loopbb = LLVMAppendBasicBlockInContext(ctxt.llctxt, f, EMPTY);
+                    let postbb = LLVMAppendBasicBlockInContext(ctxt.llctxt, f, EMPTY);
+
+                    LLVMBuildBr(ctxt.builder, loopbb);
+
+                    { // loop block:
+                        let previous_break_bb = ctxt.break_bb.take();
+                        ctxt.break_bb = Some(postbb);
+                        LLVMPositionBuilderAtEnd(ctxt.builder, loopbb);
+
+                        if let Terminated::No = compile_body(body, ctxt) {
+                            LLVMBuildBr(ctxt.builder, loopbb);
+                        }
+
+                        ctxt.break_bb = previous_break_bb;
+                    }
+
+                    LLVMPositionBuilderAtEnd(ctxt.builder, postbb);
+                },
+                Statement::Break => {
+                    let bb = ctxt.break_bb.unwrap();
+                    LLVMBuildBr(ctxt.builder, bb);
+
+                    return Terminated::Yes;
+                },
             }
         }
+
+        Terminated::No
     }
 }
 

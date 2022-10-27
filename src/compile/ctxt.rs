@@ -27,6 +27,9 @@ pub struct Ctxt {
     pub start_fn: LLVMValueRef,
 
     pub current_fid: FnId,
+
+    // if we encounter a `break`, go to this block.
+    pub break_bb: Option<LLVMBasicBlockRef>,
 }
 
 impl Ctxt {
@@ -46,6 +49,8 @@ impl Ctxt {
                 LLVMAddFunction(module, b"main\0".as_ptr() as *const _, start_function_type)
             };
 
+            let break_bb = None;
+
             Ctxt {
                 llctxt,
                 module,
@@ -55,6 +60,7 @@ impl Ctxt {
                 start_fn,
                 lit_fns: Default::default(),
                 current_fid: 0,
+                break_bb,
             }
         }
     }
