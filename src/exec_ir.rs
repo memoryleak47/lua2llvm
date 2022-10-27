@@ -1,6 +1,4 @@
-#![allow(unused)]
-
-use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, UnOpKind, NativeFnId, NATIVE_FNS};
+use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, NativeFnId, NATIVE_FNS};
 
 type TablePtr = usize;
 
@@ -215,10 +213,14 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
 
             exec_binop(kind.clone(), l, r)
         },
-        Expr::UnOp(kind, r) => {
+        Expr::Len(r) => {
             let r = ctxt.nodes[*r].clone();
 
-            exec_unop(kind.clone(), r, ctxt)
+            match r {
+                Value::Str(s) => Value::Num(s.len() as f64),
+                Value::TablePtr(t) => Value::Num(ctxt.heap[t].length as f64),
+                _ => panic!("executing len on invalid type!"),
+            }
         },
         Expr::Num(x) => Value::Num(*x),
         Expr::Bool(b) => Value::Bool(*b),
@@ -244,19 +246,6 @@ fn exec_binop(kind: BinOpKind, l: Value, r: Value) -> Value {
         (IsEqual, l, r) => Value::Bool(l == r),
         (IsNotEqual, l, r) => Value::Bool(l != r),
         (Concat, Value::Str(l), Value::Str(r)) => Value::Str(format!("{}{}", l, r)),
-        _ => panic!("type error!"),
-    }
-}
-
-
-fn exec_unop(kind: UnOpKind, r: Value, ctxt: &Ctxt) -> Value {
-    use UnOpKind::*;
-    match (kind, r) {
-        (Neg, Value::Num(x)) => Value::Num(-x),
-        (Len, Value::TablePtr(ptr)) => Value::Num(ctxt.heap[ptr].length as f64),
-        (Len, Value::Str(s)) => Value::Num(s.len() as f64),
-        (Not, l) if truthy(&l) => Value::Bool(false),
-        (Not, _) => Value::Bool(true),
         _ => panic!("type error!"),
     }
 }

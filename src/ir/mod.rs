@@ -1,5 +1,3 @@
-pub use crate::ast::UnOpKind;
-
 mod display;
 
 // Note that even though, lower.rs only returns tables from functions, and Arg is always a table too.
@@ -52,7 +50,7 @@ pub enum Expr {
     LitFunction(FnId, /*upnodes: */ Vec<Node>),
     NativeFn(NativeFnId),
     BinOp(BinOpKind, Node, Node),
-    UnOp(UnOpKind, Node),
+    Len(Node),
 
     // literals
     Num(f64),

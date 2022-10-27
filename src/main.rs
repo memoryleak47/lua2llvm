@@ -16,7 +16,6 @@ mod exec_ir;
 
 mod compile;
 
-#[allow(unused)]
 fn test_ir() -> ir::IR {
     use ir::*;
 
@@ -47,14 +46,24 @@ fn main() {
     let args: Vec<String> = std::env::args()
                                 .skip(1)
                                 .collect();
-    let filename = &args[0];
+    let arg = |s| args.iter().find(|x| **x == s).is_some();
 
-    let code = std::fs::read_to_string(filename).unwrap();
-    let tokens = token::tokenize(&code);
-    let ast = parse::parse(&tokens).expect("Ast::parse failed!");
-    let ir = lower(&ast);
-    // let ir = test_ir();
-    // eprintln!("{}", &ir);
-    compile::compile(&ir);
-    // exec_ir::exec(&ir);
+    let ir = if arg("--test-ir") {
+        test_ir()
+    } else {
+        let filename = args.iter().find(|x| !x.starts_with("--")).expect("no input file given!");
+        let code = std::fs::read_to_string(filename).unwrap();
+        let tokens = token::tokenize(&code);
+        let ast = parse::parse(&tokens).expect("Ast::parse failed!");
+
+        lower(&ast)
+    };
+
+    if arg("--dump-ir") {
+        eprintln!("{}", &ir);
+    } else if arg("--compile") {
+        compile::compile(&ir);
+    } else {
+        exec_ir::exec(&ir);
+    }
 }

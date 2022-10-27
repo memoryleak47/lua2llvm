@@ -7,7 +7,7 @@ rm -r build
 mkdir build
 
 echo running lua2llvm ...
-./target/debug/lua2llvm file.lua 2> build/file.ll
+./target/debug/lua2llvm --compile file.lua 2> build/file.ll
 
 echo compiling extra files
 for x in $(cd extra; ls *.cpp)

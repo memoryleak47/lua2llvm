@@ -259,6 +259,31 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
     mk_compute(x, ctxt)
 }
 
+fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
+    let r = lower_expr1(r, ctxt);
+
+    let x = match kind {
+        UnOpKind::Neg => ir::Expr::BinOp(ir::BinOpKind::Minus, ctxt.zero, r),
+        UnOpKind::Len => ir::Expr::Len(r),
+        UnOpKind::Not => {
+            let true_v = mk_compute(ir::Expr::Bool(true), ctxt);
+            let t = mk_table_with(true_v, ctxt);
+
+            let if_body = ctxt.in_block(|ctxt| {
+                let false_v = mk_compute(ir::Expr::Bool(false), ctxt);
+                push_st(ir::Statement::Store(t, ctxt.one, false_v), ctxt);
+            });
+
+            push_st(ir::Statement::If(r, if_body, vec![]), ctxt);
+
+            ir::Expr::Index(t, ctxt.one)
+        },
+    };
+
+    mk_compute(x, ctxt)
+
+}
+
 // "tabled" is true for function calls and ellipsis expressions.
 // which return tables after transforming them.
 fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
@@ -285,12 +310,7 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
             mk_compute(x, ctxt)
         },
         Expr::BinOp(kind, l, r) => lower_binop(kind, l, r, ctxt),
-        Expr::UnOp(kind, r) => {
-            let x = lower_expr1(r, ctxt);
-            let x = ir::Expr::UnOp(*kind, x);
-
-            mk_compute(x, ctxt)
-        },
+        Expr::UnOp(kind, r) => lower_unop(kind, r, ctxt),
         Expr::FunctionCall(call) => {
             tabled = true;
 

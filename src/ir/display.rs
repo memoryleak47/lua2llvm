@@ -1,4 +1,4 @@
-use crate::ir::{IR, FnId, Statement, Expr, BinOpKind, UnOpKind};
+use crate::ir::{IR, FnId, Statement, Expr, BinOpKind};
 use std::fmt::{self, Display, Formatter};
 
 // functions: f<id>
@@ -95,15 +95,6 @@ fn display_binop(kind: &BinOpKind) -> &'static str {
     }
 }
 
-fn display_unop(kind: &UnOpKind) -> &'static str {
-    use UnOpKind::*;
-    match kind {
-        Neg => "-",
-        Len => "#",
-        Not => "not ",
-    }
-}
-
 fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
     use Expr::*;
     match expr {
@@ -123,7 +114,7 @@ fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
         }
         NativeFn(s) => write!(f, "native fn \"{}\"", s)?,
         BinOp(kind, l, r) => write!(f, "n{} {} n{}", l, display_binop(kind), r)?,
-        UnOp(kind, r) => write!(f, "{} n{}", display_unop(kind), r)?,
+        Len(r) => write!(f, "#n{}", r)?,
         Num(x) => write!(f, "{}", x)?,
         Upvalue(uid) => write!(f, "u{}", uid)?,
         Bool(b) => write!(f, "{}", b)?,
