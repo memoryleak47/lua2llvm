@@ -15,6 +15,7 @@ pub fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef
                 mk_num(x, ctxt)
             },
             Expr::Str(s) => {
+                let s = format!("{}\0", s);
                 let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
 
                 mk_str(s, ctxt)
