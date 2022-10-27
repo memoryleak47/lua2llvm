@@ -56,5 +56,5 @@ fn main() {
     // let ir = test_ir();
     // eprintln!("{}", &ir);
     compile::compile(&ir);
-    exec_ir::exec(&ir);
+    // exec_ir::exec(&ir);
 }

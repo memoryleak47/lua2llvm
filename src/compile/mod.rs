@@ -15,8 +15,8 @@ use start::*;
 mod func;
 use func::*;
 
-mod mk_val;
-use mk_val::*;
+mod utils;
+use utils::*;
 
 use llvm::core::*;
 use llvm::prelude::*;
@@ -26,7 +26,7 @@ const EMPTY: *const i8 = b"\0".as_ptr() as *const _;
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
-enum Tag {
+pub enum Tag {
     TABLE_PTR = 0,
     FN = 1,
     NIL = 2,

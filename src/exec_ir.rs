@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, UnOpKind, NativeFnId, NATIVE_FNS};
 
 type TablePtr = usize;
