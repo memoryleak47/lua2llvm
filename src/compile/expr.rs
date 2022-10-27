@@ -67,10 +67,13 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
                 load_val(var, ctxt)
             },
             Expr::BinOp(k, l, r) => compile_binop(*k, l, r, ctxt),
-            x => {
-                println!("ignoring other Expr {:?}!", x);
+            Expr::Len(n) => {
+                let n = ctxt.nodes[n];
+                let n = alloc_val(n, ctxt);
 
-                mk_nil(ctxt)
+                let out = alloc(ctxt);
+                call_extra_fn("len", &[n, out], ctxt);
+                load_val(out, ctxt)
             },
         }
     }

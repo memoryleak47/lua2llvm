@@ -52,6 +52,7 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("eq", ctxt.bool_t(), &[ctxt.value_ptr_t(); 2], &mut ctxt);
         declare_extra_fn("concat", ctxt.void_t(), &[ctxt.value_ptr_t(); 3], &mut ctxt);
         declare_extra_fn("pow", ctxt.f64_t(), &[ctxt.f64_t(); 2], &mut ctxt);
+        declare_extra_fn("len", ctxt.void_t(), &[ctxt.value_ptr_t(); 2], &mut ctxt);
 
         // error handling
         declare_extra_fn("puts", ctxt.void_t(), &[ctxt.str_t()], &mut ctxt);

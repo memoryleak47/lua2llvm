@@ -1,4 +1,6 @@
 #include "ops.h"
+#include "table.h"
+#include "utils.h"
 
 #include <string.h>
 
@@ -41,6 +43,20 @@ void concat(Value* a, Value* b, Value* out) {
         out->s[i + n1] = s2[i];
     }
     out->s[n1+n2] = '\0';
+}
+
+void len(Value* arg, Value* out) {
+    int l;
+    if (arg->tag == STR) {
+        l = strlen(arg->s);
+    } else if (arg->tag == TABLE_PTR) {
+        l = table_len(arg->t);
+    } else {
+        std::cout << "attempt to get length of non-table/str value\n";
+        exit(1);
+    }
+
+    *out = num((double) l);
 }
 
 }
