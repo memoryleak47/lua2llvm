@@ -4,6 +4,11 @@ pub fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef
     unsafe {
         match e {
             Expr::Nil => mk_nil(ctxt),
+            Expr::Bool(b) => {
+                let b = LLVMConstInt(ctxt.bool_t(), *b as _, 0);
+
+                mk_bool(b, ctxt)
+            }
             Expr::Num(x) => {
                 let x = LLVMConstReal(ctxt.f64_t(), *x);
 

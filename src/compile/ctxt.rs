@@ -97,6 +97,10 @@ impl Ctxt {
         unsafe { LLVMInt8TypeInContext(self.llctxt) }
     }
 
+    pub fn bool_t(&mut self) -> LLVMTypeRef {
+        unsafe { LLVMInt1TypeInContext(self.llctxt) }
+    }
+
     pub fn str_t(&mut self) -> LLVMTypeRef {
         unsafe { LLVMPointerType(self.i8_t(), 0) }
     }
