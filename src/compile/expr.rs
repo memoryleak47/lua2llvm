@@ -70,28 +70,44 @@ pub fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef
 
 fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
+        use BinOpKind::*;
+
         let l = ctxt.nodes[l];
         let r = ctxt.nodes[r];
 
-        let lerr = tag_err(l, Tag::NUM, ctxt);
-        let rerr = tag_err(r, Tag::NUM, ctxt);
+        // numeric
+        if matches!(k, Plus | Minus | Mul | Div | Mod | Pow) {
+            let lerr = tag_err(l, Tag::NUM, ctxt);
+            let rerr = tag_err(r, Tag::NUM, ctxt);
 
-        let err = LLVMBuildOr(ctxt.builder, lerr, rerr, EMPTY);
-        err_chk(err, "trying to calculate with non-nums!", ctxt);
+            let err = LLVMBuildOr(ctxt.builder, lerr, rerr, EMPTY);
+            err_chk(err, "trying to calculate with non-nums!", ctxt);
 
-        let l = extract_num(l, ctxt);
-        let r = extract_num(r, ctxt);
+            let l = extract_num(l, ctxt);
+            let r = extract_num(r, ctxt);
 
-        let x = match k {
-            BinOpKind::Plus => LLVMBuildFAdd(ctxt.builder, l, r, EMPTY),
-            BinOpKind::Minus => LLVMBuildFSub(ctxt.builder, l, r, EMPTY),
-            BinOpKind::Mul => LLVMBuildFMul(ctxt.builder, l, r, EMPTY),
-            BinOpKind::Div => LLVMBuildFDiv(ctxt.builder, l, r, EMPTY),
-            BinOpKind::Mod => LLVMBuildFRem(ctxt.builder, l, r, EMPTY),
-            _ => todo!(),
-        };
+            let x = match k {
+                BinOpKind::Plus => LLVMBuildFAdd(ctxt.builder, l, r, EMPTY),
+                BinOpKind::Minus => LLVMBuildFSub(ctxt.builder, l, r, EMPTY),
+                BinOpKind::Mul => LLVMBuildFMul(ctxt.builder, l, r, EMPTY),
+                BinOpKind::Div => LLVMBuildFDiv(ctxt.builder, l, r, EMPTY),
+                BinOpKind::Mod => LLVMBuildFRem(ctxt.builder, l, r, EMPTY),
+                _ => todo!(),
+            };
 
-        mk_num(x, ctxt)
+            mk_num(x, ctxt)
+        } else if matches!(k, IsEqual | IsNotEqual) {
+            let l = alloc_val(l, ctxt);
+            let r = alloc_val(r, ctxt);
+
+            let mut b /* LLVM i1 */ = call_extra_fn("eq", &[l, r], ctxt);
+            if matches!(k, IsNotEqual) {
+                let one = LLVMConstInt(ctxt.bool_t(), 1, 0);
+                b = LLVMBuildXor(ctxt.builder, b, one, EMPTY);
+            }
+
+            mk_bool(b, ctxt)
+        } else { todo!() }
     }
 }
 

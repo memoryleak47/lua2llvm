@@ -4,6 +4,11 @@
 
 for i in $(find tests -type f | cut -d "/" -f 2 | cut -d "." -f 1 | sort -h)
 do
+    echo "========="
+    echo "tests/${i}.lua"
+    echo "========="
+    echo
+
     res1=$(cargo r "tests/${i}.lua")
     if [[ ! "$?" == 0 ]]; then
         echo error!
@@ -18,4 +23,7 @@ do
         echo "'$res2'"
         exit
     fi
+
+    echo
+    echo
 done

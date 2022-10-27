@@ -48,6 +48,8 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("uvstack_push", ctxt.i32_t(), &[ctxt.value_ptr_t()], &mut ctxt);
         declare_extra_fn("uvstack_get", ctxt.void_t(), &[ctxt.i32_t(), ctxt.value_ptr_t()], &mut ctxt);
 
+        declare_extra_fn("eq", ctxt.bool_t(), &[ctxt.value_ptr_t(); 2], &mut ctxt);
+
         // error handling
         declare_extra_fn("puts", ctxt.void_t(), &[ctxt.str_t()], &mut ctxt);
         declare_extra_fn("exit", ctxt.void_t(), &[ctxt.i32_t()], &mut ctxt);

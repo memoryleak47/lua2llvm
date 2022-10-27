@@ -36,7 +36,7 @@ void table_set(Value* t, Value* key, Value* val) {
     }
     std::vector<TableEntry>& entries = tables[t->t].entries;
     for (auto& e : entries) {
-        if (eq(e.key, *key)) {
+        if (eq(&e.key, key)) {
             e.value = *val;
             return;
         }
@@ -55,7 +55,7 @@ void table_get(Value *t, Value *key, Value *out) {
     }
     std::vector<TableEntry>& entries = tables[t->t].entries;
     for (auto e : entries) {
-        if (eq(e.key, *key)) {
+        if (eq(&e.key, key)) {
             *out = e.value;
             return;
         }
