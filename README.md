@@ -20,6 +20,11 @@ Explicit non-goals:
 - fast compile times
 
 
-Currently this project only contains my lua "reference implementation" interpreter.
+Currently this project contains my lua "reference implementation" interpreter.
 
-It can be invoked with `cargo run -- <file.lua> --exec`
+It can be invoked with `cargo run <main.lua>`
+
+
+The project now also contains a simple compiler from Lua to LLVM IR.
+
+`file.lua` can be compiled and executed by running `main.sh`.
