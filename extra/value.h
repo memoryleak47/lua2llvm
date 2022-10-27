@@ -21,7 +21,7 @@ struct Value {
     int32_t uvstack_index;
     union {
         table_ptr t;
-        Value (*f)(Value);
+        void (*f)(Value*, int32_t, Value*);
         double d;
         char* s;
         bool b;

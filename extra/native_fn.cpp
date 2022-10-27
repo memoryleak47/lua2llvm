@@ -67,10 +67,23 @@ void next(Value *t, int32_t i, Value *out) {
 }
 
 void pairs(Value *t, int32_t i, Value *out) {
-    // TODO
-    new_table(out);
     Value zero = num(0);
-    table_set(out, &zero, &zero);
+    Value one = num(1);
+    Value two = num(2);
+
+    Value next_fn = {
+        .tag = FN,
+        .f = next,
+    };
+
+    Value arg;
+    table_get(t, &one, &arg);
+
+    new_table(out);
+
+    table_set(out, &zero, &two);
+    table_set(out, &one, &next_fn);
+    table_set(out, &two, &arg);
 }
 
 void type(Value *t, int32_t i, Value *out) {
