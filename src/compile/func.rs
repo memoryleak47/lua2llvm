@@ -1,16 +1,11 @@
 use super::*;
 
-pub fn compile_fn(val_f: LLVMValueRef, fn_id: FnId, ir: &IR, ctxt: &mut Ctxt) {
+pub fn compile_body(body: &[Statement], ctxt: &mut Ctxt) {
     unsafe {
-        ctxt.current_fid = fn_id;
-        ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, b"entry\0".as_ptr() as *const _);
-        LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
-
-        let lit_f = &ir.fns[fn_id];
-        for st in &lit_f.body {
+        for st in body {
             match st {
                 Statement::Compute(n, e) => {
-                    let vref = compile_expr(e, fn_id, ctxt);
+                    let vref = compile_expr(e, ctxt);
                     ctxt.nodes.insert(*n, vref);
                 },
                 Statement::Store(t, i, v) => {
@@ -21,12 +16,67 @@ pub fn compile_fn(val_f: LLVMValueRef, fn_id: FnId, ir: &IR, ctxt: &mut Ctxt) {
                 },
                 Statement::Return(v) => {
                     let v = ctxt.nodes[v];
-                    let out = LLVMGetParam(val_f, 2);
+                    let f = ctxt.lit_fns[&ctxt.current_fid];
+                    let out = LLVMGetParam(f, 2);
                     LLVMBuildStore(ctxt.builder, v, out);
                     LLVMBuildRetVoid(ctxt.builder);
+                },
+                Statement::If(cond, thenbody, elsebody) => {
+                    let f = ctxt.lit_fns[&ctxt.current_fid];
+
+                    let cond = ctxt.nodes[cond];
+                    let cond = truthy(cond, ctxt);
+
+                    let thenbb = LLVMAppendBasicBlockInContext(ctxt.llctxt, f, EMPTY);
+                    let elsebb = LLVMAppendBasicBlockInContext(ctxt.llctxt, f, EMPTY);
+                    let postbb = LLVMAppendBasicBlockInContext(ctxt.llctxt, f, EMPTY);
+                    LLVMBuildCondBr(ctxt.builder, cond, thenbb, elsebb);
+
+                    LLVMPositionBuilderAtEnd(ctxt.builder, thenbb);
+                    compile_body(thenbody, ctxt);
+                    LLVMBuildBr(ctxt.builder, postbb);
+
+                    LLVMPositionBuilderAtEnd(ctxt.builder, elsebb);
+                    compile_body(elsebody, ctxt);
+                    LLVMBuildBr(ctxt.builder, postbb);
+
+                    LLVMPositionBuilderAtEnd(ctxt.builder, postbb);
                 },
                 _ => {/* TODO */},
             }
         }
+    }
+}
+
+fn truthy(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* i1 */ {
+    unsafe {
+        let tag = LLVMBuildExtractValue(ctxt.builder, x, 0, EMPTY);
+        let val = LLVMBuildExtractValue(ctxt.builder, x, 2, EMPTY);
+
+        let niltag = LLVMConstInt(ctxt.i32_t(), Tag::NIL as _, 0);
+        let tag_ne_nil = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntNE, tag, niltag, EMPTY);
+
+        let booltag = LLVMConstInt(ctxt.i32_t(), Tag::BOOL as _, 0);
+        let tag_ne_bool = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntNE, tag, booltag, EMPTY);
+
+        let one = LLVMConstInt(ctxt.i64_t(), 1, 0);
+        let is_true = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntEQ, one, val, EMPTY);
+
+        // tag_ne_nil && (tag_ne_bool || is_true)
+        let ret = LLVMBuildOr(ctxt.builder, tag_ne_bool, is_true, EMPTY);
+        let ret = LLVMBuildAnd(ctxt.builder, tag_ne_nil, ret, EMPTY);
+
+        ret
+    }
+}
+
+pub fn compile_fn(val_f: LLVMValueRef, fn_id: FnId, ir: &IR, ctxt: &mut Ctxt) {
+    unsafe {
+        ctxt.current_fid = fn_id;
+        let bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, b"entry\0".as_ptr() as *const _);
+        LLVMPositionBuilderAtEnd(ctxt.builder, bb);
+
+        let lit_f = &ir.fns[fn_id];
+        compile_body(&lit_f.body, ctxt);
     }
 }

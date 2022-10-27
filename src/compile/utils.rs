@@ -21,8 +21,7 @@ pub fn err_chk(err_cond: LLVMValueRef, error_msg: &str, ctxt: &mut Ctxt) {
 
         LLVMBuildUnreachable(ctxt.builder);
 
-        ctxt.bb = goodblock;
-        LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
+        LLVMPositionBuilderAtEnd(ctxt.builder, goodblock);
     }
 }
 

@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef {
+pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         match e {
             Expr::Nil => mk_nil(ctxt),
@@ -51,11 +51,13 @@ pub fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef
                 fn_call(f, arg, ctxt)
             }
             Expr::Arg => {
-                let param = LLVMGetParam(ctxt.lit_fns[&current_fn], 0);
+                let fid = ctxt.current_fid;
+                let param = LLVMGetParam(ctxt.lit_fns[&fid], 0);
                 load_val(param, ctxt)
             },
             Expr::Upvalue(i) => {
-                let base /* LLVM i32 */ = LLVMGetParam(ctxt.lit_fns[&current_fn], 1);
+                let fid = ctxt.current_fid;
+                let base /* LLVM i32 */ = LLVMGetParam(ctxt.lit_fns[&fid], 1);
                 let offset /* LLVM i32 */  = LLVMConstInt(ctxt.i32_t(), *i as _, 0);
                 let idx /* LLVM i32 */ = LLVMBuildAdd(ctxt.builder, base, offset, EMPTY);
 

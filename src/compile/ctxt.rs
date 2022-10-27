@@ -16,7 +16,6 @@ pub struct Ctxt {
     pub llctxt: LLVMContextRef,
     pub module: LLVMModuleRef,
     pub builder: LLVMBuilderRef,
-    pub bb: LLVMBasicBlockRef,
 
     pub nodes: HashMap<Node, LLVMValueRef>,
 
@@ -47,13 +46,10 @@ impl Ctxt {
                 LLVMAddFunction(module, b"main\0".as_ptr() as *const _, start_function_type)
             };
 
-            let bb = 0 as *mut _;
-
             Ctxt {
                 llctxt,
                 module,
                 builder,
-                bb,
                 nodes: Default::default(),
                 extra_fns: Default::default(),
                 start_fn,

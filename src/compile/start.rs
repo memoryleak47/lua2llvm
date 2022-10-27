@@ -4,8 +4,8 @@ pub fn compile_start_fn(main_fn: FnId, ctxt: &mut Ctxt) {
     unsafe {
         let start_fn = ctxt.start_fn;
 
-        ctxt.bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, start_fn, b"entry\0".as_ptr() as *const _);
-        LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.bb);
+        let bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, start_fn, b"entry\0".as_ptr() as *const _);
+        LLVMPositionBuilderAtEnd(ctxt.builder, bb);
 
         let out_val = alloc(ctxt);
         let in_val = alloc_val(mk_nil(ctxt), ctxt);
