@@ -1,6 +1,7 @@
 #include "value.h"
 #include "table.h"
 #include "utils.h"
+#include "ops.h"
 
 struct TableEntry {
     Value key;

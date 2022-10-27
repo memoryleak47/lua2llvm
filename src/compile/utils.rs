@@ -60,6 +60,20 @@ pub fn mk_num(x: LLVMValueRef /* f64 */, ctxt: &mut Ctxt) -> LLVMValueRef {
     }
 }
 
+pub fn mk_str(s: LLVMValueRef /* i8* */, ctxt: &mut Ctxt) -> LLVMValueRef {
+    unsafe {
+        let tag = LLVMConstInt(ctxt.i32_t(), Tag::STR as _, 0);
+
+        let s = LLVMBuildPtrToInt(ctxt.builder, s, ctxt.i64_t(), EMPTY);
+
+        let a = LLVMGetPoison(ctxt.value_t());
+        let a = LLVMBuildInsertValue(ctxt.builder, a, tag, 0, EMPTY);
+        let a = LLVMBuildInsertValue(ctxt.builder, a, s, 2, EMPTY);
+
+        a
+    }
+}
+
 pub fn mk_bool(x: LLVMValueRef /* i1 */, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         let x = LLVMBuildZExt(ctxt.builder, x, ctxt.i64_t(), EMPTY);

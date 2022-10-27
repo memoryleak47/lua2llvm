@@ -10,10 +10,11 @@ do
     echo
 
     cp tests/${i}.lua file.lua
-    rm ./build/exe
+    [ -f ./build./exe ] && rm ./build/exe
     ./main.sh
     [ ! -f ./build/exe ] && echo "compilation failed!" && exit
     res1=$(./build/exe)
+    echo "$res1"
     res2=$(lua "tests/${i}.lua")
     if [[ ! "$res1" == "$res2" ]]; then
         echo different output:

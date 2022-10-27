@@ -1,1 +1,1 @@
-return true == not false
+print(true == not false)

@@ -14,6 +14,11 @@ pub fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef
 
                 mk_num(x, ctxt)
             },
+            Expr::Str(s) => {
+                let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
+
+                mk_str(s, ctxt)
+            },
             Expr::NewTable => {
                 let var = alloc(ctxt);
                 call_extra_fn("new_table", &[var], ctxt);
@@ -107,6 +112,14 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> LLVMValue
             }
 
             mk_bool(b, ctxt)
+        } else if matches!(k, Concat) {
+            let l = alloc_val(l, ctxt);
+            let r = alloc_val(r, ctxt);
+            let out = alloc(ctxt);
+
+            call_extra_fn("concat", &[l, r, out], ctxt);
+
+            load_val(out, ctxt)
         } else { todo!() }
     }
 }
