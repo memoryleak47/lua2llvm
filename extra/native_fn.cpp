@@ -21,25 +21,55 @@ void print(Value *t, int32_t i, Value *out) {
     table_set(out, &zero, &zero);
 }
 
-void next(Value t, int32_t i, Value *out) {
+void next(Value *t, int32_t i, Value *out) {
     // TODO
     new_table(out);
     Value zero = num(0);
     table_set(out, &zero, &zero);
 }
 
-void pairs(Value t, int32_t i, Value *out) {
+void pairs(Value *t, int32_t i, Value *out) {
     // TODO
     new_table(out);
     Value zero = num(0);
     table_set(out, &zero, &zero);
 }
 
-void type(Value t, int32_t i, Value *out) {
-    // TODO
-    new_table(out);
+void type(Value *t, int32_t i, Value *out) {
     Value zero = num(0);
-    table_set(out, &zero, &zero);
+    Value one = num(1);
+
+    Value v;
+
+    table_get(t, &one, &v);
+
+    const char* s;
+
+    if (v.tag == TABLE_PTR) {
+        s = "table";
+    } else if (v.tag == FN) {
+        s = "function";
+    } else if (v.tag == NIL) {
+        s = "nil";
+    } else if (v.tag == NUM) {
+        s = "number";
+    } else if (v.tag == STR) {
+        s = "string";
+    } else if (v.tag == BOOL) {
+        s = "boolean";
+    } else {
+        std::cout << "type(): invalid tag!\n";
+        exit(1);
+    }
+
+    new_table(out);
+
+    Value sv;
+    sv.tag = STR;
+    sv.s = const_cast<char*>(s);
+
+    table_set(out, &zero, &one);
+    table_set(out, &one, &sv);
 }
 
 }
