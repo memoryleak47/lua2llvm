@@ -80,7 +80,6 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> LLVMValue
         let l = ctxt.nodes[l];
         let r = ctxt.nodes[r];
 
-        // numeric
         if matches!(k, Plus | Minus | Mul | Div | Mod | Pow) {
             let lerr = tag_err(l, Tag::NUM, ctxt);
             let rerr = tag_err(r, Tag::NUM, ctxt);
@@ -97,7 +96,8 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> LLVMValue
                 BinOpKind::Mul => LLVMBuildFMul(ctxt.builder, l, r, EMPTY),
                 BinOpKind::Div => LLVMBuildFDiv(ctxt.builder, l, r, EMPTY),
                 BinOpKind::Mod => LLVMBuildFRem(ctxt.builder, l, r, EMPTY),
-                _ => todo!(),
+                BinOpKind::Pow => call_extra_fn("pow", &[l, r], ctxt),
+                _ => unreachable!(),
             };
 
             mk_num(x, ctxt)
@@ -120,7 +120,28 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> LLVMValue
             call_extra_fn("concat", &[l, r, out], ctxt);
 
             load_val(out, ctxt)
-        } else { todo!() }
+        } else if matches!(k, Lt | Le | Gt | Ge) {
+            let lerr = tag_err(l, Tag::NUM, ctxt);
+            let rerr = tag_err(r, Tag::NUM, ctxt);
+
+            let err = LLVMBuildOr(ctxt.builder, lerr, rerr, EMPTY);
+            err_chk(err, "trying to compare non-nums!", ctxt);
+
+            let l = extract_num(l, ctxt);
+            let r = extract_num(r, ctxt);
+
+            let pred = match k {
+                BinOpKind::Lt => LLVMRealPredicate::LLVMRealOLT,
+                BinOpKind::Le => LLVMRealPredicate::LLVMRealOLE,
+                BinOpKind::Gt => LLVMRealPredicate::LLVMRealOGT,
+                BinOpKind::Ge => LLVMRealPredicate::LLVMRealOGE,
+                _ => unreachable!(),
+            };
+
+            let x = LLVMBuildFCmp(ctxt.builder, pred, l, r, EMPTY);
+
+            mk_bool(x, ctxt)
+        } else { unreachable!() }
     }
 }
 

@@ -20,7 +20,7 @@ use utils::*;
 
 use llvm::core::*;
 use llvm::prelude::*;
-use llvm::LLVMIntPredicate;
+use llvm::{LLVMIntPredicate, LLVMRealPredicate};
 
 const EMPTY: *const i8 = b"\0".as_ptr() as *const _;
 
@@ -51,6 +51,7 @@ pub fn compile(ir: &IR) {
         // ops:
         declare_extra_fn("eq", ctxt.bool_t(), &[ctxt.value_ptr_t(); 2], &mut ctxt);
         declare_extra_fn("concat", ctxt.void_t(), &[ctxt.value_ptr_t(); 3], &mut ctxt);
+        declare_extra_fn("pow", ctxt.f64_t(), &[ctxt.f64_t(); 2], &mut ctxt);
 
         // error handling
         declare_extra_fn("puts", ctxt.void_t(), &[ctxt.str_t()], &mut ctxt);
