@@ -53,29 +53,40 @@ pub fn compile_expr(e: &Expr, current_fn: FnId, ctxt: &mut Ctxt) -> LLVMValueRef
 
                 load_val(var, ctxt)
             },
-            Expr::BinOp(BinOpKind::Mul, l, r) => {
-                let l = ctxt.nodes[l];
-                let lerr = tag_err(l, Tag::NUM, ctxt);
-
-                let r = ctxt.nodes[r];
-                let rerr = tag_err(r, Tag::NUM, ctxt);
-
-                let err = LLVMBuildOr(ctxt.builder, lerr, rerr, EMPTY);
-                err_chk(err, "trying to multiply non-nums!", ctxt);
-
-                let l = extract_num(l, ctxt);
-                let r = extract_num(r, ctxt);
-
-                let x = LLVMBuildFMul(ctxt.builder, l, r, EMPTY);
-
-                mk_num(x, ctxt)
-            },
+            Expr::BinOp(k, l, r) => compile_binop(*k, l, r, ctxt),
             x => {
                 println!("ignoring other Expr {:?}!", x);
 
                 mk_nil(ctxt)
             },
         }
+    }
+}
+
+fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> LLVMValueRef {
+    unsafe {
+        let l = ctxt.nodes[l];
+        let r = ctxt.nodes[r];
+
+        let lerr = tag_err(l, Tag::NUM, ctxt);
+        let rerr = tag_err(r, Tag::NUM, ctxt);
+
+        let err = LLVMBuildOr(ctxt.builder, lerr, rerr, EMPTY);
+        err_chk(err, "trying to calculate with non-nums!", ctxt);
+
+        let l = extract_num(l, ctxt);
+        let r = extract_num(r, ctxt);
+
+        let x = match k {
+            BinOpKind::Plus => LLVMBuildFAdd(ctxt.builder, l, r, EMPTY),
+            BinOpKind::Minus => LLVMBuildFSub(ctxt.builder, l, r, EMPTY),
+            BinOpKind::Mul => LLVMBuildFMul(ctxt.builder, l, r, EMPTY),
+            BinOpKind::Div => LLVMBuildFDiv(ctxt.builder, l, r, EMPTY),
+            BinOpKind::Mod => LLVMBuildFRem(ctxt.builder, l, r, EMPTY),
+            _ => todo!(),
+        };
+
+        mk_num(x, ctxt)
     }
 }
 
