@@ -108,7 +108,12 @@ fn truthy(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* i1 */
 pub fn compile_fn(val_f: LLVMValueRef, fn_id: FnId, ir: &IR, ctxt: &mut Ctxt) {
     unsafe {
         ctxt.current_fid = fn_id;
-        let bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, b"entry\0".as_ptr() as *const _);
+        let alloca_bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, b"entry\0".as_ptr() as *const _);
+        let bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, EMPTY);
+
+        LLVMPositionBuilderAtEnd(ctxt.builder, alloca_bb);
+        ctxt.alloca_br_instr = Some(LLVMBuildBr(ctxt.builder, bb));
+
         LLVMPositionBuilderAtEnd(ctxt.builder, bb);
 
         let lit_f = &ir.fns[fn_id];

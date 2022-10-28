@@ -84,7 +84,12 @@ pub fn compile(ir: &IR) {
 // will allocate a variable of type Value.
 fn alloc(ctxt: &mut Ctxt) -> LLVMValueRef /* Value* */ {
     unsafe {
-        LLVMBuildAlloca(ctxt.builder, ctxt.value_t(), EMPTY)
+        let builder = LLVMCreateBuilderInContext(ctxt.llctxt);
+        LLVMPositionBuilderBefore(builder, ctxt.alloca_br_instr.unwrap());
+        let ret = LLVMBuildAlloca(builder, ctxt.value_t(), EMPTY);
+        LLVMDisposeBuilder(builder);
+
+        ret
     }
 }
 
