@@ -14,7 +14,7 @@ use lower::lower;
 
 mod exec_ir;
 
-mod compile;
+// mod compile;
 
 fn test_ir() -> ir::IR {
     use ir::*;
@@ -61,8 +61,8 @@ fn main() {
 
     if arg("--dump-ir") {
         eprintln!("{}", &ir);
-    } else if arg("--compile") {
-        compile::compile(&ir);
+    //} else if arg("--compile") {
+    //    compile::compile(&ir);
     } else {
         exec_ir::exec(&ir);
     }

@@ -9,17 +9,17 @@ struct Ctxt {
 
     // the Vec<> is pushed() & popped() for blocks, NOT functions.
     // The node `locals[ident]` contains a TablePtr with the single index 1.
+    // upvalues are stored within here aswell, they store a table pointer to the variable in the stack frame where the upvalues originally came from.
     locals: Vec<HashMap<String, Node>>,
+
+    // All idents that were used in this function, even though there were not locally defined.
+    upvalue_idents: Vec<String>,
 
     // this is intended to be std::mem::swap'ped out, when needed.
     body: Vec<ir::Statement>,
     next_node: usize,
 
-    // all identifiers which are not locals end up in here.
-    // this will result in either a local variable for main, or an Upvalue for non-main.
-    // The corresponding `Node` needs to be initialized with NewTable at function start.
-    // This `Node` is a table, which needs to be indexed at 1 to obtain the actual value.
-    unknown_idents: HashMap<String, Node>,
+    is_main: bool,
 
     // Some(_) for variadics, None otherwise.
     ellipsis_node: Option<Node>,
@@ -305,10 +305,25 @@ fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tabled: */ bool) {
             ctxt.ellipsis_node.expect("lowering `...` in non-variadic function!")
         },
         Expr::Literal(Literal::Function(args, variadic, body)) => {
-            let (fid, upnodes) = lower_fn(args, variadic, body, false, ctxt);
-            let x = ir::Expr::LitFunction(fid, upnodes);
+            let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
+            let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
 
-            mk_compute(x, ctxt)
+            let (fid, upvalue_idents) = lower_fn(args, variadic, body, false, ctxt);
+
+            let n = mk_table(ctxt);
+
+            let call = mk_compute(ir::Expr::LitFunction(fid), ctxt);
+            push_st(ir::Statement::Store(n, call_str, call), ctxt);
+
+            let upvalues = mk_table(ctxt);
+            for u in &upvalue_idents {
+                let upvalue_ident = mk_compute(ir::Expr::Str(u.to_string()), ctxt);
+                let n = locate_ident(u, ctxt);
+                push_st(ir::Statement::Store(upvalues, upvalue_ident, n), ctxt);
+            }
+            push_st(ir::Statement::Store(n, upvalues_str, upvalues), ctxt);
+
+            n
         },
         Expr::Literal(Literal::Table(fields)) => {
             lower_table(fields, None, /*calc-length: */ false, ctxt)
@@ -344,12 +359,24 @@ fn locate_ident(s: &str, ctxt: &mut Ctxt) -> Node {
             return *n;
         }
     }
-    ctxt.unknown_idents.get(s).cloned().unwrap_or_else(|| {
-        let new_n = mk_node(ctxt);
-        ctxt.unknown_idents.insert(s.to_string(), new_n);
 
-        new_n
-    })
+    // if it's not defined in the locals, it has to be an upvalue!
+    let new_n = mk_node(ctxt);
+    ctxt.locals[0].insert(s.to_string(), new_n); // upvalues need to be on the bottom of the stack!
+    ctxt.upvalue_idents.push(s.to_string());
+
+    if ctxt.is_main { // or in-case of "main", just a local variable
+        ctxt.body.insert(0, ir::Statement::Compute(new_n, ir::Expr::NewTable));
+    } else {
+        let (arg, upvalues_str, upvalues_table, upvalue_ident) = (mk_node(ctxt), mk_node(ctxt), mk_node(ctxt), mk_node(ctxt));
+        ctxt.body.insert(0, ir::Statement::Compute(arg, ir::Expr::Arg));
+        ctxt.body.insert(1, ir::Statement::Compute(upvalues_str, ir::Expr::Str("upvalues".to_string())));
+        ctxt.body.insert(2, ir::Statement::Compute(upvalues_table, ir::Expr::Index(arg, upvalues_str)));
+        ctxt.body.insert(3, ir::Statement::Compute(upvalue_ident, ir::Expr::Str(s.to_string())));
+        ctxt.body.insert(4, ir::Statement::Compute(new_n, ir::Expr::Index(upvalues_table, upvalue_ident)));
+    }
+
+    new_n
 }
 
 fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> (/*table: */ Node, /*index*/ Node) {
@@ -421,13 +448,27 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
 
 // result is always tabled = true.
 fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
+    let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
+    let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
+    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+
     match call {
+        // f(x, y, z) --> f["call"]({"upvalues": f["upvalues"], "args": {[0]=3, x, y, z}})
         FunctionCall::Direct(f, args) => {
             let f = lower_expr1(f, ctxt);
-            let arg = table_wrap_exprlist(args, None, ctxt);
+            let f_call = mk_compute(ir::Expr::Index(f, call_str), ctxt);
 
-            mk_compute(ir::Expr::FnCall(f, arg), ctxt)
+            let arg = mk_table(ctxt);
+
+            let args = table_wrap_exprlist(args, None, ctxt);
+            push_st(ir::Statement::Store(arg, args_str, args), ctxt);
+
+            let upvalues = mk_compute(ir::Expr::Index(f, upvalues_str), ctxt);
+            push_st(ir::Statement::Store(arg, upvalues_str, upvalues), ctxt);
+
+            mk_compute(ir::Expr::FnCall(f_call, arg), ctxt)
         },
+        // obj:f(x, y, z) --> t[idx]["call"]({"upvalues": t[idx]["upvalues"], "args": {[0]=4, obj, x, y, z}})
         FunctionCall::Colon(t, idx, args) => {
             let t = lower_expr1(t, ctxt);
 
@@ -435,10 +476,17 @@ fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
             let idx = mk_compute(idx, ctxt);
 
             let f = mk_compute(ir::Expr::Index(t, idx), ctxt);
+            let f_call = mk_compute(ir::Expr::Index(f, call_str), ctxt);
 
-            let arg = table_wrap_exprlist(args, Some(t), ctxt);
+            let arg = mk_table(ctxt);
 
-            mk_compute(ir::Expr::FnCall(f, arg), ctxt)
+            let args = table_wrap_exprlist(args, Some(t), ctxt);
+            push_st(ir::Statement::Store(arg, args_str, args), ctxt);
+
+            let upvalues = mk_compute(ir::Expr::Index(f, upvalues_str), ctxt);
+            push_st(ir::Statement::Store(arg, upvalues_str, upvalues), ctxt);
+
+            mk_compute(ir::Expr::FnCall(f_call, arg), ctxt)
         },
     }
 }
@@ -652,7 +700,7 @@ fn push_st(st: ir::Statement, ctxt: &mut Ctxt) {
     ctxt.body.push(st);
 }
 
-fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_main: bool, ctxt: &mut Ctxt) -> (FnId, Vec<Node>) {
+fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_main: bool, ctxt: &mut Ctxt) -> (FnId, Vec<String>) {
     let fid = ctxt.ir.fns.len();
 
     // this dummy allows us to have a fixed id before lowering of this fn is done.
@@ -665,35 +713,50 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
     let mut locals = vec![HashMap::new()];
     let mut body = Vec::new();
     let mut next_node = 0;
-    let mut unknown_idents: HashMap<String, Node> = HashMap::new();
+    let mut upvalue_idents: Vec<String> = Vec::new();
     let mut ellipsis_node = None;
     let mut zero = usize::MAX;
     let mut one = usize::MAX;
+    let mut is_main = is_main;
 
     std::mem::swap(&mut ctxt.locals, &mut locals);
     std::mem::swap(&mut ctxt.body, &mut body);
     std::mem::swap(&mut ctxt.next_node, &mut next_node);
-    std::mem::swap(&mut ctxt.unknown_idents, &mut unknown_idents);
+    std::mem::swap(&mut ctxt.upvalue_idents, &mut upvalue_idents);
     std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
     std::mem::swap(&mut ctxt.zero, &mut zero);
     std::mem::swap(&mut ctxt.one, &mut one);
+    std::mem::swap(&mut ctxt.is_main, &mut is_main);
 
     {
         ctxt.zero = mk_num(0.0, ctxt);
         ctxt.one = mk_num(1.0, ctxt);
         
         // global environment functions
-        if is_main {
+        if ctxt.is_main {
+            let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
+            let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
+
             for (i, f) in NATIVE_FNS.iter().enumerate() {
-                let n = mk_compute(ir::Expr::NativeFn(i), ctxt);
-                let t = mk_table_with(n, ctxt);
+                let fun = mk_table(ctxt);
+
+                let upvalues = mk_table(ctxt);
+                push_st(ir::Statement::Store(fun, upvalues_str, upvalues), ctxt);
+
+                let call = mk_compute(ir::Expr::NativeFn(i), ctxt);
+                push_st(ir::Statement::Store(fun, call_str, call), ctxt);
+
+                // this table is required, as it's still a variable!
+                let t = mk_table_with(fun, ctxt);
                 ctxt.locals.last_mut().unwrap().insert(String::from(*f), t);
             }
         }
 
         if !args.is_empty() || *variadic == Variadic::Yes {
             // function args
-            let argtable = mk_compute(ir::Expr::Arg, ctxt);
+            let arg = mk_compute(ir::Expr::Arg, ctxt);
+            let args_str = mk_compute(ir::Expr::Str("args".to_string()), ctxt);
+            let argtable = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
 
             for (i, arg) in args.iter().enumerate() {
                 let t = mk_table(ctxt);
@@ -759,26 +822,13 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
     std::mem::swap(&mut ctxt.locals, &mut locals);
     std::mem::swap(&mut ctxt.body, &mut body);
     std::mem::swap(&mut ctxt.next_node, &mut next_node);
-    std::mem::swap(&mut ctxt.unknown_idents, &mut unknown_idents);
+    std::mem::swap(&mut ctxt.upvalue_idents, &mut upvalue_idents);
     std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
     std::mem::swap(&mut ctxt.zero, &mut zero);
     std::mem::swap(&mut ctxt.one, &mut one);
-
-    // initialize unknown_idents
-    let mut upvalue_nodes = Vec::new();
-    if is_main {
-        for (_, node) in unknown_idents {
-            body.insert(0, ir::Statement::Compute(node, ir::Expr::NewTable));
-        }
-    } else {
-        for (uid, (ident, node)) in unknown_idents.iter().enumerate() {
-            body.insert(0, ir::Statement::Compute(*node, ir::Expr::Upvalue(uid)));
-            let t = locate_ident(ident, ctxt);
-            upvalue_nodes.push(t);
-        }
-    }
+    std::mem::swap(&mut ctxt.is_main, &mut is_main);
 
     ctxt.ir.fns[fid] = LitFunction { body };
 
-    (fid, upvalue_nodes)
+    (fid, upvalue_idents)
 }

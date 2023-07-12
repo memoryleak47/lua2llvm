@@ -3,7 +3,6 @@ use std::fmt::{self, Display, Formatter};
 
 // functions: f<id>
 // nodes: n<id>
-// upvalues: u<id>
 
 impl Display for IR {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -102,21 +101,11 @@ fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
         Arg => write!(f, "arg")?,
         FnCall(n, t) => write!(f, "n{}(n{})", n, t)?,
         NewTable => write!(f, "{{}}")?,
-        LitFunction(fid, upvalues) => {
-            write!(f, "f{}<", fid)?;
-            for (i, x) in upvalues.iter().enumerate() {
-                if i != 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "n{}", x)?;
-            }
-            write!(f, ">")?;
-        }
+        LitFunction(fid) => write!(f, "f{}", fid)?,
         NativeFn(s) => write!(f, "native fn \"{}\"", s)?,
         BinOp(kind, l, r) => write!(f, "n{} {} n{}", l, display_binop(kind), r)?,
         Len(r) => write!(f, "#n{}", r)?,
         Num(x) => write!(f, "{}", x)?,
-        Upvalue(uid) => write!(f, "u{}", uid)?,
         Bool(b) => write!(f, "{}", b)?,
         Nil => write!(f, "nil")?,
         Str(s) => write!(f, "\"{}\"", s)?,

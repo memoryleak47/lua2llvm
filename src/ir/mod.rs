@@ -23,8 +23,6 @@ pub type Node = usize;
 // used to index into IR::fns.
 pub type FnId = usize;
 
-pub type UpvalueId = usize;
-
 pub type NativeFnId = usize;
 pub const NATIVE_FNS: [&'static str; 4] = ["print", "next", "pairs", "type"];
 
@@ -41,13 +39,11 @@ pub enum Statement {
 #[derive(Debug)]
 pub enum Expr {
     Index(/*table: */ Node, /*index: */ Node),
-    // Upvalue(i) is no LValue as it's only used as Upvalue(i)[1].
-    Upvalue(UpvalueId),
 
     Arg,
     FnCall(/*func: */ Node, /* arg: */ Node),
     NewTable, // equivalent to {}
-    LitFunction(FnId, /*upnodes: */ Vec<Node>),
+    LitFunction(FnId),
     NativeFn(NativeFnId),
     BinOp(BinOpKind, Node, Node),
     Len(Node),

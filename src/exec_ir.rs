@@ -24,7 +24,7 @@ fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
             Value::Nil => print!("nil"),
             Value::Bool(b) => print!("{}", b),
             Value::Str(s) => print!("{}", s),
-            Value::TablePtr(ptr) => print!("table {}", ptr),
+            Value::TablePtr(ptr) => print!("table {}", ptr), // TODO should differentiate between table & function!
             Value::NativeFn(_) => print!("<native-fn>"),
             Value::LitFn(..) => print!("<lit-fn>"),
             Value::Num(x) => print!("{}", x),
@@ -58,11 +58,18 @@ fn type_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
     let string = match arg {
         Value::Nil => "nil",
         Value::Bool(_) => "boolean",
-        Value::TablePtr(_) => "table",
         Value::Str(_) => "string",
         Value::NativeFn(_) => "function",
         Value::LitFn(..) => "function",
         Value::Num(_) => "number",
+        Value::TablePtr(t2) => {
+            let f = table_get(t2, Value::Str("call".to_string()), ctxt);
+            if matches!(f, Value::LitFn(_) | Value::NativeFn(_)) {
+                "function"
+            } else {
+                "table"
+            }
+        },
     };
 
     wrap_vec(vec![Value::Str(string.to_string())], ctxt)
@@ -148,7 +155,7 @@ enum Value {
     TablePtr(TablePtr),
     Str(String),
     NativeFn(NativeFnId),
-    LitFn(FnId, /*upvalues: */ Vec<Value>),
+    LitFn(FnId),
     Num(f64),
 }
 
@@ -159,7 +166,6 @@ struct Ctxt<'ir> {
     // function-local:
     arg: Value,
     nodes: Vec<Value>,
-    upvalues: Vec<Value>,
 }
 
 #[derive(Default)]
@@ -177,16 +183,23 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             let Value::TablePtr(t) = t else { panic!("indexing into non-table {:?}!", t) };
             table_get(t, idx, ctxt)
         },
-        Expr::Upvalue(uid) => ctxt.upvalues[*uid].clone(),
         Expr::Arg => ctxt.arg.clone(),
         Expr::FnCall(f, arg) => {
             let f = ctxt.nodes[*f].clone();
             let arg = ctxt.nodes[*arg].clone();
 
             let ret = match f {
-                Value::LitFn(f_id, upvalues) => exec_fn(f_id, arg, &upvalues[..], ctxt),
+                Value::LitFn(f_id) => exec_fn(f_id, arg, ctxt),
                 Value::NativeFn(i) => {
-                    let Value::TablePtr(argt) = arg else { panic!("calling NativeFn with wrong arg!") };
+                    let Value::TablePtr(mut argt) = arg else { panic!("calling NativeFn with wrong arg!") };
+
+                    // TODO this is a hack.
+                    if NATIVE_FNS[i] != "next" {
+                        let args = table_get(argt, Value::Str(String::from("args")), ctxt);
+                        let Value::TablePtr(args_t) = args else { panic!("calling NativeFn with wrong arg! (2)") };
+                        argt = args_t;
+                    }
+
                     let r = (lookup_native_fn_impl(i))(argt, ctxt);
 
                     Value::TablePtr(r)
@@ -197,15 +210,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             ret
         },
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
-        Expr::LitFunction(fnid, upnodes) => {
-            // evaluate all things we need to closure!
-            let mut upvalues: Vec<Value> = Vec::new();
-            for n in upnodes {
-                upvalues.push(ctxt.nodes[*n].clone());
-            }
-
-            Value::LitFn(*fnid, upvalues)
-        },
+        Expr::LitFunction(fnid) => Value::LitFn(*fnid),
         Expr::NativeFn(s) => Value::NativeFn(s.clone()),
         Expr::BinOp(kind, l, r) => {
             let l = ctxt.nodes[*l].clone();
@@ -306,20 +311,17 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
     ControlFlow::End
 }
 
-fn exec_fn(f: FnId, arg: Value, upvalues: &[Value], ctxt: &mut Ctxt) -> Value {
+fn exec_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) -> Value {
     let mut nodes = Vec::new();
     let mut arg = arg;
-    let mut upvalues = upvalues.to_vec();
 
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut arg, &mut ctxt.arg);
-    std::mem::swap(&mut upvalues, &mut ctxt.upvalues);
 
     let flow = exec_body(&ctxt.ir.fns[f].body, ctxt);
 
     std::mem::swap(&mut nodes, &mut ctxt.nodes);
     std::mem::swap(&mut arg, &mut ctxt.arg);
-    std::mem::swap(&mut upvalues, &mut ctxt.upvalues);
 
     match flow {
         ControlFlow::Break => panic!("cannot break, if you are not in a loop!"),
@@ -349,10 +351,9 @@ pub fn exec(ir: &IR) {
         ir,
         arg: Value::Nil,
         nodes: Vec::new(),
-        upvalues: Vec::new(),
     };
 
     let arg = Value::TablePtr(empty(&mut ctxt));
 
-    exec_fn(ir.main_fn, arg, &[], &mut ctxt);
+    exec_fn(ir.main_fn, arg, &mut ctxt);
 }
