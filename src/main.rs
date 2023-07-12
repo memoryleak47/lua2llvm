@@ -16,6 +16,8 @@ mod exec_ir;
 
 // mod compile;
 
+// TODO re-enable
+/*
 fn test_ir() -> ir::IR {
     use ir::*;
 
@@ -41,6 +43,7 @@ fn test_ir() -> ir::IR {
         fns: vec![ LitFunction { body } ]
     }
 }
+*/
 
 fn main() {
     let args: Vec<String> = std::env::args()
@@ -49,7 +52,8 @@ fn main() {
     let arg = |s| args.iter().find(|x| **x == s).is_some();
 
     let ir = if arg("--test-ir") {
-        test_ir()
+        // test_ir()
+        panic!()
     } else {
         let filename = args.iter().find(|x| !x.starts_with("--")).expect("no input file given!");
         let code = std::fs::read_to_string(filename).unwrap();
@@ -61,9 +65,10 @@ fn main() {
 
     if arg("--dump-ir") {
         eprintln!("{}", &ir);
-    //} else if arg("--compile") {
-    //    compile::compile(&ir);
-    } else {
+    } else if arg("--compile") {
+        // TODO re-enable
+        // compile::compile(&ir);
+     } else {
         exec_ir::exec(&ir);
     }
 }

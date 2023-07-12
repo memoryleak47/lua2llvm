@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::*;
-use crate::ir::{self, FnId, IR, LitFunction, Node, NATIVE_FNS};
+use crate::ir::{self, FnId, IR, LitFunction, Node};
 
 #[derive(Default)]
 struct Ctxt {
@@ -26,6 +26,108 @@ struct Ctxt {
 
     zero: Node,
     one: Node,
+}
+
+fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
+    // TODO consider iterating over the table to print everything.
+    let arg = mk_compute(ir::Expr::Arg, ctxt);
+    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
+    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
+    let _ = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Print(arg1)), ctxt);
+
+    let ret = mk_table(ctxt);
+    push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.zero), ctxt);
+    
+    push_st(ir::Statement::Return(ret), ctxt);
+}
+
+fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
+    let arg = mk_compute(ir::Expr::Arg, ctxt);
+    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
+    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
+    let val = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg1)), ctxt);
+
+    let ret = mk_table(ctxt);
+    push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one), ctxt);
+    push_st(ir::Statement::Store(ret, ctxt.one, val), ctxt);
+    
+    push_st(ir::Statement::Return(ret), ctxt);
+}
+
+fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
+    let arg = mk_compute(ir::Expr::Arg, ctxt);
+    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
+    let two = mk_num(2, ctxt);
+
+    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
+    let arg2 = mk_compute(ir::Expr::Index(args, two), ctxt);
+    let new_index = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Next(arg1, arg2)), ctxt);
+
+    let ret = mk_table(ctxt);
+    push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one), ctxt);
+    push_st(ir::Statement::Store(ret, ctxt.one, new_index), ctxt);
+    
+    push_st(ir::Statement::Return(ret), ctxt);
+}
+
+fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
+    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
+    let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
+
+    let two = mk_num(2, ctxt);
+    let three = mk_num(3, ctxt);
+
+    let arg = mk_compute(ir::Expr::Arg, ctxt);
+    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
+    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
+
+    let next_table = mk_table(ctxt);
+    push_st(ir::Statement::Store(next_table, upvalues_str, mk_table(ctxt)), ctxt);
+
+    let next_fn = mk_compute(ir::Expr::LitFunction(native_impls["next"]), ctxt);
+    push_st(ir::Statement::Store(next_table, call_str, next_fn), ctxt);
+
+    let ret = mk_table(ctxt);
+    push_st(ir::Statement::Store(ret, ctxt.zero, three), ctxt);
+
+    push_st(ir::Statement::Store(ret, ctxt.one, next_table), ctxt);
+    push_st(ir::Statement::Store(ret, two, arg1), ctxt);
+    let nil_node = mk_compute(ir::Expr::Nil, ctxt);
+    push_st(ir::Statement::Store(ret, three, nil_node), ctxt);
+    
+    push_st(ir::Statement::Return(ret), ctxt);
+}
+
+type NativeImpls = HashMap<&'static str, FnId>;
+static NATIVE_FNS: &'static [(&'static str, fn(&mut Ctxt, &NativeImpls))] = &[("print", print_native_fn), ("next", next_native_fn), ("type", type_native_fn), ("pairs", pairs_native_fn)];
+
+// ctxt is currently implementing main at this point.
+fn add_native_fns(ctxt: &mut Ctxt) {
+    let mut native_impls: NativeImpls = HashMap::new();
+
+    let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
+    let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
+
+    for (fn_ident, generator) in NATIVE_FNS.iter() {
+        let (fn_id, ()) = add_fn(|ctxt| generator(ctxt, &native_impls), ctxt);
+        native_impls.insert(fn_ident, fn_id);
+
+        let fun = mk_table(ctxt);
+
+        let upvalues = mk_table(ctxt);
+        push_st(ir::Statement::Store(fun, upvalues_str, upvalues), ctxt);
+
+        let call = mk_compute(ir::Expr::LitFunction(fn_id), ctxt);
+        push_st(ir::Statement::Store(fun, call_str, call), ctxt);
+
+        // this table is required, as it's still a variable!
+        let t = mk_table_with(fun, ctxt);
+        ctxt.locals.last_mut().unwrap().insert(String::from(*fn_ident), t);
+    }
 }
 
 impl Ctxt {
@@ -700,7 +802,8 @@ fn push_st(st: ir::Statement, ctxt: &mut Ctxt) {
     ctxt.body.push(st);
 }
 
-fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_main: bool, ctxt: &mut Ctxt) -> (FnId, Vec<String>) {
+// creates a new function and readies the ctxt, such that one can start adding the function in the callback.
+fn add_fn<T>(callback: impl FnOnce(&mut Ctxt) -> T, ctxt: &mut Ctxt) -> (FnId, T) {
     let fid = ctxt.ir.fns.len();
 
     // this dummy allows us to have a fixed id before lowering of this fn is done.
@@ -710,6 +813,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
     };
     ctxt.ir.fns.push(dummy_lit_fn);
 
+    // TODO the following vars are pretty much a whole Ctxt, why not simply create a Ctxt directly?
     let mut locals = vec![HashMap::new()];
     let mut body = Vec::new();
     let mut next_node = 0;
@@ -717,7 +821,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
     let mut ellipsis_node = None;
     let mut zero = usize::MAX;
     let mut one = usize::MAX;
-    let mut is_main = is_main;
+    let mut is_main = false;
 
     std::mem::swap(&mut ctxt.locals, &mut locals);
     std::mem::swap(&mut ctxt.body, &mut body);
@@ -728,28 +832,32 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
     std::mem::swap(&mut ctxt.one, &mut one);
     std::mem::swap(&mut ctxt.is_main, &mut is_main);
 
-    {
-        ctxt.zero = mk_num(0.0, ctxt);
-        ctxt.one = mk_num(1.0, ctxt);
-        
+    ctxt.zero = mk_num(0.0, ctxt);
+    ctxt.one = mk_num(1.0, ctxt);
+
+    let t = callback(ctxt);
+
+    std::mem::swap(&mut ctxt.locals, &mut locals);
+    std::mem::swap(&mut ctxt.body, &mut body);
+    std::mem::swap(&mut ctxt.next_node, &mut next_node);
+    std::mem::swap(&mut ctxt.upvalue_idents, &mut upvalue_idents);
+    std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
+    std::mem::swap(&mut ctxt.zero, &mut zero);
+    std::mem::swap(&mut ctxt.one, &mut one);
+    std::mem::swap(&mut ctxt.is_main, &mut is_main);
+
+    ctxt.ir.fns[fid] = LitFunction { body };
+
+    (fid, t)
+}
+
+fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_main: bool, ctxt: &mut Ctxt) -> (FnId, Vec<String>) {
+    add_fn(|ctxt| {
+        ctxt.is_main = is_main;
+
         // global environment functions
-        if ctxt.is_main {
-            let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
-            let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
-
-            for (i, f) in NATIVE_FNS.iter().enumerate() {
-                let fun = mk_table(ctxt);
-
-                let upvalues = mk_table(ctxt);
-                push_st(ir::Statement::Store(fun, upvalues_str, upvalues), ctxt);
-
-                let call = mk_compute(ir::Expr::NativeFn(i), ctxt);
-                push_st(ir::Statement::Store(fun, call_str, call), ctxt);
-
-                // this table is required, as it's still a variable!
-                let t = mk_table_with(fun, ctxt);
-                ctxt.locals.last_mut().unwrap().insert(String::from(*f), t);
-            }
+        if is_main {
+            add_native_fns(ctxt);
         }
 
         if !args.is_empty() || *variadic == Variadic::Yes {
@@ -817,18 +925,7 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
             push_st(ir::Statement::Store(t, ctxt.zero, ctxt.zero), ctxt);
             push_st(ir::Statement::Return(t), ctxt);
         }
-    }
 
-    std::mem::swap(&mut ctxt.locals, &mut locals);
-    std::mem::swap(&mut ctxt.body, &mut body);
-    std::mem::swap(&mut ctxt.next_node, &mut next_node);
-    std::mem::swap(&mut ctxt.upvalue_idents, &mut upvalue_idents);
-    std::mem::swap(&mut ctxt.ellipsis_node, &mut ellipsis_node);
-    std::mem::swap(&mut ctxt.zero, &mut zero);
-    std::mem::swap(&mut ctxt.one, &mut one);
-    std::mem::swap(&mut ctxt.is_main, &mut is_main);
-
-    ctxt.ir.fns[fid] = LitFunction { body };
-
-    (fid, upvalue_idents)
+        ctxt.upvalue_idents.clone()
+    }, ctxt)
 }

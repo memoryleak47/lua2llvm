@@ -1,79 +1,6 @@
-use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, NativeFnId, NATIVE_FNS};
+use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, Intrinsic};
 
 type TablePtr = usize;
-
-type NativeFn = fn(TablePtr, &mut Ctxt) -> TablePtr;
-
-fn lookup_native_fn_impl(i: NativeFnId) -> NativeFn {
-    match NATIVE_FNS[i] {
-        "print" => print_fn,
-        "next" => next_fn,
-        "pairs" => pairs_fn,
-        "type" => type_fn,
-        _ => panic!("unknown native fn {}", i),
-    }
-}
-
-fn print_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
-    let Value::Num(count) = table_get(t, Value::Num(0.0), ctxt) else { panic!("non-numeric table[0]!") };
-    let count = count as usize;
-
-    for i in 0..count {
-        let v = table_get(t, Value::Num((i+1) as f64), ctxt);
-        match v {
-            Value::Nil => print!("nil"),
-            Value::Bool(b) => print!("{}", b),
-            Value::Str(s) => print!("{}", s),
-            Value::TablePtr(ptr) => print!("table {}", ptr), // TODO should differentiate between table & function!
-            Value::NativeFn(_) => print!("<native-fn>"),
-            Value::LitFn(..) => print!("<lit-fn>"),
-            Value::Num(x) => print!("{}", x),
-        }
-        if i == count-1 {
-            println!();
-        } else {
-            print!("    ");
-        }
-    }
-
-    empty(ctxt)
-}
-
-fn next_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
-    let Value::TablePtr(tt) = table_get(t, Value::Num(1.0), ctxt) else { panic!("calling next on non-table!") };
-    let r = table_get(t, Value::Num(2.0), ctxt);
-
-    wrap_vec(table_next(tt, r, ctxt), ctxt)
-}
-
-fn pairs_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
-    let arg = table_get(t, Value::Num(1.0), ctxt);
-
-    wrap_vec(vec![Value::NativeFn(1), arg, Value::Nil], ctxt)
-}
-
-fn type_fn(t: TablePtr, ctxt: &mut Ctxt) -> TablePtr {
-    let arg = table_get(t, Value::Num(1.0), ctxt);
-
-    let string = match arg {
-        Value::Nil => "nil",
-        Value::Bool(_) => "boolean",
-        Value::Str(_) => "string",
-        Value::NativeFn(_) => "function",
-        Value::LitFn(..) => "function",
-        Value::Num(_) => "number",
-        Value::TablePtr(t2) => {
-            let f = table_get(t2, Value::Str("call".to_string()), ctxt);
-            if matches!(f, Value::LitFn(_) | Value::NativeFn(_)) {
-                "function"
-            } else {
-                "table"
-            }
-        },
-    };
-
-    wrap_vec(vec![Value::Str(string.to_string())], ctxt)
-}
 
 enum ControlFlow {
     Break,
@@ -118,34 +45,22 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
     }
 }
 
-
-fn table_next(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Vec<Value> {
+// this is not equivalent to luas "next", as it only returns the next key and not the value too.
+fn table_next(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
     let data = &ctxt.heap[ptr];
     if idx == Value::Nil {
         match data.entries.get(0) {
-            Some((k, v)) => vec![k.clone(), v.clone()],
-            None => Vec::new(),
+            Some((k, _)) => k.clone(),
+            None => Value::Nil,
         }
     } else {
         let i = data.entries.iter().position(|(i, _)| *i == idx).expect("invalid key to next!");
         if let Some((k, v)) = data.entries.get(i+1) {
-            vec![k.clone(), v.clone()]
+            k.clone()
         } else {
-            Vec::new()
+            Value::Nil
         }
     }
-}
-
-fn wrap_vec(vec: Vec<Value>, ctxt: &mut Ctxt) -> TablePtr {
-    let t = alloc_table(ctxt);
-    let len = vec.len();
-    table_set(t, Value::Num(0.0), Value::Num(len as f64), ctxt);
-    for (i, v) in vec.into_iter().enumerate() {
-        let i = Value::Num((i+1) as f64);
-        table_set(t, i, v, ctxt);
-    }
-
-    t
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -154,7 +69,6 @@ enum Value {
     Bool(bool),
     TablePtr(TablePtr),
     Str(String),
-    NativeFn(NativeFnId),
     LitFn(FnId),
     Num(f64),
 }
@@ -174,6 +88,45 @@ struct TableData {
     length: usize,
 }
 
+fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
+    match intrinsic {
+        Intrinsic::Print(n) => {
+            let val = &ctxt.nodes[*n];
+            match val {
+                Value::Nil => println!("nil"),
+                Value::Bool(b) => println!("{}", b),
+                Value::Str(s) => println!("{}", s),
+                Value::TablePtr(ptr) => println!("table {}", ptr),
+                Value::LitFn(..) => println!("function"),
+                Value::Num(x) => println!("{}", x),
+            }
+
+            Value::Nil
+        }
+        Intrinsic::Next(v1, v2) => {
+            let v1 = &ctxt.nodes[*v1];
+            let Value::TablePtr(v1_) = v1 else { panic!("calling next onto non-table!") };
+
+            let v2 = ctxt.nodes[*v2].clone();
+
+            table_next(*v1_, v2, ctxt)
+        }
+        Intrinsic::Type(n) => {
+            let val = &ctxt.nodes[*n];
+            let s = match val {
+                Value::Nil => "nil",
+                Value::Bool(_) => "boolean",
+                Value::Str(_) => "string",
+                Value::LitFn(..) => "function",
+                Value::Num(_) => "number",
+                Value::TablePtr(_) => "table"
+            };
+
+            Value::Str(s.to_string())
+        }
+    }
+}
+
 fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::Index(t, idx) => {
@@ -184,26 +137,13 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             table_get(t, idx, ctxt)
         },
         Expr::Arg => ctxt.arg.clone(),
+        Expr::Intrinsic(intrinsic) => exec_intrinsic(intrinsic, ctxt),
         Expr::FnCall(f, arg) => {
             let f = ctxt.nodes[*f].clone();
             let arg = ctxt.nodes[*arg].clone();
 
             let ret = match f {
                 Value::LitFn(f_id) => exec_fn(f_id, arg, ctxt),
-                Value::NativeFn(i) => {
-                    let Value::TablePtr(mut argt) = arg else { panic!("calling NativeFn with wrong arg!") };
-
-                    // TODO this is a hack.
-                    if NATIVE_FNS[i] != "next" {
-                        let args = table_get(argt, Value::Str(String::from("args")), ctxt);
-                        let Value::TablePtr(args_t) = args else { panic!("calling NativeFn with wrong arg! (2)") };
-                        argt = args_t;
-                    }
-
-                    let r = (lookup_native_fn_impl(i))(argt, ctxt);
-
-                    Value::TablePtr(r)
-                },
                 v => panic!("trying to execute non-function value! {:?}", v),
             };
 
@@ -211,7 +151,6 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
         },
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
         Expr::LitFunction(fnid) => Value::LitFn(*fnid),
-        Expr::NativeFn(s) => Value::NativeFn(s.clone()),
         Expr::BinOp(kind, l, r) => {
             let l = ctxt.nodes[*l].clone();
             let r = ctxt.nodes[*r].clone();
@@ -353,6 +292,7 @@ pub fn exec(ir: &IR) {
         nodes: Vec::new(),
     };
 
+    // TODO do I need this?
     let arg = Value::TablePtr(empty(&mut ctxt));
 
     exec_fn(ir.main_fn, arg, &mut ctxt);

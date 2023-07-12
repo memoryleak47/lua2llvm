@@ -1,4 +1,4 @@
-use crate::ir::{IR, FnId, Statement, Expr, BinOpKind};
+use crate::ir::{self, IR, FnId, Statement, Expr, BinOpKind};
 use std::fmt::{self, Display, Formatter};
 
 // functions: f<id>
@@ -94,6 +94,16 @@ fn display_binop(kind: &BinOpKind) -> &'static str {
     }
 }
 
+fn display_intrinsic(intrinsic: &ir::Intrinsic, f: &mut Formatter<'_>) -> fmt::Result {
+    match intrinsic {
+        ir::Intrinsic::Print(v) => write!(f, "print({})", v)?,
+        ir::Intrinsic::Type(v) => write!(f, "type({})", v)?,
+        ir::Intrinsic::Next(v1, v2) => write!(f, "next({}, {})", v1, v2)?,
+    }
+
+    Ok(())
+}
+
 fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
     use Expr::*;
     match expr {
@@ -102,7 +112,8 @@ fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
         FnCall(n, t) => write!(f, "n{}(n{})", n, t)?,
         NewTable => write!(f, "{{}}")?,
         LitFunction(fid) => write!(f, "f{}", fid)?,
-        NativeFn(s) => write!(f, "native fn \"{}\"", s)?,
+        Intrinsic(intrinsic) => display_intrinsic(intrinsic, f)?,
+        Intrinsic(_) => panic!(),
         BinOp(kind, l, r) => write!(f, "n{} {} n{}", l, display_binop(kind), r)?,
         Len(r) => write!(f, "#n{}", r)?,
         Num(x) => write!(f, "{}", x)?,

@@ -23,9 +23,6 @@ pub type Node = usize;
 // used to index into IR::fns.
 pub type FnId = usize;
 
-pub type NativeFnId = usize;
-pub const NATIVE_FNS: [&'static str; 4] = ["print", "next", "pairs", "type"];
-
 #[derive(Debug)]
 pub enum Statement {
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
@@ -44,15 +41,22 @@ pub enum Expr {
     FnCall(/*func: */ Node, /* arg: */ Node),
     NewTable, // equivalent to {}
     LitFunction(FnId),
-    NativeFn(NativeFnId),
     BinOp(BinOpKind, Node, Node),
     Len(Node),
+    Intrinsic(Intrinsic),
 
     // literals
     Num(f64),
     Bool(bool),
     Nil,
     Str(String),
+}
+
+#[derive(Debug)]
+pub enum Intrinsic {
+    Next(Node, Node),
+    Type(Node),
+    Print(Node),
 }
 
 #[derive(Debug)]
