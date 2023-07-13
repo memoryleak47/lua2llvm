@@ -575,12 +575,14 @@ fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> (/*table: */ Node, /*index*
         LValue::Dot(expr, field) => {
             let l = lower_expr1(expr, ctxt);
             let r = mk_compute(ir::Expr::Str(field.clone()), ctxt);
+            mk_assert(mk_proper_table_check(l, ctxt), "Trying to index into non-table!", ctxt);
 
             (l, r)
         },
         LValue::Index(l, r) => {
             let l = lower_expr1(l, ctxt);
             let r = lower_expr1(r, ctxt);
+            mk_assert(mk_proper_table_check(l, ctxt), "Trying to index into non-table!", ctxt);
 
             (l, r)
         },
