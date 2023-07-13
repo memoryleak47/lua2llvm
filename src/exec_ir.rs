@@ -124,6 +124,11 @@ fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
 
             Value::Str(s.to_string())
         }
+        Intrinsic::Throw(s) => {
+            // TODO only terminate this execution, not our whole Rust program.
+            println!("ERROR: {}", s);
+            std::process::exit(0);
+        }
     }
 }
 

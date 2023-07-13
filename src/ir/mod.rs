@@ -57,6 +57,7 @@ pub enum Intrinsic {
     Next(Node, Node),
     Type(Node),
     Print(Node),
+    Throw(String),
 }
 
 #[derive(Debug)]

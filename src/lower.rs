@@ -30,7 +30,7 @@ struct Ctxt {
 
 // checks whether `arg` is a function, returns this in a new node as bool value.
 fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/ Node) {
-    // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) == "function"
+    // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) != "function"
 
     let t = mk_table_with(mk_compute(ir::Expr::Bool(false), ctxt), ctxt);
 
@@ -56,6 +56,42 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
     let bool_node = mk_compute(ir::Expr::Index(t, ctxt.one), ctxt); // return t[1]
 
     (bool_node, arg_call)
+}
+
+// check whether arg is a table, and not a function table!
+fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
+    // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) != "function"
+    let t = mk_table_with(mk_compute(ir::Expr::Bool(false), ctxt), ctxt);
+
+    let table_str = mk_compute(ir::Expr::Str("table".to_string()), ctxt);
+    let function_str = mk_compute(ir::Expr::Str("function".to_string()), ctxt);
+    let call_str = mk_compute(ir::Expr::Str("call".to_string()), ctxt);
+
+    let ty = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)), ctxt);
+    let is_table = mk_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str), ctxt);
+
+    let arg_call = mk_node(ctxt);
+    let ty_call = mk_node(ctxt);
+    let ty_call_is_fn = mk_node(ctxt);
+
+    let if_body = vec![
+        ir::Statement::Compute(arg_call, ir::Expr::Index(arg, call_str)), // arg["call"]
+        ir::Statement::Compute(ty_call, ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call))), // type(arg["call"])
+        ir::Statement::Compute(ty_call_is_fn, ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, function_str)), // type(arg["call"]) != "function"
+        ir::Statement::Store(t, ctxt.one, ty_call_is_fn), // t[1] = type(arg["call"]) != "function"
+    ];
+    push_st(ir::Statement::If(is_table, if_body, vec![]), ctxt);
+
+    let bool_node = mk_compute(ir::Expr::Index(t, ctxt.one), ctxt); // return t[1]
+
+    bool_node
+}
+
+fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
+    let else_body = vec![
+        ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Throw(s.to_string())))
+    ];
+    push_st(ir::Statement::If(n, vec![], else_body), ctxt);
 }
 
 fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
@@ -109,6 +145,7 @@ fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let two = mk_num(2, ctxt);
 
     let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
+    mk_assert(mk_proper_table_check(arg1, ctxt), "Argument to next is not a table!", ctxt);
     let arg2 = mk_compute(ir::Expr::Index(args, two), ctxt);
     let new_index = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Next(arg1, arg2)), ctxt);
     let new_val = mk_compute(ir::Expr::Index(arg1, new_index), ctxt);

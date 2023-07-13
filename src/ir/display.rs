@@ -99,6 +99,7 @@ fn display_intrinsic(intrinsic: &ir::Intrinsic, f: &mut Formatter<'_>) -> fmt::R
         ir::Intrinsic::Print(v) => write!(f, "print({})", v)?,
         ir::Intrinsic::Type(v) => write!(f, "type({})", v)?,
         ir::Intrinsic::Next(v1, v2) => write!(f, "next({}, {})", v1, v2)?,
+        ir::Intrinsic::Throw(s) => write!(f, "throw({s})")?,
     }
 
     Ok(())
