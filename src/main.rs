@@ -1,4 +1,5 @@
 #![feature(box_patterns)]
+#![feature(fmt_internals)]
 
 extern crate llvm_sys as llvm;
 

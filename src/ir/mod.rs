@@ -23,7 +23,7 @@ pub type Node = usize;
 // used to index into IR::fns.
 pub type FnId = usize;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
     Store(/*table: */ Node, /*index: */ Node, Node), // store the value from the Node in the table `table` at index `index`.
@@ -33,7 +33,7 @@ pub enum Statement {
     Break,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Index(/*table: */ Node, /*index: */ Node),
 
@@ -52,7 +52,7 @@ pub enum Expr {
     Str(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Intrinsic {
     Next(Node, Node),
     Type(Node),
@@ -60,12 +60,12 @@ pub enum Intrinsic {
     Throw(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LitFunction {
     pub body: Vec<Statement>
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct IR {
     pub fns: Vec<LitFunction>,
     pub main_fn: FnId,
