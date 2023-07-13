@@ -10,7 +10,7 @@ bool eq(Value* a, Value* b) {
     if (a->tag != b->tag) return false;
 
     if (a->tag == TABLE_PTR) return a->t == b->t;
-    if (a->tag == FN) return a->uvstack_index == b->uvstack_index && a->f == b->f;
+    if (a->tag == FN) return a->f == b->f;
     if (a->tag == NIL) return true;
     if (a->tag == NUM) return a->d == b->d;
     if (a->tag == STR) return strcmp(a->s, b->s) == 0;

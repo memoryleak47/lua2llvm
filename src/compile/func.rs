@@ -19,7 +19,7 @@ fn compile_body(body: &[Statement], ctxt: &mut Ctxt) -> Terminated {
                 Statement::Return(v) => {
                     let v = ctxt.nodes[v];
                     let f = ctxt.lit_fns[&ctxt.current_fid];
-                    let out = LLVMGetParam(f, 2);
+                    let out = LLVMGetParam(f, 1);
                     LLVMBuildStore(ctxt.builder, v, out);
                     LLVMBuildRetVoid(ctxt.builder);
 
@@ -86,12 +86,12 @@ fn compile_body(body: &[Statement], ctxt: &mut Ctxt) -> Terminated {
 fn truthy(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* i1 */ {
     unsafe {
         let tag = LLVMBuildExtractValue(ctxt.builder, x, 0, EMPTY);
-        let val = LLVMBuildExtractValue(ctxt.builder, x, 2, EMPTY);
+        let val = LLVMBuildExtractValue(ctxt.builder, x, 1, EMPTY);
 
-        let niltag = LLVMConstInt(ctxt.i32_t(), Tag::NIL as _, 0);
+        let niltag = LLVMConstInt(ctxt.i64_t(), Tag::NIL as _, 0);
         let tag_ne_nil = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntNE, tag, niltag, EMPTY);
 
-        let booltag = LLVMConstInt(ctxt.i32_t(), Tag::BOOL as _, 0);
+        let booltag = LLVMConstInt(ctxt.i64_t(), Tag::BOOL as _, 0);
         let tag_ne_bool = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntNE, tag, booltag, EMPTY);
 
         let one = LLVMConstInt(ctxt.i64_t(), 1, 0);

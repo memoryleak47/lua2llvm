@@ -15,7 +15,6 @@ pub fn compile_start_fn(main_fn: FnId, ctxt: &mut Ctxt) {
 
         let mut args = [
             in_val,
-            LLVMConstInt(ctxt.i32_t(), 0, 0),
             out_val,
         ];
         LLVMBuildCall2(

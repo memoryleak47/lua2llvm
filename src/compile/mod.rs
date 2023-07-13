@@ -44,10 +44,6 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("table_set", ctxt.void_t(), &[ctxt.value_ptr_t(); 3], &mut ctxt);
         declare_extra_fn("table_get", ctxt.void_t(), &[ctxt.value_ptr_t(); 3], &mut ctxt);
 
-        // upvalue implementation:
-        declare_extra_fn("uvstack_push", ctxt.i32_t(), &[ctxt.value_ptr_t()], &mut ctxt);
-        declare_extra_fn("uvstack_get", ctxt.void_t(), &[ctxt.i32_t(), ctxt.value_ptr_t()], &mut ctxt);
-
         // ops:
         declare_extra_fn("eq", ctxt.bool_t(), &[ctxt.value_ptr_t(); 2], &mut ctxt);
         declare_extra_fn("concat", ctxt.void_t(), &[ctxt.value_ptr_t(); 3], &mut ctxt);
@@ -58,10 +54,11 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("puts", ctxt.void_t(), &[ctxt.str_t()], &mut ctxt);
         declare_extra_fn("exit", ctxt.void_t(), &[ctxt.i32_t()], &mut ctxt);
 
-        // native functions:
-        for fname in NATIVE_FNS {
-            declare_extra_fn(fname, ctxt.void_t(), &[ctxt.value_ptr_t(), ctxt.i32_t(), ctxt.value_ptr_t()], &mut ctxt);
-        }
+        // intrinsics
+        declare_extra_fn("next", ctxt.void_t(), &[ctxt.value_ptr_t(), ctxt.value_ptr_t(), ctxt.value_ptr_t()], &mut ctxt);
+        declare_extra_fn("print", ctxt.void_t(), &[ctxt.value_ptr_t()], &mut ctxt);
+        declare_extra_fn("type", ctxt.void_t(), &[ctxt.value_ptr_t(), ctxt.value_ptr_t()], &mut ctxt);
+        declare_extra_fn("throw_", ctxt.void_t(), &[ctxt.str_t()], &mut ctxt);
 
         // declare lit fns
         for fid in 0..ir.fns.len() {

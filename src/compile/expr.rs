@@ -1,5 +1,40 @@
 use super::*;
 
+fn compile_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> LLVMValueRef {
+    unsafe {
+        match intrinsic {
+            Intrinsic::Print(var) => {
+                let t = alloc_val(ctxt.nodes[var], ctxt);
+                call_extra_fn("print", &[t], ctxt);
+
+                mk_nil(ctxt)
+            },
+            Intrinsic::Throw(s) => {
+                let s = format!("{}\0", s);
+                let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
+                call_extra_fn("throw_", &[s], ctxt);
+
+                mk_nil(ctxt)
+            },
+            Intrinsic::Type(v) => {
+                let v = alloc_val(ctxt.nodes[v], ctxt);
+                let t = alloc(ctxt);
+                call_extra_fn("type", &[v, t], ctxt);
+
+                load_val(t, ctxt)
+            },
+            Intrinsic::Next(v1, v2) => {
+                let v1 = alloc_val(ctxt.nodes[v1], ctxt);
+                let v2 = alloc_val(ctxt.nodes[v2], ctxt);
+                let t = alloc(ctxt);
+                call_extra_fn("next", &[v1, v2, t], ctxt);
+
+                load_val(t, ctxt)
+            },
+        }
+    }
+}
+
 pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         match e {
@@ -26,16 +61,8 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
 
                 load_val(var, ctxt)
             }
-            Expr::NativeFn(i) => mk_natfn(*i, ctxt),
-            Expr::LitFunction(fid, upnodes) => {
-                let mut opt /*: Option<LLVM i32> */ = None;
-                for n in upnodes {
-                    let v = alloc_val(ctxt.nodes[n], ctxt);
-                    let o = call_extra_fn("uvstack_push", &[v], ctxt);
-                    if opt.is_none() { opt = Some(o); }
-                }
-                let i = opt.unwrap_or_else(|| LLVMConstInt(ctxt.i32_t(), 0, 0));
-                mk_fn(ctxt.lit_fns[fid], i, ctxt)
+            Expr::LitFunction(fid) => {
+                mk_fn(ctxt.lit_fns[fid], ctxt)
             },
             Expr::Index(t, i) => {
                 let t = alloc_val(ctxt.nodes[t], ctxt);
@@ -55,17 +82,6 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
                 let param = LLVMGetParam(ctxt.lit_fns[&fid], 0);
                 load_val(param, ctxt)
             },
-            Expr::Upvalue(i) => {
-                let fid = ctxt.current_fid;
-                let base /* LLVM i32 */ = LLVMGetParam(ctxt.lit_fns[&fid], 1);
-                let offset /* LLVM i32 */  = LLVMConstInt(ctxt.i32_t(), *i as _, 0);
-                let idx /* LLVM i32 */ = LLVMBuildAdd(ctxt.builder, base, offset, EMPTY);
-
-                let var = alloc(ctxt);
-                call_extra_fn("uvstack_get", &[idx, var], ctxt);
-
-                load_val(var, ctxt)
-            },
             Expr::BinOp(k, l, r) => compile_binop(*k, l, r, ctxt),
             Expr::Len(n) => {
                 let n = ctxt.nodes[n];
@@ -75,6 +91,7 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
                 call_extra_fn("len", &[n, out], ctxt);
                 load_val(out, ctxt)
             },
+            Expr::Intrinsic(intrinsic) => compile_intrinsic(intrinsic, ctxt),
         }
     }
 }
@@ -158,12 +175,11 @@ fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef /* Val
         err_chk(t, "trying to call non-function!", ctxt);
 
         // call fn
-        let uvstack_index /* i32 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
-        let f /* i64 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 2, EMPTY);
+        let f /* i64 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
         let f /* Value (*fn)(Value) */ = LLVMBuildIntToPtr(ctxt.builder, f, ctxt.v2v_ptr_t(), EMPTY);
 
         let out = alloc(ctxt);
-        let mut fargs = [alloc_val(arg, ctxt), uvstack_index, out];
+        let mut fargs = [alloc_val(arg, ctxt), out];
         LLVMBuildCall2(
             /*builder: */ ctxt.builder,
             /*type: */ ctxt.v2v_t(),

@@ -84,7 +84,7 @@ impl Ctxt {
     }
 
     pub fn value_t(&mut self) -> LLVMTypeRef {
-        let mut elements = [self.i32_t(), self.i32_t(), self.i64_t()];
+        let mut elements = [self.i64_t(), self.i64_t()];
         unsafe { LLVMStructTypeInContext(self.llctxt, elements.as_mut_ptr(), elements.len() as u32, 0) }
     }
 
@@ -93,7 +93,7 @@ impl Ctxt {
     }
 
     pub fn v2v_t(&mut self) -> LLVMTypeRef {
-        let mut args = [self.value_ptr_t(), self.i32_t(), self.value_ptr_t()];
+        let mut args = [self.value_ptr_t(), self.value_ptr_t()];
         unsafe { LLVMFunctionType(self.void_t(), args.as_mut_ptr(), args.len() as _, 0) }
     }
 
