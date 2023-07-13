@@ -756,20 +756,32 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
                     let t = mk_table(ctxt);
 
+                    let upvalues_str = mk_compute(ir::Expr::Str("upvalues".to_string()), ctxt);
+                    let args_str = mk_compute(ir::Expr::Str("args".to_string()), ctxt);
+                    let call_str = mk_compute(ir::Expr::Str("call".to_string()), ctxt);
+
+                    let t_args = mk_table(ctxt);
+                    let t_upvalues = mk_table(ctxt); // empty table!
+
+                    push_st(ir::Statement::Store(t, args_str, t_args), ctxt);
+                    push_st(ir::Statement::Store(t, upvalues_str, t_upvalues), ctxt);
+
                     let two = mk_num(2.0, ctxt);
 
-                    // t[0] = 2
-                    push_st(ir::Statement::Store(t, ctxt.zero, two), ctxt);
+                    // t["args"][0] = 2
+                    push_st(ir::Statement::Store(t_args, ctxt.zero, two), ctxt);
 
-                    // t[1] = s
-                    push_st(ir::Statement::Store(t, ctxt.one, n_s), ctxt);
+                    // t["args"][1] = s
+                    push_st(ir::Statement::Store(t_args, ctxt.one, n_s), ctxt);
 
-                    // t[2] = var
-                    push_st(ir::Statement::Store(t, two, n_var), ctxt);
+                    // t["args"][2] = var
+                    push_st(ir::Statement::Store(t_args, two, n_var), ctxt);
 
-                    // call f(s, var) which is equivalent to f(t), where t = {s, var}
+                    let n_f_call = mk_compute(ir::Expr::Index(n_f, call_str), ctxt);
+
+                    // call f(s, var) which is equivalent to f(t), where t = {"args": {[0]=2, s, var}, "upvalues": {}}
                     // rettable = f(s, var)
-                    let rettable = mk_compute(ir::Expr::FnCall(n_f, t), ctxt);
+                    let rettable = mk_compute(ir::Expr::FnCall(n_f_call, t), ctxt);
 
                     for (i, ident) in idents.iter().enumerate() {
                         let local = mk_table(ctxt);

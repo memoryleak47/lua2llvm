@@ -55,7 +55,7 @@ fn table_next(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
         }
     } else {
         let i = data.entries.iter().position(|(i, _)| *i == idx).expect("invalid key to next!");
-        if let Some((k, v)) = data.entries.get(i+1) {
+        if let Some((k, _)) = data.entries.get(i+1) {
             k.clone()
         } else {
             Value::Nil
