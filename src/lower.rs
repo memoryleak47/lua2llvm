@@ -65,10 +65,12 @@ fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
     let arg2 = mk_compute(ir::Expr::Index(args, two), ctxt);
     let new_index = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Next(arg1, arg2)), ctxt);
+    let new_val = mk_compute(ir::Expr::Index(arg1, new_index), ctxt);
 
     let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one), ctxt);
+    push_st(ir::Statement::Store(ret, ctxt.zero, two), ctxt);
     push_st(ir::Statement::Store(ret, ctxt.one, new_index), ctxt);
+    push_st(ir::Statement::Store(ret, two, new_val), ctxt);
     
     push_st(ir::Statement::Return(ret), ctxt);
 }
