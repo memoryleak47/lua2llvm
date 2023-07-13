@@ -96,10 +96,10 @@ fn display_binop(kind: &BinOpKind) -> &'static str {
 
 fn display_intrinsic(intrinsic: &ir::Intrinsic, f: &mut Formatter<'_>) -> fmt::Result {
     match intrinsic {
-        ir::Intrinsic::Print(v) => write!(f, "print({})", v)?,
-        ir::Intrinsic::Type(v) => write!(f, "type({})", v)?,
-        ir::Intrinsic::Next(v1, v2) => write!(f, "next({}, {})", v1, v2)?,
-        ir::Intrinsic::Throw(s) => write!(f, "throw({s})")?,
+        ir::Intrinsic::Print(v) => write!(f, "print(n{})", v)?,
+        ir::Intrinsic::Type(v) => write!(f, "type(n{})", v)?,
+        ir::Intrinsic::Next(v1, v2) => write!(f, "next(n{}, n{})", v1, v2)?,
+        ir::Intrinsic::Throw(s) => write!(f, "throw('{s}')")?,
     }
 
     Ok(())
