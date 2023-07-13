@@ -29,7 +29,7 @@ struct Ctxt {
 }
 
 // checks whether `arg` is a function, returns this in a new node as bool value.
-fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> Node {
+fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/ Node) {
     // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) == "function"
 
     let t = mk_table_with(mk_compute(ir::Expr::Bool(false), ctxt), ctxt);
@@ -53,7 +53,9 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     ];
     push_st(ir::Statement::If(is_table, if_body, vec![]), ctxt);
 
-    mk_compute(ir::Expr::Index(t, ctxt.one), ctxt) // return t[1]
+    let bool_node = mk_compute(ir::Expr::Index(t, ctxt.one), ctxt); // return t[1]
+
+    (bool_node, arg_call)
 }
 
 fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
@@ -62,11 +64,18 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
     let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
     let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
-    let _ = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Print(arg1)), ctxt);
+    let (is_fn, call_node) = mk_fn_check(arg1, ctxt);
+
+    let if_body = vec![
+        ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Print(call_node)))
+    ];
+    let else_body = vec![
+        ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Print(arg1)))
+    ];
+    push_st(ir::Statement::If(is_fn, if_body, else_body), ctxt);
 
     let ret = mk_table(ctxt);
     push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.zero), ctxt);
-    
     push_st(ir::Statement::Return(ret), ctxt);
 }
 
@@ -78,7 +87,7 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
     let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
     let val = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg1)), ctxt);
-    let is_fn = mk_fn_check(arg1, ctxt);
+    let (is_fn, _) = mk_fn_check(arg1, ctxt);
 
     let ret = mk_table(ctxt);
     push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one), ctxt);

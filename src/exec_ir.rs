@@ -96,8 +96,8 @@ fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
                 Value::Nil => println!("nil"),
                 Value::Bool(b) => println!("{}", b),
                 Value::Str(s) => println!("{}", s),
-                Value::TablePtr(ptr) => println!("table {}", ptr),
-                Value::LitFn(..) => println!("function"),
+                Value::TablePtr(ptr) => println!("table: {}", ptr),
+                Value::LitFn(fid) => println!("function: {}", fid),
                 Value::Num(x) => println!("{}", x),
             }
 
