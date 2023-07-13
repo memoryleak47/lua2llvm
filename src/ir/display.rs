@@ -113,7 +113,6 @@ fn display_expr(expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
         NewTable => write!(f, "{{}}")?,
         LitFunction(fid) => write!(f, "f{}", fid)?,
         Intrinsic(intrinsic) => display_intrinsic(intrinsic, f)?,
-        Intrinsic(_) => panic!(),
         BinOp(kind, l, r) => write!(f, "n{} {} n{}", l, display_binop(kind), r)?,
         Len(r) => write!(f, "#n{}", r)?,
         Num(x) => write!(f, "{}", x)?,

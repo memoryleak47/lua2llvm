@@ -28,6 +28,34 @@ struct Ctxt {
     one: Node,
 }
 
+// checks whether `arg` is a function, returns this in a new node as bool value.
+fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> Node {
+    // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) == "function"
+
+    let t = mk_table_with(mk_compute(ir::Expr::Bool(false), ctxt), ctxt);
+
+    let table_str = mk_compute(ir::Expr::Str("table".to_string()), ctxt);
+    let function_str = mk_compute(ir::Expr::Str("function".to_string()), ctxt);
+    let call_str = mk_compute(ir::Expr::Str("call".to_string()), ctxt);
+
+    let ty = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)), ctxt);
+    let is_table = mk_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str), ctxt);
+
+    let arg_call = mk_node(ctxt);
+    let ty_call = mk_node(ctxt);
+    let ty_call_is_fn = mk_node(ctxt);
+
+    let if_body = vec![
+        ir::Statement::Compute(arg_call, ir::Expr::Index(arg, call_str)), // arg["call"]
+        ir::Statement::Compute(ty_call, ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call))), // type(arg["call"])
+        ir::Statement::Compute(ty_call_is_fn, ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, function_str)), // type(arg["call"]) == "function"
+        ir::Statement::Store(t, ctxt.one, ty_call_is_fn), // t[1] = type(arg["call"]) == "function"
+    ];
+    push_st(ir::Statement::If(is_table, if_body, vec![]), ctxt);
+
+    mk_compute(ir::Expr::Index(t, ctxt.one), ctxt) // return t[1]
+}
+
 fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     // TODO consider iterating over the table to print everything.
     let arg = mk_compute(ir::Expr::Arg, ctxt);
@@ -43,15 +71,24 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
 }
 
 fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
+    let function_str = mk_compute(ir::Expr::Str("function".to_string()), ctxt);
+
     let arg = mk_compute(ir::Expr::Arg, ctxt);
     let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
     let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
     let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
     let val = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg1)), ctxt);
+    let is_fn = mk_fn_check(arg1, ctxt);
 
     let ret = mk_table(ctxt);
     push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one), ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.one, val), ctxt);
+    let if_body = vec![
+        ir::Statement::Store(ret, ctxt.one, function_str)
+    ];
+    let else_body = vec![
+        ir::Statement::Store(ret, ctxt.one, val)
+    ];
+    push_st(ir::Statement::If(is_fn, if_body, else_body), ctxt);
     
     push_st(ir::Statement::Return(ret), ctxt);
 }
