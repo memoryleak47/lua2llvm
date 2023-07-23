@@ -126,7 +126,7 @@ fn display_intrinsic(intrinsic: &ir::Intrinsic, const_nodes: &ConstNodes, f: &mu
     match intrinsic {
         ir::Intrinsic::Print(v) => write!(f, "print({})", node_string(*v, const_nodes))?,
         ir::Intrinsic::Type(v) => write!(f, "type({})", node_string(*v, const_nodes))?,
-        ir::Intrinsic::Next(v1, v2) => write!(f, "next(n{}, n{})", node_string(*v1, const_nodes), node_string(*v2, const_nodes))?,
+        ir::Intrinsic::Next(v1, v2) => write!(f, "next({}, {})", node_string(*v1, const_nodes), node_string(*v2, const_nodes))?,
         ir::Intrinsic::Throw(s) => write!(f, "throw('{s}')")?,
     }
 
