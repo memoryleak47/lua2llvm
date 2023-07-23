@@ -759,64 +759,7 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 });
                 ctxt.body.extend(body);
             },
-            Statement::NumericFor(ident, start, stop, optstep, body) => {
-                let loc_var = mk_table(ctxt);
-                let n_start = lower_expr1(start, ctxt);
-                push_st(ir::Statement::Store(loc_var, ctxt.one, n_start), ctxt);
-
-                let n_stop = lower_expr1(stop, ctxt);
-                let n_step = match optstep {
-                    Some(x) => lower_expr1(x, ctxt),
-                    None => ctxt.one,
-                };
-
-                // loop:
-
-                let b = ctxt.in_block(|ctxt| {
-                    let n_var = mk_compute(ir::Expr::Index(loc_var, ctxt.one), ctxt);
-
-                    // if step > 0
-                    let step_gt_0 = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Gt, n_step, ctxt.zero), ctxt);
-
-                    // if !(var <= limit): break
-                    let ifblock = ctxt.in_block(|ctxt| {
-                        let var_le_stop = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Le, n_var, n_stop), ctxt);
-                        push_st(ir::Statement::If(var_le_stop, vec![], vec![ir::Statement::Break]), ctxt);
-                    });
-
-                    // else:
-                    // if !(var >= limit): break
-                    let elseblock = ctxt.in_block(|ctxt| {
-                        let var_ge_stop = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Ge, n_var, n_stop), ctxt);
-                        push_st(ir::Statement::If(var_ge_stop, vec![], vec![ir::Statement::Break]), ctxt);
-                    });
-
-                    // add this large if block!
-                    push_st(ir::Statement::If(step_gt_0, ifblock, elseblock), ctxt);
-
-                    // the actual body of the loop
-                    let tmp = ctxt.in_block(|ctxt| {
-                        // local v = var
-                        let v = mk_table(ctxt);
-
-                        ctxt.locals.last_mut()
-                                   .unwrap()
-                                   .insert(ident.clone(), v);
-
-                        push_st(ir::Statement::Store(v, ctxt.one, n_var), ctxt);
-
-                        // block
-                        lower_body(body, ctxt);
-                    });
-                    ctxt.body.extend(tmp);
-
-                    // var = var + step
-                    let n_var = mk_compute(ir::Expr::Index(loc_var, ctxt.one), ctxt);
-                    let sum = mk_compute(ir::Expr::BinOp(ir::BinOpKind::Plus, n_var, n_step), ctxt);
-                    push_st(ir::Statement::Store(loc_var, ctxt.one, sum), ctxt);
-                });
-                push_st(ir::Statement::Loop(b), ctxt);
-            },
+            Statement::NumericFor(..) => unreachable!(),
             Statement::GenericFor(..) => unreachable!(),
             Statement::Repeat(..) => unreachable!(),
         }
