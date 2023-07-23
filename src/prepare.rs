@@ -13,9 +13,11 @@ fn prepare_stmts(stmts: &mut Vec<Statement>, gen: &mut VarGenerator) {
             Statement::GenericFor(names, exprs, block) => {
                 stmts[i] = resolve_generic_for(names, exprs, block, gen);
             },
+            Statement::Repeat(body, until) => {
+                stmts[i] = resolve_repeat(body, until);
+            },
 // TODO resolve these:
 /*
-            Statement::Repeat(until) => *s = resolve_repeat(until),
             Statement::NumericFor(names, exprs, block) => *s = resolve_numeric_for(names, exprs, block),
 */
 
@@ -62,6 +64,12 @@ fn resolve_generic_for(names: &[String], exprs: &[Expr], block: &[Statement], ge
         Statement::Local(vec![f, s, var], exprs.iter().cloned().collect()),
         Statement::While(Expr::Literal(Literal::Bool(true)), while_stmts),
     ])
+}
+
+fn resolve_repeat(body: &Vec<Statement>, until: &Expr) -> Statement {
+    let mut body = body.clone();
+    body.push(Statement::If(vec![IfBlock(until.clone(), vec![Statement::Break])], None));
+    Statement::While(Expr::Literal(Literal::Bool(true)), body)
 }
 
 type VarGenerator = impl FnMut() -> String;

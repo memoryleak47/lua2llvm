@@ -752,18 +752,6 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
                 push_st(ir::Statement::Loop(body), ctxt);
             },
-            Statement::Repeat(body, cond) => {
-                let body = ctxt.in_block(|ctxt| {
-                    lower_body(body, ctxt);
-
-                    let cond = lower_expr1(cond, ctxt);
-                    push_st(ir::Statement::If(cond, vec![ir::Statement::Break], vec![]), ctxt);
-
-                });
-
-                push_st(ir::Statement::Loop(body), ctxt);
-
-            },
             Statement::If(ifblocks, optelse) => { lower_if(ifblocks, optelse, ctxt); }
             Statement::Block(body) => {
                 let body = ctxt.in_block(|ctxt| {
@@ -830,6 +818,7 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 push_st(ir::Statement::Loop(b), ctxt);
             },
             Statement::GenericFor(..) => unreachable!(),
+            Statement::Repeat(..) => unreachable!(),
         }
     }
 }
