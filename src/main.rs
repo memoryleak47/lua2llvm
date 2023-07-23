@@ -1,5 +1,6 @@
 #![feature(box_patterns)]
 #![feature(fmt_internals)]
+#![feature(type_alias_impl_trait)]
 
 extern crate llvm_sys as llvm;
 
@@ -8,6 +9,9 @@ mod ast;
 mod parse;
 
 mod ir;
+
+mod prepare;
+use prepare::prepare;
 
 mod lower;
 use lower::lower;
@@ -42,8 +46,9 @@ fn main() {
         let filename = args.iter().find(|x| !x.starts_with("--")).expect("no input file given!");
         let code = std::fs::read_to_string(filename).unwrap();
         let tokens = token::tokenize(&code);
-        let ast = parse::parse(&tokens).expect("Ast::parse failed!");
+        let mut ast = parse::parse(&tokens).expect("Ast::parse failed!");
 
+        prepare(&mut ast);
         lower(&ast)
     };
 

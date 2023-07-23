@@ -829,70 +829,7 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 });
                 push_st(ir::Statement::Loop(b), ctxt);
             },
-            Statement::GenericFor(idents, exprs, body) => {
-                let (f, s, var) = (mk_table(ctxt), mk_table(ctxt), mk_table(ctxt));
-                let lvals = vec![(f, ctxt.one), (s, ctxt.one), (var, ctxt.one)];
-                lower_assign(&lvals, exprs, ctxt);
-
-                let b = ctxt.in_block(|ctxt| {
-                    let n_f = mk_compute(ir::Expr::Index(f, ctxt.one), ctxt);
-                    let n_s = mk_compute(ir::Expr::Index(s, ctxt.one), ctxt);
-                    let n_var = mk_compute(ir::Expr::Index(var, ctxt.one), ctxt);
-
-                    let t = mk_table(ctxt);
-
-                    let upvalues_str = mk_compute(ir::Expr::Str("upvalues".to_string()), ctxt);
-                    let args_str = mk_compute(ir::Expr::Str("args".to_string()), ctxt);
-                    let call_str = mk_compute(ir::Expr::Str("call".to_string()), ctxt);
-
-                    let t_args = mk_table(ctxt);
-                    let t_upvalues = mk_table(ctxt); // empty table!
-
-                    push_st(ir::Statement::Store(t, args_str, t_args), ctxt);
-                    push_st(ir::Statement::Store(t, upvalues_str, t_upvalues), ctxt);
-
-                    let two = mk_num(2.0, ctxt);
-
-                    // t["args"][0] = 2
-                    push_st(ir::Statement::Store(t_args, ctxt.zero, two), ctxt);
-
-                    // t["args"][1] = s
-                    push_st(ir::Statement::Store(t_args, ctxt.one, n_s), ctxt);
-
-                    // t["args"][2] = var
-                    push_st(ir::Statement::Store(t_args, two, n_var), ctxt);
-
-                    let n_f_call = mk_compute(ir::Expr::Index(n_f, call_str), ctxt);
-
-                    // call f(s, var) which is equivalent to f(t), where t = {"args": {[0]=2, s, var}, "upvalues": {}}
-                    // rettable = f(s, var)
-                    let rettable = mk_compute(ir::Expr::FnCall(n_f_call, t), ctxt);
-
-                    for (i, ident) in idents.iter().enumerate() {
-                        let local = mk_table(ctxt);
-                        ctxt.locals.last_mut()
-                                   .unwrap()
-                                   .insert(ident.clone(), local);
-                        let n_i = mk_num((i+1) as f64, ctxt);
-
-                        // rettable_i = rettable[i]
-                        let rettable_i = mk_compute(ir::Expr::Index(rettable, n_i), ctxt);
-                        push_st(ir::Statement::Store(local, ctxt.one, rettable_i), ctxt);
-
-                        if i == 0 {
-                            push_st(ir::Statement::Store(var, ctxt.one, rettable_i), ctxt);
-                        }
-                    }
-
-                    let n_var = mk_compute(ir::Expr::Index(var, ctxt.one), ctxt);
-                    let n_nil = mk_compute(ir::Expr::Nil, ctxt);
-                    let var_eq_nil = mk_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, n_var, n_nil), ctxt);
-                    push_st(ir::Statement::If(var_eq_nil, vec![ir::Statement::Break], vec![]), ctxt);
-
-                    lower_body(body, ctxt);
-                });
-                push_st(ir::Statement::Loop(b), ctxt);
-            },
+            Statement::GenericFor(..) => unreachable!(),
         }
     }
 }
