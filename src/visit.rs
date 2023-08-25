@@ -1,6 +1,18 @@
 use crate::ast::*;
 
-trait Visitable {
+use std::any::Any;
+
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<T: Any> AsAny for T {
+    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+}
+
+pub trait Visitable: AsAny {
     fn children(&self) -> Vec<&dyn Visitable>;
     fn children_mut(&mut self) -> Vec<&mut dyn Visitable>;
 }
@@ -202,7 +214,7 @@ impl Visitable for bool {
     fn children_mut(&mut self) -> Vec<&mut dyn Visitable> { vec![] }
 }
 
-impl<T: Visitable> Visitable for Vec<T> {
+impl<T: Visitable + 'static> Visitable for Vec<T> {
     fn children(&self) -> Vec<&dyn Visitable> {
         self.iter().map(|x| x as &dyn Visitable).collect()
     }
@@ -211,7 +223,7 @@ impl<T: Visitable> Visitable for Vec<T> {
     }
 }
 
-impl<T: Visitable> Visitable for Option<T> {
+impl<T: Visitable + 'static> Visitable for Option<T> {
     fn children(&self) -> Vec<&dyn Visitable> {
         self.iter().map(|x| x as &dyn Visitable).collect()
     }
@@ -220,11 +232,11 @@ impl<T: Visitable> Visitable for Option<T> {
     }
 }
 
-impl<T: Visitable> Visitable for Box<T> {
+impl<T: Visitable + 'static> Visitable for Box<T> {
     fn children(&self) -> Vec<&dyn Visitable> {
-        vec![&*self as &dyn Visitable]
+        vec![&**self as &dyn Visitable]
     }
     fn children_mut(&mut self) -> Vec<&mut dyn Visitable> {
-        vec![&mut *self as &mut dyn Visitable]
+        vec![&mut **self as &mut dyn Visitable]
     }
 }

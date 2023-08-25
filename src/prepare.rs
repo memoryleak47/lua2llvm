@@ -1,139 +1,36 @@
 use crate::ast::*;
+use crate::visit::*;
+
+// typically called with v as Ast.
+fn rewrite_statement(v: &mut dyn Visitable, f: &mut dyn FnMut(&Statement) -> Option<Statement>) {
+    if let Some(st) = v.as_any_mut().downcast_mut::<Statement>() {
+        if let Some(x) = (*f)(st) {
+            *st = x;
+        }
+    }
+
+    for x in v.children_mut() {
+        rewrite_statement(x, f);
+    }
+}
 
 pub fn prepare(ast: &mut Ast) {
-    prepare_stmts(&mut ast.statements, &mut var_generator());
-}
+    let gen = &mut var_generator();
 
-fn prepare_stmt(stmt: &mut Statement, gen: &mut VarGenerator) {
-    match stmt {
-        // statements to be resolved..
-        Statement::GenericFor(names, exprs, block) => {
-            *stmt = resolve_generic_for(names, exprs, block, gen);
-            prepare_stmt(stmt, gen);
-        },
-        Statement::Repeat(body, until) => {
-            *stmt = resolve_repeat(body, until);
-            prepare_stmt(stmt, gen);
-        },
-        Statement::NumericFor(ident, start, stop, step, body) => {
-            *stmt = resolve_numeric_for(ident, start, stop, step, body, gen);
-            prepare_stmt(stmt, gen);
-        },
+    rewrite_statement(ast, &mut |s| {
+        let Statement::GenericFor(names, exprs, block) = s else { return None; };
+        return Some(resolve_generic_for(names, exprs, block, gen));
+    });
 
-        // the other statements..
-        Statement::Block(stmts2) => {
-            prepare_stmts(stmts2, gen);
-        },
-        Statement::If(ifblocks, opt_else) => {
-            for IfBlock(cond, x) in ifblocks {
-                prepare_expr(cond, gen);
-                prepare_stmts(x, gen);
-            }
-            for x in opt_else {
-                prepare_stmts(x, gen);
-            }
-        },
-        Statement::While(cond, body) => {
-            prepare_expr(cond, gen);
-            prepare_stmts(body, gen);
-        }
+    rewrite_statement(ast, &mut |s| {
+        let Statement::NumericFor(ident, start_expr, stop_expr, step_expr, body) = s else { return None; };
+        return Some(resolve_numeric_for(ident, start_expr, stop_expr, step_expr, body, gen));
+    });
 
-        Statement::Local(_, rhs) => {
-            for e in rhs {
-                prepare_expr(e, gen);
-            }
-        },
-        Statement::Assign(lvals, exprs) => {
-            for l in lvals {
-                prepare_lvalue(l, gen);
-            }
-            for e in exprs {
-                prepare_expr(e, gen);
-            }
-        },
-        Statement::Return(exprs) => {
-            for e in exprs {
-                prepare_expr(e, gen);
-            }
-        },
-        Statement::FunctionCall(fc) => prepare_function_call(fc, gen),
-        Statement::Break => {},
-    }
-}
-
-fn prepare_stmts(stmts: &mut Vec<Statement>, gen: &mut VarGenerator) {
-    for s in stmts {
-        prepare_stmt(s, gen);
-    }
-}
-
-fn prepare_field(f: &mut Field, gen: &mut VarGenerator) {
-    match f {
-        Field::Expr(e1) => prepare_expr(e1, gen),
-        Field::ExprToExpr(e1, e2) => {
-            prepare_expr(e1, gen);
-            prepare_expr(e2, gen);
-        },
-        Field::NameToExpr(_, e2) => prepare_expr(e2, gen),
-    }
-}
-
-fn prepare_literal(literal: &mut Literal, gen: &mut VarGenerator) {
-    match literal {
-        Literal::Function(_, _, body) => {
-            prepare_stmts(body, gen);
-        },
-        Literal::Table(fields) => {
-            for f in fields {
-                prepare_field(f, gen);
-            }
-        },
-        _ => {},
-    }
-}
-
-fn prepare_lvalue(lvalue: &mut LValue, gen: &mut VarGenerator) {
-    match lvalue {
-        LValue::Var(_) => {},
-        LValue::Dot(e1, _) => {
-            prepare_expr(e1, gen);
-        },
-        LValue::Index(e1, e2) => {
-            prepare_expr(e1, gen);
-            prepare_expr(e2, gen);
-        },
-    }
-}
-
-fn prepare_expr(expr: &mut Expr, gen: &mut VarGenerator) {
-    match expr {
-        Expr::Ellipsis => {},
-        Expr::Literal(lit) => prepare_literal(lit, gen),
-        Expr::LValue(lval) => prepare_lvalue(lval, gen),
-        Expr::BinOp(_, l, r) => {
-            prepare_expr(l, gen);
-            prepare_expr(r, gen);
-        },
-        Expr::UnOp(_, r) => prepare_expr(r, gen),
-        Expr::FunctionCall(fc) => prepare_function_call(fc, gen),
-    }
-}
-
-fn prepare_function_call(fc: &mut FunctionCall, gen: &mut VarGenerator) {
-    match fc {
-        FunctionCall::Direct(f, args) => {
-            prepare_expr(f, gen);
-            for a in args {
-                prepare_expr(a, gen);
-            }
-        },
-        FunctionCall::Colon(table, _, args) => {
-            prepare_expr(table, gen);
-            for a in args {
-                prepare_expr(a, gen);
-            }
-        }
-    }
+    rewrite_statement(ast, &mut |s| {
+        let Statement::Repeat(body, until) = s else { return None; };
+        return Some(resolve_repeat(body, until));
+    });
 }
 
 fn resolve_generic_for(names: &[String], exprs: &[Expr], block: &[Statement], gen: &mut VarGenerator) -> Statement {
