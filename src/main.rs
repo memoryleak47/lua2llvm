@@ -7,6 +7,7 @@ extern crate llvm_sys as llvm;
 mod token;
 mod ast;
 mod parse;
+mod visit;
 
 mod ir;
 
