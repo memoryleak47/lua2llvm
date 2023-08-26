@@ -72,8 +72,6 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
     (node, tabled)
 }
 
-
-
 fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
     let kind = match kind {
         BinOpKind::Plus => ir::BinOpKind::Plus,
@@ -148,4 +146,54 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
     mk_compute(x, ctxt)
 
+}
+
+// returns the `Node` which stores the TablePtr to it.
+pub(in crate::lower) fn locate_ident(s: &str, ctxt: &mut Ctxt) -> Node {
+    for loc in ctxt.locals.iter().rev() {
+        if let Some(n) = loc.get(s) {
+            return *n;
+        }
+    }
+
+    // if it's not defined in the locals, it has to be an upvalue!
+    let new_n = mk_node(ctxt);
+    ctxt.locals[0].insert(s.to_string(), new_n); // upvalues need to be on the bottom of the stack!
+    ctxt.upvalue_idents.push(s.to_string());
+
+    if ctxt.is_main { // or in-case of "main", just a local variable
+        ctxt.body.insert(0, ir::Statement::Compute(new_n, ir::Expr::NewTable));
+    } else {
+        let (arg, upvalues_str, upvalues_table, upvalue_ident) = (mk_node(ctxt), mk_node(ctxt), mk_node(ctxt), mk_node(ctxt));
+        ctxt.body.insert(0, ir::Statement::Compute(arg, ir::Expr::Arg));
+        ctxt.body.insert(1, ir::Statement::Compute(upvalues_str, ir::Expr::Str("upvalues".to_string())));
+        ctxt.body.insert(2, ir::Statement::Compute(upvalues_table, ir::Expr::Index(arg, upvalues_str)));
+        ctxt.body.insert(3, ir::Statement::Compute(upvalue_ident, ir::Expr::Str(s.to_string())));
+        ctxt.body.insert(4, ir::Statement::Compute(new_n, ir::Expr::Index(upvalues_table, upvalue_ident)));
+    }
+
+    new_n
+}
+
+pub(in crate::lower) fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> (/*table: */ Node, /*index*/ Node) {
+    match lvalue {
+        LValue::Var(s) => {
+            let n = locate_ident(s, ctxt);
+            return (n, ctxt.one);
+        },
+        LValue::Dot(expr, field) => {
+            let l = lower_expr1(expr, ctxt);
+            let r = mk_compute(ir::Expr::Str(field.clone()), ctxt);
+            mk_assert(mk_proper_table_check(l, ctxt), "Trying to index into non-table!", ctxt);
+
+            (l, r)
+        },
+        LValue::Index(l, r) => {
+            let l = lower_expr1(l, ctxt);
+            let r = lower_expr1(r, ctxt);
+            mk_assert(mk_proper_table_check(l, ctxt), "Trying to index into non-table!", ctxt);
+
+            (l, r)
+        },
+    }
 }

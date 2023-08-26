@@ -128,3 +128,51 @@ pub(in crate::lower) fn add_fn<T>(callback: impl FnOnce(&mut Ctxt) -> T, ctxt: &
     (fid, t)
 }
 
+// result is always tabled = true.
+pub(in crate::lower) fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
+    let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
+    let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
+    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
+
+    match call {
+        // f(x, y, z) --> f["call"]({"upvalues": f["upvalues"], "args": {[0]=3, x, y, z}})
+        FunctionCall::Direct(f, args) => {
+            let f = lower_expr1(f, ctxt);
+            let f_call = mk_compute(ir::Expr::Index(f, call_str), ctxt);
+
+            let arg = mk_table(ctxt);
+
+            let args = table_wrap_exprlist(args, None, ctxt);
+            push_st(ir::Statement::Store(arg, args_str, args), ctxt);
+
+            let upvalues = mk_compute(ir::Expr::Index(f, upvalues_str), ctxt);
+            push_st(ir::Statement::Store(arg, upvalues_str, upvalues), ctxt);
+
+            push_st(ir::Statement::FnCall(f_call, arg), ctxt);
+
+            mk_compute(ir::Expr::Index(arg, retval_str), ctxt)
+        },
+        // obj:f(x, y, z) --> t[idx]["call"]({"upvalues": t[idx]["upvalues"], "args": {[0]=4, obj, x, y, z}})
+        FunctionCall::Colon(t, idx, args) => {
+            let t = lower_expr1(t, ctxt);
+
+            let idx = ir::Expr::Str(idx.clone());
+            let idx = mk_compute(idx, ctxt);
+
+            let f = mk_compute(ir::Expr::Index(t, idx), ctxt);
+            let f_call = mk_compute(ir::Expr::Index(f, call_str), ctxt);
+
+            let arg = mk_table(ctxt);
+
+            let args = table_wrap_exprlist(args, Some(t), ctxt);
+            push_st(ir::Statement::Store(arg, args_str, args), ctxt);
+
+            let upvalues = mk_compute(ir::Expr::Index(f, upvalues_str), ctxt);
+            push_st(ir::Statement::Store(arg, upvalues_str, upvalues), ctxt);
+
+            push_st(ir::Statement::FnCall(f_call, arg), ctxt);
+            mk_compute(ir::Expr::Index(arg, retval_str), ctxt)
+        },
+    }
+}
