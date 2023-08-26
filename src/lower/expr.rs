@@ -33,15 +33,15 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
             let n = mk_table(ctxt);
 
             let call = ctxt.push_compute(ir::Expr::LitFunction(fid));
-            ctxt.push_st(ir::Statement::Store(n, call_str, call));
+            ctxt.push_store(n, call_str, call);
 
             let upvalues = mk_table(ctxt);
             for u in &upvalue_idents {
                 let upvalue_ident = ctxt.push_compute(ir::Expr::Str(u.to_string()));
                 let n = locate_ident(u, ctxt);
-                ctxt.push_st(ir::Statement::Store(upvalues, upvalue_ident, n));
+                ctxt.push_store(upvalues, upvalue_ident, n);
             }
-            ctxt.push_st(ir::Statement::Store(n, upvalues_str, upvalues));
+            ctxt.push_store(n, upvalues_str, upvalues);
 
             n
         },
@@ -94,7 +94,7 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             let if_body = ctxt.in_block(|ctxt| {
                 let r: Node = lower_expr1(r, ctxt);
-                ctxt.push_st(ir::Statement::Store(t, ctxt.one, r));
+                ctxt.push_store(t, ctxt.one, r);
             });
 
             ctxt.push_st(ir::Statement::If(l, if_body, vec![]));
@@ -107,7 +107,7 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             let else_body = ctxt.in_block(|ctxt| {
                 let r: Node = lower_expr1(r, ctxt);
-                ctxt.push_st(ir::Statement::Store(t, ctxt.one, r));
+                ctxt.push_store(t, ctxt.one, r);
             });
 
             ctxt.push_st(ir::Statement::If(l, vec![], else_body));
@@ -135,7 +135,7 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             let if_body = ctxt.in_block(|ctxt| {
                 let false_v = ctxt.push_compute(ir::Expr::Bool(false));
-                ctxt.push_st(ir::Statement::Store(t, ctxt.one, false_v));
+                ctxt.push_store(t, ctxt.one, false_v);
             });
 
             ctxt.push_st(ir::Statement::If(r, if_body, vec![]));

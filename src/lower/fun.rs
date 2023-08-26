@@ -20,7 +20,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
                 // lua tables start with 1, not 0.
                 let i = mk_num((i+1) as f64, ctxt);
                 let val = ctxt.push_compute(ir::Expr::Index(argtable, i));
-                ctxt.push_st(ir::Statement::Store(t, ctxt.one, val));
+                ctxt.push_store(t, ctxt.one, val);
 
                 ctxt.locals.last_mut().unwrap().insert(arg.clone(), t);
             }
@@ -41,7 +41,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
                 let argt_len = ctxt.push_compute(ir::Expr::Index(argtable, ctxt.zero));
                 let e_len = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::Minus, argt_len, arg_len));
                 let n = mk_table(ctxt);
-                ctxt.push_st(ir::Statement::Store(n, ctxt.zero, e_len));
+                ctxt.push_store(n, ctxt.zero, e_len);
 
                 let i = mk_table_with(ctxt.one, ctxt);
 
@@ -54,11 +54,11 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
                     // n[i] = argtable[i+ARG_LEN]
                     let i_plus_arg_len = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::Plus, i_node, arg_len));
                     let argtable_indexed = ctxt.push_compute(ir::Expr::Index(argtable, i_plus_arg_len));
-                    ctxt.push_st(ir::Statement::Store(n, i_node, argtable_indexed));
+                    ctxt.push_store(n, i_node, argtable_indexed);
 
                     // i = i+1
                     let i_plus_one = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::Plus, i_node, ctxt.one));
-                    ctxt.push_st(ir::Statement::Store(i, ctxt.one, i_plus_one));
+                    ctxt.push_store(i, ctxt.one, i_plus_one);
                 });
                 ctxt.push_st(ir::Statement::Loop(loopbody));
 
@@ -71,7 +71,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
         // add `return` if missing
         if !matches!(ctxt.body.last(), Some(ir::Statement::Return)) {
             let t = mk_table(ctxt);
-            ctxt.push_st(ir::Statement::Store(t, ctxt.zero, ctxt.zero));
+            ctxt.push_store(t, ctxt.zero, ctxt.zero);
             lower_return(t, ctxt);
         }
 
@@ -144,10 +144,10 @@ pub(in crate::lower) fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> N
             let arg = mk_table(ctxt);
 
             let args = table_wrap_exprlist(args, None, ctxt);
-            ctxt.push_st(ir::Statement::Store(arg, args_str, args));
+            ctxt.push_store(arg, args_str, args);
 
             let upvalues = ctxt.push_compute(ir::Expr::Index(f, upvalues_str));
-            ctxt.push_st(ir::Statement::Store(arg, upvalues_str, upvalues));
+            ctxt.push_store(arg, upvalues_str, upvalues);
 
             ctxt.push_st(ir::Statement::FnCall(f_call, arg));
 
@@ -166,10 +166,10 @@ pub(in crate::lower) fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> N
             let arg = mk_table(ctxt);
 
             let args = table_wrap_exprlist(args, Some(t), ctxt);
-            ctxt.push_st(ir::Statement::Store(arg, args_str, args));
+            ctxt.push_store(arg, args_str, args);
 
             let upvalues = ctxt.push_compute(ir::Expr::Index(f, upvalues_str));
-            ctxt.push_st(ir::Statement::Store(arg, upvalues_str, upvalues));
+            ctxt.push_store(arg, upvalues_str, upvalues);
 
             ctxt.push_st(ir::Statement::FnCall(f_call, arg));
             ctxt.push_compute(ir::Expr::Index(arg, retval_str))

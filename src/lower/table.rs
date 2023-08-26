@@ -8,7 +8,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
     let t = mk_table(ctxt);
 
     if let Some(n) = start_node {
-        ctxt.push_st(ir::Statement::Store(t, ctxt.one, n));
+        ctxt.push_store(t, ctxt.one, n);
     }
 
     if calc_length && fields.is_empty() {
@@ -16,7 +16,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
             Some(_) => ctxt.one,
             None => ctxt.zero,
         };
-        ctxt.push_st(ir::Statement::Store(t, ctxt.zero, len));
+        ctxt.push_store(t, ctxt.zero, len);
         return t;
     }
 
@@ -31,7 +31,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
 
                     counter += 1;
                     let val = lower_expr1(&expr, ctxt);
-                    ctxt.push_st(ir::Statement::Store(t, idx, val));
+                    ctxt.push_store(t, idx, val);
                 }
             },
             Field::NameToExpr(name, expr) => {
@@ -42,7 +42,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
 
                 let val = lower_expr1(expr, ctxt);
 
-                ctxt.push_st(ir::Statement::Store(t, idx, val));
+                ctxt.push_store(t, idx, val);
             },
             Field::ExprToExpr(idx, val) => {
                 assert_eq!(calc_length, false);
@@ -50,7 +50,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
                 let idx = lower_expr1(idx, ctxt);
                 let val = lower_expr1(val, ctxt);
 
-                ctxt.push_st(ir::Statement::Store(t, idx, val));
+                ctxt.push_store(t, idx, val);
             },
         }
     }
@@ -87,14 +87,12 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
             let r = ctxt.push_compute(ir::Expr::Index(val, i));
             let idx = ir::Expr::BinOp(ir::BinOpKind::Plus, i, orig_t_len.clone());
             let idx = ctxt.push_compute(idx);
-            let store = ir::Statement::Store(t, idx, r);
-            ctxt.push_st(store);
+            ctxt.push_store(t, idx, r);
 
             // `i = i + 1`
             let r = ir::Expr::BinOp(ir::BinOpKind::Plus, i, ctxt.one);
             let r = ctxt.push_compute(r);
-            let store = ir::Statement::Store(i_var, ctxt.one, r);
-            ctxt.push_st(store);
+            ctxt.push_store(i_var, ctxt.one, r);
 
             // `}`
         });
@@ -109,15 +107,15 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
             let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, mk_num(counter as f64 - 2.0, ctxt));
             let x = ctxt.push_compute(x);
 
-            ctxt.push_st(ir::Statement::Store(t, ctxt.zero, x));
+            ctxt.push_store(t, ctxt.zero, x);
         }
     } else {
         let idx = mk_num(counter as f64, ctxt);
-        ctxt.push_st(ir::Statement::Store(t, idx, val));
+        ctxt.push_store(t, idx, val);
 
         if calc_length {
             let len = idx; // length of array is the same as the highest index.
-            ctxt.push_st(ir::Statement::Store(t, ctxt.zero, len));
+            ctxt.push_store(t, ctxt.zero, len);
         }
     }
 }

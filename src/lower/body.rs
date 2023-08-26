@@ -79,7 +79,7 @@ pub(in crate::lower) fn lower_return(/*the table we want to return*/ ret: Node, 
     if !ctxt.is_main {
         let retval_str = ctxt.push_compute(ir::Expr::Str("retval".to_string()));
         let arg = ctxt.push_compute(ir::Expr::Arg);
-        ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+        ctxt.push_store(arg, retval_str, ret);
     }
     ctxt.push_st(ir::Statement::Return);
 }
@@ -92,7 +92,7 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
     if exprs.is_empty() {
         let nil = ctxt.push_compute(ir::Expr::Nil);
         for (t, idx) in lvalues.iter() {
-            ctxt.push_st(ir::Statement::Store(*t, *idx, nil));
+            ctxt.push_store(*t, *idx, nil);
         }
 
         return;
@@ -111,7 +111,7 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
         rnodes.push(last);
     }
     for ((t, i), r) in lvalues.iter().zip(rnodes.iter()) {
-        ctxt.push_st(ir::Statement::Store(*t, *i, *r));
+        ctxt.push_store(*t, *i, *r);
     }
     let min = rnodes.len();
     let max = lvalues.len();
@@ -127,6 +127,6 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
         };
         let r = ctxt.push_compute(expr);
         let (t, idx) = lvalues[i].clone();
-        ctxt.push_st(ir::Statement::Store(t, idx, r));
+        ctxt.push_store(t, idx, r);
     }
 }

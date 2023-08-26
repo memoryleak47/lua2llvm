@@ -17,10 +17,10 @@ pub(in crate::lower) fn add_native_fns(ctxt: &mut Ctxt) {
         let fun = mk_table(ctxt);
 
         let upvalues = mk_table(ctxt);
-        ctxt.push_st(ir::Statement::Store(fun, upvalues_str, upvalues));
+        ctxt.push_store(fun, upvalues_str, upvalues);
 
         let call = ctxt.push_compute(ir::Expr::LitFunction(fn_id));
-        ctxt.push_st(ir::Statement::Store(fun, call_str, call));
+        ctxt.push_store(fun, call_str, call);
 
         // this table is required, as it's still a variable!
         let t = mk_table_with(fun, ctxt);
@@ -46,8 +46,8 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     ctxt.push_st(ir::Statement::If(is_fn, if_body, else_body));
 
     let ret = mk_table(ctxt);
-    ctxt.push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.zero));
-    ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+    ctxt.push_store(ret, ctxt.zero, ctxt.zero);
+    ctxt.push_store(arg, retval_str, ret);
     ctxt.push_st(ir::Statement::Return);
 }
 
@@ -63,7 +63,7 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let (is_fn, _) = mk_fn_check(arg1, ctxt);
 
     let ret = mk_table(ctxt);
-    ctxt.push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one));
+    ctxt.push_store(ret, ctxt.zero, ctxt.one);
     let if_body = vec![
         ir::Statement::Store(ret, ctxt.one, function_str)
     ];
@@ -72,7 +72,7 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     ];
     ctxt.push_st(ir::Statement::If(is_fn, if_body, else_body));
     
-    ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+    ctxt.push_store(arg, retval_str, ret);
     ctxt.push_st(ir::Statement::Return);
 }
 
@@ -90,11 +90,11 @@ fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let new_val = ctxt.push_compute(ir::Expr::Index(arg1, new_index));
 
     let ret = mk_table(ctxt);
-    ctxt.push_st(ir::Statement::Store(ret, ctxt.zero, two));
-    ctxt.push_st(ir::Statement::Store(ret, ctxt.one, new_index));
-    ctxt.push_st(ir::Statement::Store(ret, two, new_val));
+    ctxt.push_store(ret, ctxt.zero, two);
+    ctxt.push_store(ret, ctxt.one, new_index);
+    ctxt.push_store(ret, two, new_val);
     
-    ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+    ctxt.push_store(arg, retval_str, ret);
     ctxt.push_st(ir::Statement::Return);
 }
 
@@ -113,19 +113,19 @@ fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
 
     let next_table = mk_table(ctxt);
     let tmp = mk_table(ctxt);
-    ctxt.push_st(ir::Statement::Store(next_table, upvalues_str, tmp));
+    ctxt.push_store(next_table, upvalues_str, tmp);
 
     let next_fn = ctxt.push_compute(ir::Expr::LitFunction(native_impls["next"]));
-    ctxt.push_st(ir::Statement::Store(next_table, call_str, next_fn));
+    ctxt.push_store(next_table, call_str, next_fn);
 
     let ret = mk_table(ctxt);
-    ctxt.push_st(ir::Statement::Store(ret, ctxt.zero, three));
+    ctxt.push_store(ret, ctxt.zero, three);
 
-    ctxt.push_st(ir::Statement::Store(ret, ctxt.one, next_table));
-    ctxt.push_st(ir::Statement::Store(ret, two, arg1));
+    ctxt.push_store(ret, ctxt.one, next_table);
+    ctxt.push_store(ret, two, arg1);
     let nil_node = ctxt.push_compute(ir::Expr::Nil);
-    ctxt.push_st(ir::Statement::Store(ret, three, nil_node));
+    ctxt.push_store(ret, three, nil_node);
     
-    ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+    ctxt.push_store(arg, retval_str, ret);
     ctxt.push_st(ir::Statement::Return);
 }
