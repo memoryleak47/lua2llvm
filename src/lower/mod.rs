@@ -1,10 +1,16 @@
-use std::collections::HashMap;
+mod table;
+use table::*;
 
-use crate::ast::*;
-use crate::ir::{self, FnId, IR, LitFunction, Node};
+mod native_fn;
+use native_fn::*;
+
+pub(self) use std::collections::HashMap;
+
+pub(self) use crate::ast::*;
+pub(self) use crate::ir::{self, FnId, IR, LitFunction, Node};
 
 #[derive(Default)]
-struct Ctxt {
+pub(self) struct Ctxt {
     ir: IR,
 
     // the Vec<> is pushed() & popped() for blocks, NOT functions.
@@ -94,127 +100,6 @@ fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
     push_st(ir::Statement::If(n, vec![], else_body), ctxt);
 }
 
-fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
-    // TODO consider iterating over the table to print everything.
-    let arg = mk_compute(ir::Expr::Arg, ctxt);
-    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
-    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
-    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
-    let (is_fn, call_node) = mk_fn_check(arg1, ctxt);
-
-    let if_body = vec![
-        ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Print(call_node)))
-    ];
-    let else_body = vec![
-        ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Print(arg1)))
-    ];
-    push_st(ir::Statement::If(is_fn, if_body, else_body), ctxt);
-
-    let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.zero), ctxt);
-    push_st(ir::Statement::Return(ret), ctxt);
-}
-
-fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
-    let function_str = mk_compute(ir::Expr::Str("function".to_string()), ctxt);
-
-    let arg = mk_compute(ir::Expr::Arg, ctxt);
-    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
-    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
-    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
-    let val = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg1)), ctxt);
-    let (is_fn, _) = mk_fn_check(arg1, ctxt);
-
-    let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one), ctxt);
-    let if_body = vec![
-        ir::Statement::Store(ret, ctxt.one, function_str)
-    ];
-    let else_body = vec![
-        ir::Statement::Store(ret, ctxt.one, val)
-    ];
-    push_st(ir::Statement::If(is_fn, if_body, else_body), ctxt);
-    
-    push_st(ir::Statement::Return(ret), ctxt);
-}
-
-fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
-    let arg = mk_compute(ir::Expr::Arg, ctxt);
-    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
-    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
-    let two = mk_num(2, ctxt);
-
-    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
-    mk_assert(mk_proper_table_check(arg1, ctxt), "Argument to next is not a table!", ctxt);
-    let arg2 = mk_compute(ir::Expr::Index(args, two), ctxt);
-    let new_index = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Next(arg1, arg2)), ctxt);
-    let new_val = mk_compute(ir::Expr::Index(arg1, new_index), ctxt);
-
-    let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, two), ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.one, new_index), ctxt);
-    push_st(ir::Statement::Store(ret, two, new_val), ctxt);
-    
-    push_st(ir::Statement::Return(ret), ctxt);
-}
-
-fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
-    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
-    let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
-    let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
-
-    let two = mk_num(2, ctxt);
-    let three = mk_num(3, ctxt);
-
-    let arg = mk_compute(ir::Expr::Arg, ctxt);
-    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
-    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
-
-    let next_table = mk_table(ctxt);
-    push_st(ir::Statement::Store(next_table, upvalues_str, mk_table(ctxt)), ctxt);
-
-    let next_fn = mk_compute(ir::Expr::LitFunction(native_impls["next"]), ctxt);
-    push_st(ir::Statement::Store(next_table, call_str, next_fn), ctxt);
-
-    let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, three), ctxt);
-
-    push_st(ir::Statement::Store(ret, ctxt.one, next_table), ctxt);
-    push_st(ir::Statement::Store(ret, two, arg1), ctxt);
-    let nil_node = mk_compute(ir::Expr::Nil, ctxt);
-    push_st(ir::Statement::Store(ret, three, nil_node), ctxt);
-    
-    push_st(ir::Statement::Return(ret), ctxt);
-}
-
-type NativeImpls = HashMap<&'static str, FnId>;
-static NATIVE_FNS: &'static [(&'static str, fn(&mut Ctxt, &NativeImpls))] = &[("print", print_native_fn), ("next", next_native_fn), ("type", type_native_fn), ("pairs", pairs_native_fn)];
-
-// ctxt is currently implementing main at this point.
-fn add_native_fns(ctxt: &mut Ctxt) {
-    let mut native_impls: NativeImpls = HashMap::new();
-
-    let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
-    let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
-
-    for (fn_ident, generator) in NATIVE_FNS.iter() {
-        let (fn_id, ()) = add_fn(|ctxt| generator(ctxt, &native_impls), ctxt);
-        native_impls.insert(fn_ident, fn_id);
-
-        let fun = mk_table(ctxt);
-
-        let upvalues = mk_table(ctxt);
-        push_st(ir::Statement::Store(fun, upvalues_str, upvalues), ctxt);
-
-        let call = mk_compute(ir::Expr::LitFunction(fn_id), ctxt);
-        push_st(ir::Statement::Store(fun, call_str, call), ctxt);
-
-        // this table is required, as it's still a variable!
-        let t = mk_table_with(fun, ctxt);
-        ctxt.locals.last_mut().unwrap().insert(String::from(*fn_ident), t);
-    }
-}
-
 impl Ctxt {
     fn in_block(&mut self, f: impl FnOnce(&mut Ctxt)) -> Vec<ir::Statement> {
         self.locals.push(Default::default());
@@ -282,127 +167,6 @@ fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
     } else {
         n
     }
-}
-
-// pushes expr to the table as the last element of a table constructor.
-// counter == the next Field::Expr id.
-fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool, ctxt: &mut Ctxt) {
-    let (val, tabled) = lower_expr(expr, ctxt);
-    if tabled {
-        // `orig_t_len = #t`
-        let orig_t_len = mk_num((counter-1) as f64, ctxt);
-
-        // `len = val[0]`
-        let len = mk_compute(ir::Expr::Index(val, ctxt.zero), ctxt);
-
-        // `local i = 1`
-        let i_var = mk_table_with(ctxt.one, ctxt);
-
-        let body = ctxt.in_block(|ctxt| {
-            // `loop {`
-
-            // `if i > len: break`
-            let i = mk_compute(ir::Expr::Index(i_var, ctxt.one), ctxt);
-            let cond = ir::Expr::BinOp(ir::BinOpKind::Gt, i, len);
-            let cond = mk_compute(cond, ctxt);
-            let brk = ir::Statement::Break;
-            push_st(ir::Statement::If(cond, vec![brk], Vec::new()), ctxt);
-
-            // `t[i+orig_t_len] = val[i]`
-            let r = mk_compute(ir::Expr::Index(val, i), ctxt);
-            let idx = ir::Expr::BinOp(ir::BinOpKind::Plus, i, orig_t_len.clone());
-            let idx = mk_compute(idx, ctxt);
-            let store = ir::Statement::Store(t, idx, r);
-            push_st(store, ctxt);
-
-            // `i = i + 1`
-            let r = ir::Expr::BinOp(ir::BinOpKind::Plus, i, ctxt.one);
-            let r = mk_compute(r, ctxt);
-            let store = ir::Statement::Store(i_var, ctxt.one, r);
-            push_st(store, ctxt);
-
-            // `}`
-        });
-
-        push_st(ir::Statement::Loop(body), ctxt);
-
-        if calc_length {
-            // `outlength = i + (orig_t_len - 1)`
-            let i = ir::Expr::Index(i_var, ctxt.one);
-            let i = mk_compute(i, ctxt);
-
-            let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, mk_num(counter as f64 - 2.0, ctxt));
-            let x = mk_compute(x, ctxt);
-
-            push_st(ir::Statement::Store(t, ctxt.zero, x), ctxt);
-        }
-    } else {
-        let idx = mk_num(counter as f64, ctxt);
-        push_st(ir::Statement::Store(t, idx, val), ctxt);
-
-        if calc_length {
-            let len = idx; // length of array is the same as the highest index.
-            push_st(ir::Statement::Store(t, ctxt.zero, len), ctxt);
-        }
-    }
-}
-
-// if calc_length is true, the function assumes that only Field::Expr inputs are given.
-// It then stores the length of the table in t[0].
-
-// start_node is a node that should be prepended to the argument list (generated by foo:bar() function calls)
-fn lower_table(fields: &[Field], start_node: Option<Node>, calc_length: bool, ctxt: &mut Ctxt) -> Node {
-    let t = mk_table(ctxt);
-
-    if let Some(n) = start_node {
-        push_st(ir::Statement::Store(t, ctxt.one, n), ctxt);
-    }
-
-    if calc_length && fields.is_empty() {
-        let len = match start_node {
-            Some(_) => ctxt.one,
-            None => ctxt.zero,
-        };
-        push_st(ir::Statement::Store(t, ctxt.zero, len), ctxt);
-        return t;
-    }
-
-    let mut counter = 1 + start_node.is_some() as usize; // the next Field::Expr id.
-    for (i, f) in fields.iter().enumerate() {
-        match f {
-            Field::Expr(expr) => {
-                if i == fields.len() - 1 {
-                    push_last_table_expr(t, counter, expr, calc_length, ctxt);
-                } else {
-                    let idx = mk_num(counter as f64, ctxt);
-
-                    counter += 1;
-                    let val = lower_expr1(&expr, ctxt);
-                    push_st(ir::Statement::Store(t, idx, val), ctxt);
-                }
-            },
-            Field::NameToExpr(name, expr) => {
-                assert_eq!(calc_length, false);
-
-                let idx = ir::Expr::Str(name.clone());
-                let idx = mk_compute(idx, ctxt);
-
-                let val = lower_expr1(expr, ctxt);
-
-                push_st(ir::Statement::Store(t, idx, val), ctxt);
-            },
-            Field::ExprToExpr(idx, val) => {
-                assert_eq!(calc_length, false);
-
-                let idx = lower_expr1(idx, ctxt);
-                let val = lower_expr1(val, ctxt);
-
-                push_st(ir::Statement::Store(t, idx, val), ctxt);
-            },
-        }
-    }
-
-    t
 }
 
 fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
