@@ -8,15 +8,15 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
     let t = mk_table(ctxt);
 
     if let Some(n) = start_node {
-        ctxt.push_store(t, ctxt.one, n);
+        ctxt.push_store(t, ctxt.one(), n);
     }
 
     if calc_length && fields.is_empty() {
         let len = match start_node {
-            Some(_) => ctxt.one,
-            None => ctxt.zero,
+            Some(_) => ctxt.one(),
+            None => ctxt.zero(),
         };
-        ctxt.push_store(t, ctxt.zero, len);
+        ctxt.push_store(t, ctxt.zero(), len);
         return t;
     }
 
@@ -68,48 +68,56 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         let orig_t_len = mk_num((counter-1) as f64, ctxt);
 
         // `len = val[0]`
-        let len = ctxt.push_compute(ir::Expr::Index(val, ctxt.zero));
+        let len = ctxt.push_compute(ir::Expr::Index(val, ctxt.zero()));
 
         // `local i = 1`
-        let i_var = mk_table_with(ctxt.one, ctxt);
+        let i_var = mk_table_with(ctxt.one(), ctxt);
 
-        let body = ctxt.in_block(|ctxt| {
-            // `loop {`
+        let loop_start_bid = ctxt.alloc_block();
+        let loop_body_bid = ctxt.alloc_block();
+        let loop_end_bid = ctxt.alloc_block();
 
-            // `if i > len: break`
-            let i = ctxt.push_compute(ir::Expr::Index(i_var, ctxt.one));
-            let cond = ir::Expr::BinOp(ir::BinOpKind::Gt, i, len);
-            let cond = ctxt.push_compute(cond);
+        ctxt.push_goto(loop_start_bid);
 
-            let then_body = ctxt.in_block(|ctxt| ctxt.push_st(ir::Statement::Break));
-            let else_body = ctxt.empty_block();
-            ctxt.push_st(ir::Statement::If(cond, then_body, else_body));
 
-            // `t[i+orig_t_len] = val[i]`
-            let r = ctxt.push_compute(ir::Expr::Index(val, i));
-            let idx = ir::Expr::BinOp(ir::BinOpKind::Plus, i, orig_t_len.clone());
-            let idx = ctxt.push_compute(idx);
-            ctxt.push_store(t, idx, r);
+        ctxt.set_active_block(loop_start_bid);
 
-            // `i = i + 1`
-            let r = ir::Expr::BinOp(ir::BinOpKind::Plus, i, ctxt.one);
-            let r = ctxt.push_compute(r);
-            ctxt.push_store(i_var, ctxt.one, r);
+        // `loop {`
+        // `if i > len: break`
+        let i = ctxt.push_compute(ir::Expr::Index(i_var, ctxt.one()));
+        let cond = ir::Expr::BinOp(ir::BinOpKind::Gt, i, len);
+        let cond = ctxt.push_compute(cond);
+        ctxt.push_if(cond, loop_end_bid, loop_body_bid);
 
-            // `}`
-        });
 
-        ctxt.push_st(ir::Statement::Loop(body));
+        ctxt.set_active_block(loop_body_bid);
+
+        // `t[i+orig_t_len] = val[i]`
+        let r = ctxt.push_compute(ir::Expr::Index(val, i));
+        let idx = ir::Expr::BinOp(ir::BinOpKind::Plus, i, orig_t_len.clone());
+        let idx = ctxt.push_compute(idx);
+        ctxt.push_store(t, idx, r);
+
+        // `i = i + 1`
+        let r = ir::Expr::BinOp(ir::BinOpKind::Plus, i, ctxt.one());
+        let r = ctxt.push_compute(r);
+        ctxt.push_store(i_var, ctxt.one(), r);
+        ctxt.push_goto(loop_start_bid);
+
+        // `}`
+
+
+        ctxt.set_active_block(loop_end_bid);
 
         if calc_length {
             // `outlength = i + (orig_t_len - 1)`
-            let i = ir::Expr::Index(i_var, ctxt.one);
+            let i = ir::Expr::Index(i_var, ctxt.one());
             let i = ctxt.push_compute(i);
 
             let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, mk_num(counter as f64 - 2.0, ctxt));
             let x = ctxt.push_compute(x);
 
-            ctxt.push_store(t, ctxt.zero, x);
+            ctxt.push_store(t, ctxt.zero(), x);
         }
     } else {
         let idx = mk_num(counter as f64, ctxt);
@@ -117,7 +125,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
 
         if calc_length {
             let len = idx; // length of array is the same as the highest index.
-            ctxt.push_store(t, ctxt.zero, len);
+            ctxt.push_store(t, ctxt.zero(), len);
         }
     }
 }

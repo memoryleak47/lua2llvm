@@ -16,13 +16,12 @@ use body::*;
 pub(self) use std::collections::HashMap;
 
 pub(self) use crate::ast::*;
-pub(self) use crate::ir::{self, FnId, IR, LitFunction, Node};
+pub(self) use crate::ir::{self, FnId, IR, LitFunction, Node, BlockId};
 
-#[derive(Default)]
-pub(self) struct Ctxt {
-    ir: IR,
-
-    // the Vec<> is pushed() & popped() for blocks, NOT functions.
+struct FnCtxt {
+    fn_id: FnId,
+    
+    // This Vec<> is pushed() & popped() for scopes, NOT functions.
     // The node `locals[ident]` contains a TablePtr with the single index 1.
     // upvalues are stored within here aswell, they store a table pointer to the variable in the stack frame where the upvalues originally came from.
     locals: Vec<HashMap<String, Node>>,
@@ -30,17 +29,149 @@ pub(self) struct Ctxt {
     // All idents that were used in this function, even though there were not locally defined.
     upvalue_idents: Vec<String>,
 
-    // this is intended to be std::mem::swap'ped out, when needed.
-    body: Vec<ir::Statement>,
-    next_node: usize,
-
-    is_main: bool,
+    next_node: Node,
 
     // Some(_) for variadics, None otherwise.
     ellipsis_node: Option<Node>,
 
+    // `break_bid_stack.last().unwrap()` is where the `break` statement brings you.
+    break_bid_stack: Vec<BlockId>,
+
     zero: Node,
     one: Node,
+
+    // typically block 0, used to initialize zero & one, and other things.
+    init_block: Node,
+
+    active_block: Option<BlockId>,
+}
+
+#[derive(Default)]
+pub(self) struct Ctxt {
+    ir: IR,
+    fn_stack: Vec<FnCtxt>,
+}
+
+impl Ctxt {
+    fn fcx(&self) -> &FnCtxt {
+        self.fn_stack.last().unwrap()
+    }
+
+    fn fcx_mut(&mut self) -> &mut FnCtxt {
+        self.fn_stack.last_mut().unwrap()
+    }
+
+    fn lit_fn(&self) -> &LitFunction {
+        &self.ir.fns[self.fcx().fn_id]
+    }
+
+    fn lit_fn_mut(&mut self) -> &mut LitFunction {
+        let id = self.fcx().fn_id;
+        &mut self.ir.fns[id]
+    }
+
+    fn is_main(&self) -> bool {
+        self.fcx().fn_id == self.ir.main_fn
+    }
+
+    fn alloc_block(&mut self) -> BlockId {
+        let fid = self.fcx().fn_id;
+        let block_id = self.ir.fns[fid].blocks.len();
+        self.ir.fns[fid].blocks.push(Vec::new());
+
+        block_id
+    }
+
+    fn set_active_block(&mut self, block_id: BlockId) {
+        self.fcx_mut().active_block = Some(block_id);
+    }
+
+    fn push_scope(&mut self) {
+        self.fcx_mut().locals.push(Default::default());
+    }
+
+    fn pop_scope(&mut self) {
+        self.fcx_mut().locals.pop().unwrap();
+    }
+
+    fn push_st(&mut self, st: ir::Statement) {
+        if let Some(i) = self.fcx().active_block {
+            self.lit_fn_mut().blocks[i].push(st);
+        }
+    }
+
+    fn push_compute(&mut self, expr: ir::Expr) -> Node {
+        let node = mk_node(self);
+        self.push_st(ir::Statement::Compute(node, expr));
+
+        node
+    }
+
+    fn push_store(&mut self, table: Node, index: Node, val: Node) {
+        self.push_st(ir::Statement::Store(table, index, val));
+    }
+
+    fn push_if(&mut self, cond: Node, then: BlockId, else_: BlockId) {
+        self.push_st(ir::Statement::If(cond, then, else_));
+        self.fcx_mut().active_block = None;
+    }
+
+    fn push_goto(&mut self, to: BlockId) {
+        self.push_if(self.one(), to, to);
+    }
+
+    fn zero(&self) -> Node { self.fcx().zero }
+    fn one(&self) -> Node { self.fcx().one }
+
+    // add a few things to the init block.
+    // This temporarily removes the `If` leading away from the init block.
+    fn append_to_init_block<T>(&mut self, f: impl FnOnce(&mut Ctxt) -> T) -> T {
+        let old_active = self.fcx_mut().active_block.clone();
+        let init_bid = self.fcx().init_block;
+        assert!(matches!(self.lit_fn().blocks[init_bid].last(), Some(ir::Statement::If(_, _, _))));
+
+        let final_if = self.lit_fn_mut().blocks[init_bid].pop().unwrap();
+
+        let t = f(self);
+
+        self.lit_fn_mut().blocks[init_bid].push(final_if);
+        self.fcx_mut().active_block = old_active;
+
+        t
+    }
+}
+
+
+fn mk_num(x: impl Into<f64>, ctxt: &mut Ctxt) -> Node {
+    let expr = ir::Expr::Num(x.into());
+    ctxt.push_compute(expr)
+}
+
+fn mk_node(ctxt: &mut Ctxt) -> Node {
+    let fcx = ctxt.fcx_mut();
+
+    let node = fcx.next_node;
+    fcx.next_node += 1;
+
+    node
+}
+
+fn mk_table(ctxt: &mut Ctxt) -> Node {
+    ctxt.push_compute(ir::Expr::NewTable)
+}
+
+fn mk_table_with(val: Node, ctxt: &mut Ctxt) -> Node {
+    let n = mk_table(ctxt);
+    ctxt.push_store(n, ctxt.one(), val);
+
+    n
+}
+
+pub fn lower(ast: &Ast) -> IR {
+    let mut ctxt = Ctxt::default();
+    lower_fn(&[], &Variadic::No, &ast.statements, /*is_main: */ true, &mut ctxt);
+
+    ctxt.ir
 }
 
 // checks whether `arg` is a function, returns this in a new node as bool value.
@@ -56,19 +187,21 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
     let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
     let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str));
 
-    let (if_body, arg_call) = ctxt.in_block_with(|ctxt| {
-        let arg_call = ctxt.push_compute(ir::Expr::Index(arg, call_str));  // arg["call"]
-        let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
-        let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, function_str)); // type(arg["call"]) == "function"
-        ctxt.push_store(t, ctxt.one, ty_call_is_fn); // t[1] = type(arg["call"]) == "function"
+    let then_body = ctxt.alloc_block();
+    let post_body = ctxt.alloc_block();
 
-        arg_call
-    });
+    ctxt.push_if(is_table, then_body, post_body);
 
-    let else_body = ctxt.empty_block();
-    ctxt.push_st(ir::Statement::If(is_table, if_body, else_body));
+    ctxt.set_active_block(then_body);
+    let arg_call = ctxt.push_compute(ir::Expr::Index(arg, call_str));  // arg["call"]
+    let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
+    let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, function_str)); // type(arg["call"]) == "function"
+    ctxt.push_store(t, ctxt.one(), ty_call_is_fn); // t[1] = type(arg["call"]) == "function"
+    ctxt.push_goto(post_body);
 
-    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one)); // return t[1]
+    ctxt.set_active_block(post_body);
+
+    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one())); // return t[1]
 
     (bool_node, arg_call)
 }
@@ -85,96 +218,34 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
     let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str));
 
-    let if_body = ctxt.in_block(|ctxt| {
-        let arg_call = ctxt.push_compute(ir::Expr::Index(arg, call_str));  // arg["call"]
-        let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
-        let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, function_str)); // type(arg["call"]) == "function"
-        ctxt.push_store(t, ctxt.one, ty_call_is_fn); // t[1] = type(arg["call"]) == "function"
-    });
-    let else_body = ctxt.empty_block();
-    ctxt.push_st(ir::Statement::If(is_table, if_body, else_body));
+    let then_body = ctxt.alloc_block();
+    let post_body = ctxt.alloc_block();
 
-    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one)); // return t[1]
+    ctxt.push_if(is_table, then_body, post_body);
+
+    ctxt.set_active_block(then_body);
+    let arg_call = ctxt.push_compute(ir::Expr::Index(arg, call_str));  // arg["call"]
+    let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
+    let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, function_str)); // type(arg["call"]) == "function"
+    ctxt.push_store(t, ctxt.one(), ty_call_is_fn); // t[1] = type(arg["call"]) == "function"
+    ctxt.push_goto(post_body);
+
+    ctxt.set_active_block(post_body);
+    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one())); // return t[1]
 
     bool_node
 }
 
 fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
-    let else_body = ctxt.in_block(|ctxt| {
-        ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Throw(s.to_string())));
-    });
-    let then_body = ctxt.empty_block();
-    ctxt.push_st(ir::Statement::If(n, then_body, else_body));
-}
+    let else_body = ctxt.alloc_block();
+    let post_body = ctxt.alloc_block();
 
-impl Ctxt {
-    fn in_block_with<T>(&mut self, f: impl FnOnce(&mut Ctxt) -> T) -> (Vec<ir::Statement>, T) {
-        self.locals.push(Default::default());
-        let mut body = Vec::new();
-        std::mem::swap(&mut self.body, &mut body);
-        let t = f(self);
-        std::mem::swap(&mut self.body, &mut body);
-        self.locals.pop().unwrap();
+    ctxt.push_if(n, post_body, else_body);
 
-        (body, t)
-    }
+    ctxt.set_active_block(else_body);
+    ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Throw(s.to_string())));
 
-    fn in_block(&mut self, f: impl FnOnce(&mut Ctxt)) -> Vec<ir::Statement> {
-        self.in_block_with(f).0
-    }
-
-    fn empty_block(&mut self) -> Vec<ir::Statement> {
-        self.in_block(|_| ())
-    }
-
-    fn push_st(&mut self, st: ir::Statement) {
-        self.body.push(st);
-    }
-
-    fn push_compute(&mut self, expr: ir::Expr) -> Node {
-        let node = mk_node(self);
-        self.push_st(ir::Statement::Compute(node, expr));
-
-        node
-    }
-
-    fn push_store(&mut self, table: Node, index: Node, val: Node) {
-        self.push_st(ir::Statement::Store(table, index, val));
-    }
-}
-
-
-fn mk_num(x: impl Into<f64>, ctxt: &mut Ctxt) -> Node {
-    let expr = ir::Expr::Num(x.into());
-    ctxt.push_compute(expr)
-}
-
-fn mk_node(ctxt: &mut Ctxt) -> Node {
-    let node = ctxt.next_node;
-    ctxt.next_node += 1;
-
-    node
-}
-
-fn mk_table(ctxt: &mut Ctxt) -> Node {
-    ctxt.push_compute(ir::Expr::NewTable)
-}
-
-fn mk_table_with(val: Node, ctxt: &mut Ctxt) -> Node {
-    let n = mk_table(ctxt);
-    ctxt.push_store(n, ctxt.one, val);
-
-    n
-}
-
-pub fn lower(ast: &Ast) -> IR {
-    let mut ctxt = Ctxt::default();
-    let (id, _) = lower_fn(&[], &Variadic::No, &ast.statements, /*is_main: */ true, &mut ctxt);
-
-    let mut ir = ctxt.ir;
-    ir.main_fn = id;
-
-    ir
+    ctxt.set_active_block(post_body);
 }
 
 // should return a table from the expressions.

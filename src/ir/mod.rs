@@ -27,11 +27,8 @@ pub type FnId = usize;
 pub enum Statement {
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
     Store(/*table: */ Node, /*index: */ Node, Node), // store the value from the Node in the table `table` at index `index`.
-    Return,
-    If(Node, /*then*/ Vec<Statement>, /*else*/ Vec<Statement>),
-    Loop(Vec<Statement>), // loops until a break happens
+    If(Node, /*then*/ BlockId, /*else*/ BlockId),
     FnCall(/*func: */ Node, /* arg: */ Node),
-    Break,
 }
 
 #[derive(Debug, Clone)]
@@ -60,9 +57,13 @@ pub enum Intrinsic {
     Throw(String),
 }
 
+pub type Block = Vec<Statement>;
+pub type BlockId = usize;
+
 #[derive(Debug, Clone)]
 pub struct LitFunction {
-    pub body: Vec<Statement>
+    pub blocks: Vec<Block>,
+    pub start_block: BlockId,
 }
 
 #[derive(Debug, Default, Clone)]

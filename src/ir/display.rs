@@ -1,4 +1,4 @@
-use crate::ir::{self, IR, FnId, Statement, Expr, BinOpKind, Node};
+use crate::ir::{self, IR, FnId, Statement, Expr, BinOpKind, Node, BlockId};
 use std::fmt::{self, Display, Formatter};
 use std::collections::HashMap;
 
@@ -41,8 +41,13 @@ fn display_fn(id: FnId, is_main: bool, ir: &IR, f: &mut Formatter<'_>) -> fmt::R
     }
 
     let mut const_nodes = ConstNodes::new();
-    for st in &ir.fns[id].body {
-        display_statement(st, 2, ir, &mut const_nodes, f)?;
+    for (bid, blk) in ir.fns[id].blocks.iter().enumerate() {
+        if bid == ir.fns[id].start_block {
+            write!(f, "  start block b{bid}:\n")?;
+        } else {
+            write!(f, "  block b{bid}:\n")?;
+        }
+        display_block(blk, 4, ir, &mut const_nodes, f)?;
     }
 
     write!(f, "end\n\n")?;
@@ -50,7 +55,7 @@ fn display_fn(id: FnId, is_main: bool, ir: &IR, f: &mut Formatter<'_>) -> fmt::R
     Ok(())
 }
 
-fn display_body(statements: &[Statement], tabs: usize, ir: &IR, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
+fn display_block(statements: &[Statement], tabs: usize, ir: &IR, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
     for st in statements {
         display_statement(st, tabs, ir, const_nodes, f)?;
     }
@@ -58,7 +63,7 @@ fn display_body(statements: &[Statement], tabs: usize, ir: &IR, const_nodes: &mu
     Ok(())
 }
 
-fn display_statement(st: &Statement, tabs: usize, ir: &IR, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
+fn display_statement(st: &Statement, tabs: usize, _ir: &IR, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
     use Statement::*;
 
     if let Compute(n, e) = st {
@@ -83,21 +88,13 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, const_nodes: &mut Con
         Store(t, i, n) => {
             write!(f, "{}[{}] <- {}", node_string(*t, const_nodes), node_string(*i, const_nodes), node_string(*n, const_nodes))?;
         }
-        Return => write!(f, "return")?,
-        If(cond, body, else_body) => {
-            write!(f, "if {}:\n", node_string(*cond, const_nodes))?;
-            display_body(body, tabs+2, ir, const_nodes, f)?;
-            write!(f, "{}else:\n", &indent)?;
-            display_body(else_body, tabs+2, ir, const_nodes, f)?;
-            write!(f, "{}end", &indent)?;
-        },
-        Loop(body) => {
-            write!(f, "loop:\n")?;
-            display_body(body, tabs+2, ir, const_nodes, f)?;
-            write!(f, "{}end", &indent)?;
+        If(cond, then_bid, else_bid) => {
+            let cond = node_string(*cond, const_nodes);
+            let then = block_id_string(*then_bid);
+            let else_ = block_id_string(*else_bid);
+            write!(f, "if {cond} then {then} else {else_}", )?;
         },
         FnCall(n, t) => write!(f, "{}({})", node_string(*n, const_nodes), node_string(*t, const_nodes))?,
-        Break => write!(f, "break")?,
     }
 
     write!(f, ";\n")
@@ -164,4 +161,8 @@ fn node_string(node: Node, const_nodes: &ConstNodes) -> String {
         }
         None => format!("n{node}"),
     }
+}
+
+fn block_id_string(block_id: BlockId) -> String {
+    format!("b{block_id}")
 }

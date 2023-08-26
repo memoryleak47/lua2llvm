@@ -24,14 +24,18 @@ mod compile;
 fn test_ir() -> ir::IR {
     use ir::*;
 
-    let body = vec![
+    let block = vec![
         Statement::Compute(0, Expr::Intrinsic(Intrinsic::Throw("ok".to_string()))),
-        Statement::Return,
     ];
+
+    let f = LitFunction {
+        blocks: vec![block],
+        start_block: 0,
+    };
 
     IR {
         main_fn: 0,
-        fns: vec![ LitFunction { body } ]
+        fns: vec![f],
     }
 }
 

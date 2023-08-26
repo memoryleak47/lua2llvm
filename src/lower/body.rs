@@ -3,27 +3,42 @@ use crate::lower::*;
 fn lower_if(ifblocks: &[IfBlock], optelse: &Option<Vec<Statement>>, ctxt: &mut Ctxt) {
     assert!(ifblocks.len() > 0);
 
-    let IfBlock(cond, ifbody) = ifblocks[0].clone();
-    let cond = lower_expr1(&cond, ctxt);
+    let post_bid = ctxt.alloc_block();
 
-    let ifbody = ctxt.in_block(|ctxt| {
-        lower_body(&ifbody, ctxt);
-    });
+    for IfBlock(cond, ifbody) in ifblocks {
+        ctxt.push_scope();
+        let then_bid = ctxt.alloc_block();
+        let else_bid = ctxt.alloc_block();
 
-    let elsebody = ctxt.in_block(|ctxt| {
-        if ifblocks.len() == 1 {
-            if let Some(else_b) = optelse {
-                lower_body(else_b, ctxt);
-            }
-        } else { // recursion!
-            lower_if(&ifblocks[1..], optelse, ctxt);
-        }
-    });
-    ctxt.push_st(ir::Statement::If(cond, ifbody, elsebody));
+        let cond = lower_expr1(&cond, ctxt);
+        ctxt.push_if(cond, then_bid, else_bid);
+
+        ctxt.set_active_block(then_bid);
+        lower_body(ifbody, ctxt);
+        ctxt.push_goto(post_bid);
+
+        ctxt.set_active_block(else_bid);
+        ctxt.pop_scope();
+    }
+
+    if let Some(else_b) = optelse {
+        ctxt.push_scope();
+        lower_body(else_b, ctxt);
+        ctxt.pop_scope();
+    }
+
+    ctxt.push_goto(post_bid);
+
+    ctxt.set_active_block(post_bid);
 }
 
 pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
     for st in statements {
+        // If someone used `break` / `return`, it's over.
+        if ctxt.fcx().active_block.is_none() {
+            break;
+        }
+
         match st {
             Statement::Assign(lvalues, exprs) => {
                 let lvalues: Vec<(Node, Node)> = lvalues.iter()
@@ -35,10 +50,10 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 let mut lvalues: Vec<(Node, Node)> = Vec::new();
                 for _ in vars.iter() {
                     let n = mk_table(ctxt);
-                    lvalues.push((n, ctxt.one));
+                    lvalues.push((n, ctxt.one()));
                 }
                 lower_assign(&lvalues, exprs, ctxt);
-                let map: &mut HashMap<_, _> = ctxt.locals.last_mut().unwrap();
+                let map: &mut HashMap<_, _> = ctxt.fcx_mut().locals.last_mut().unwrap();
                 for (var, (n, _)) in vars.iter().zip(lvalues.iter()) {
                     map.insert(var.clone(), *n);
                 }
@@ -46,29 +61,37 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             Statement::FunctionCall(call) => { lower_fn_call(call, ctxt); },
             Statement::Return(exprs) => {
                 let t = table_wrap_exprlist(exprs, None, ctxt);
-                lower_return(t, ctxt);
+                return lower_return(t, ctxt);
             },
             Statement::Break => {
-                ctxt.push_st(ir::Statement::Break);
+                ctxt.push_goto(*ctxt.fcx().break_bid_stack.last().expect("Cannot use `break` outside of loop"));
             }
             Statement::While(cond, body) => {
-                let body = ctxt.in_block(|ctxt| {
-                    let cond = lower_expr1(cond, ctxt);
-                    let then_body = ctxt.empty_block();
-                    let else_body = ctxt.in_block(|ctxt| ctxt.push_st(ir::Statement::Break));
-                    ctxt.push_st(ir::Statement::If(cond, then_body, else_body));
+                let loop_start = ctxt.alloc_block();
+                let loop_body = ctxt.alloc_block();
+                let loop_post = ctxt.alloc_block();
 
-                    lower_body(body, ctxt);
-                });
+                ctxt.push_goto(loop_start);
 
-                ctxt.push_st(ir::Statement::Loop(body));
+                ctxt.set_active_block(loop_start);
+                let cond = lower_expr1(cond, ctxt);
+                ctxt.push_if(cond, loop_body, loop_post);
+
+                ctxt.set_active_block(loop_body);
+                ctxt.fcx_mut().break_bid_stack.push(loop_post);
+                ctxt.push_scope();
+                lower_body(body, ctxt);
+                ctxt.push_goto(loop_start);
+                ctxt.pop_scope();
+                ctxt.fcx_mut().break_bid_stack.pop();
+
+                ctxt.set_active_block(loop_post);
             },
             Statement::If(ifblocks, optelse) => { lower_if(ifblocks, optelse, ctxt); }
             Statement::Block(body) => {
-                let body = ctxt.in_block(|ctxt| {
-                    lower_body(body, ctxt);
-                });
-                ctxt.body.extend(body);
+                ctxt.push_scope();
+                lower_body(body, ctxt);
+                ctxt.pop_scope();
             },
             Statement::NumericFor(..) => unreachable!(),
             Statement::GenericFor(..) => unreachable!(),
@@ -78,12 +101,13 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 }
 
 pub(in crate::lower) fn lower_return(/*the table we want to return*/ ret: Node, ctxt: &mut Ctxt) {
-    if !ctxt.is_main {
+    if !ctxt.is_main() {
         let retval_str = ctxt.push_compute(ir::Expr::Str("retval".to_string()));
         let arg = ctxt.push_compute(ir::Expr::Arg);
         ctxt.push_store(arg, retval_str, ret);
     }
-    ctxt.push_st(ir::Statement::Return);
+
+    ctxt.fcx_mut().active_block = None;
 }
 
 

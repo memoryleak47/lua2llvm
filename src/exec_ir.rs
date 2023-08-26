@@ -1,12 +1,8 @@
-use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, Intrinsic};
+use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, Intrinsic, BlockId, Node};
+
+use std::collections::HashMap;
 
 type TablePtr = usize;
-
-enum ControlFlow {
-    Break,
-    Return,
-    End,
-}
 
 fn table_get(ptr: TablePtr, idx: Value, ctxt: &mut Ctxt) -> Value {
     ctxt.heap[ptr].entries.iter()
@@ -73,13 +69,28 @@ enum Value {
     Num(f64),
 }
 
+struct FnCtxt {
+    arg: Value,
+    nodes: HashMap<Node, Value>,
+    fn_id: FnId,
+    block_id: BlockId,
+    statement_idx: usize,
+}
+
 struct Ctxt<'ir> {
     heap: Vec<TableData>,
     ir: &'ir IR,
+    stack: Vec<FnCtxt>,
+}
 
-    // function-local:
-    arg: Value,
-    nodes: Vec<Value>,
+impl<'ir> Ctxt<'ir> { 
+    fn fcx(&self) -> &FnCtxt {
+        self.stack.last().unwrap()
+    }
+
+    fn fcx_mut(&mut self) -> &mut FnCtxt {
+        self.stack.last_mut().unwrap()
+    }
 }
 
 #[derive(Default)]
@@ -91,7 +102,7 @@ struct TableData {
 fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
     match intrinsic {
         Intrinsic::Print(n) => {
-            let val = &ctxt.nodes[*n];
+            let val = &ctxt.fcx().nodes[n];
             match val {
                 Value::Nil => println!("nil"),
                 Value::Bool(b) => println!("{}", b),
@@ -104,15 +115,15 @@ fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
             Value::Nil
         }
         Intrinsic::Next(v1, v2) => {
-            let v1 = &ctxt.nodes[*v1];
+            let v1 = &ctxt.fcx().nodes[v1];
             let Value::TablePtr(v1_) = v1 else { panic!("calling next onto non-table!") };
 
-            let v2 = ctxt.nodes[*v2].clone();
+            let v2 = ctxt.fcx().nodes[v2].clone();
 
             table_next(*v1_, v2, ctxt)
         }
         Intrinsic::Type(n) => {
-            let val = &ctxt.nodes[*n];
+            let val = &ctxt.fcx().nodes[n];
             let s = match val {
                 Value::Nil => "nil",
                 Value::Bool(_) => "boolean",
@@ -135,24 +146,24 @@ fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
 fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::Index(t, idx) => {
-            let t = ctxt.nodes[*t].clone();
-            let idx = ctxt.nodes[*idx].clone();
+            let t = ctxt.fcx().nodes[t].clone();
+            let idx = ctxt.fcx().nodes[idx].clone();
 
             let Value::TablePtr(t) = t else { panic!("indexing into non-table {:?}!", t) };
             table_get(t, idx, ctxt)
         },
-        Expr::Arg => ctxt.arg.clone(),
+        Expr::Arg => ctxt.fcx().arg.clone(),
         Expr::Intrinsic(intrinsic) => exec_intrinsic(intrinsic, ctxt),
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
         Expr::LitFunction(fnid) => Value::LitFn(*fnid),
         Expr::BinOp(kind, l, r) => {
-            let l = ctxt.nodes[*l].clone();
-            let r = ctxt.nodes[*r].clone();
+            let l = ctxt.fcx().nodes[l].clone();
+            let r = ctxt.fcx().nodes[r].clone();
 
             exec_binop(kind.clone(), l, r)
         },
         Expr::Len(r) => {
-            let r = ctxt.nodes[*r].clone();
+            let r = ctxt.fcx().nodes[r].clone();
 
             match r {
                 Value::Str(s) => Value::Num(s.len() as f64),
@@ -192,90 +203,15 @@ fn truthy(v: &Value) -> bool {
     !matches!(v, Value::Bool(false) | Value::Nil)
 }
 
-fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
-    for st in statements {
-        use Statement::*;
-        match st {
-            Compute(n, expr) => {
-                let val = exec_expr(expr, ctxt);
-                while ctxt.nodes.len() < *n+1 {
-                    ctxt.nodes.push(Value::Nil);
-                }
-                ctxt.nodes[*n] = val;
-            }
-            Store(t, idx, n) => {
-                let t = ctxt.nodes[*t].clone();
-                let idx = ctxt.nodes[*idx].clone();
-                let val = ctxt.nodes[*n].clone();
-                let Value::TablePtr(t) = t.clone() else { panic!("indexing into non-table!") };
-                table_set(t, idx, val, ctxt);
-            },
-            Return => return ControlFlow::Return,
-            If(cond, then_body, else_body) => {
-                let cond = ctxt.nodes[*cond].clone();
-                if truthy(&cond) {
-                    match exec_body(then_body, ctxt) {
-                        ControlFlow::End => {},
-                        x => return x,
-                    }
-                } else {
-                    match exec_body(else_body, ctxt) {
-                        ControlFlow::End => {},
-                        x => return x,
-                    }
-                }
-            },
-            Loop(body) => {
-                loop {
-                    match exec_body(body, ctxt) {
-                        ControlFlow::Break => break,
-                        ControlFlow::End => {},
-                        ControlFlow::Return => return ControlFlow::Return,
-                    }
-                }
-            },
-
-            FnCall(f, arg) => {
-                let f = ctxt.nodes[*f].clone();
-                let arg = ctxt.nodes[*arg].clone();
-
-                match f {
-                    Value::LitFn(f_id) => exec_fn(f_id, arg, ctxt),
-                    v => panic!("trying to execute non-function value! {:?}", v),
-                };
-            },
-            Break => return ControlFlow::Break,
-        }
-    }
-
-    ControlFlow::End
-}
-
-fn exec_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) {
-    let mut nodes = Vec::new();
-    let mut arg = arg;
-
-    std::mem::swap(&mut nodes, &mut ctxt.nodes);
-    std::mem::swap(&mut arg, &mut ctxt.arg);
-
-    let flow = exec_body(&ctxt.ir.fns[f].body, ctxt);
-
-    std::mem::swap(&mut nodes, &mut ctxt.nodes);
-    std::mem::swap(&mut arg, &mut ctxt.arg);
-
-    match flow {
-        ControlFlow::Return => {},
-        ControlFlow::Break => panic!("cannot break, if you are not in a loop!"),
-        ControlFlow::End => panic!("function ended without returning!"),
-    }
-}
-
-// returns a new table with only the special "length" field 0 set to 0, otherwise there is nothing.
-fn empty(ctxt: &mut Ctxt) -> TablePtr {
-    let t = alloc_table(ctxt);
-    table_set(t, Value::Num(0.0), Value::Num(0.0), ctxt);
-
-    t
+fn call_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) {
+    let fcx = FnCtxt {
+        nodes: Default::default(),
+        arg,
+        fn_id: f,
+        block_id: ctxt.ir.fns[f].start_block,
+        statement_idx: 0,
+    };
+    ctxt.stack.push(fcx);
 }
 
 fn alloc_table(ctxt: &mut Ctxt) -> TablePtr {
@@ -287,14 +223,57 @@ fn alloc_table(ctxt: &mut Ctxt) -> TablePtr {
 
 pub fn exec(ir: &IR) {
     let mut ctxt = Ctxt {
-        heap: Vec::new(),
         ir,
-        arg: Value::Nil,
-        nodes: Vec::new(),
+        heap: Vec::new(),
+        stack: Vec::new(),
     };
 
-    // TODO do I need this?
-    let arg = Value::TablePtr(empty(&mut ctxt));
+    call_fn(ir.main_fn, Value::Nil, &mut ctxt);
 
-    exec_fn(ir.main_fn, arg, &mut ctxt);
+    while ctxt.stack.len() > 0 {
+        step(&mut ctxt);
+    }
+}
+
+fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
+    ctxt.fcx_mut().statement_idx += 1;
+
+    use Statement::*;
+    match stmt {
+        Compute(n, expr) => {
+            let val = exec_expr(expr, ctxt);
+            ctxt.fcx_mut().nodes.insert(*n, val);
+        }
+        Store(t, idx, n) => {
+            let t = ctxt.fcx().nodes[t].clone();
+            let idx = ctxt.fcx().nodes[idx].clone();
+            let val = ctxt.fcx().nodes[n].clone();
+            let Value::TablePtr(t) = t.clone() else { panic!("indexing into non-table!") };
+            table_set(t, idx, val, ctxt);
+        },
+        If(cond, then_body, else_body) => {
+            let cond = ctxt.fcx().nodes[cond].clone();
+            let blk = if truthy(&cond) { then_body } else { else_body };
+            ctxt.fcx_mut().block_id = *blk;
+            ctxt.fcx_mut().statement_idx = 0;
+        },
+        FnCall(f, arg) => {
+            let f = ctxt.fcx().nodes[f].clone();
+            let arg = ctxt.fcx().nodes[arg].clone();
+
+            match f {
+                Value::LitFn(f_id) => call_fn(f_id, arg, ctxt),
+                v => panic!("trying to execute non-function value! {:?}", v),
+            };
+        },
+    }
+}
+
+fn step(ctxt: &mut Ctxt) {
+    let l: &FnCtxt = ctxt.stack.last().unwrap();
+    if let Some(stmt) = &ctxt.ir.fns[l.fn_id].blocks[l.block_id].get(l.statement_idx) {
+        step_stmt(stmt, ctxt);
+    } else {
+        ctxt.stack.pop();
+    }
 }
