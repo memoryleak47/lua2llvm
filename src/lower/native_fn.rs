@@ -7,8 +7,8 @@ static NATIVE_FNS: &'static [(&'static str, fn(&mut Ctxt, &NativeImpls))] = &[("
 pub(in crate::lower) fn add_native_fns(ctxt: &mut Ctxt) {
     let mut native_impls: NativeImpls = HashMap::new();
 
-    let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
-    let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
+    let call_str = ctxt.push_compute(ir::Expr::Str(String::from("call")));
+    let upvalues_str = ctxt.push_compute(ir::Expr::Str(String::from("upvalues")));
 
     for (fn_ident, generator) in NATIVE_FNS.iter() {
         let (fn_id, ()) = add_fn(|ctxt| generator(ctxt, &native_impls), ctxt);
@@ -17,10 +17,10 @@ pub(in crate::lower) fn add_native_fns(ctxt: &mut Ctxt) {
         let fun = mk_table(ctxt);
 
         let upvalues = mk_table(ctxt);
-        push_st(ir::Statement::Store(fun, upvalues_str, upvalues), ctxt);
+        ctxt.push_st(ir::Statement::Store(fun, upvalues_str, upvalues));
 
-        let call = mk_compute(ir::Expr::LitFunction(fn_id), ctxt);
-        push_st(ir::Statement::Store(fun, call_str, call), ctxt);
+        let call = ctxt.push_compute(ir::Expr::LitFunction(fn_id));
+        ctxt.push_st(ir::Statement::Store(fun, call_str, call));
 
         // this table is required, as it's still a variable!
         let t = mk_table_with(fun, ctxt);
@@ -30,11 +30,11 @@ pub(in crate::lower) fn add_native_fns(ctxt: &mut Ctxt) {
 
 fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     // TODO consider iterating over the table to print everything.
-    let arg = mk_compute(ir::Expr::Arg, ctxt);
-    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
-    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
-    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
-    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
+    let arg = ctxt.push_compute(ir::Expr::Arg);
+    let args_str = ctxt.push_compute(ir::Expr::Str(String::from("args")));
+    let retval_str = ctxt.push_compute(ir::Expr::Str(String::from("retval")));
+    let args = ctxt.push_compute(ir::Expr::Index(arg, args_str));
+    let arg1 = ctxt.push_compute(ir::Expr::Index(args, ctxt.one));
     let (is_fn, call_node) = mk_fn_check(arg1, ctxt);
 
     let if_body = vec![
@@ -43,88 +43,89 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let else_body = vec![
         ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Print(arg1)))
     ];
-    push_st(ir::Statement::If(is_fn, if_body, else_body), ctxt);
+    ctxt.push_st(ir::Statement::If(is_fn, if_body, else_body));
 
     let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.zero), ctxt);
-    push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
-    push_st(ir::Statement::Return, ctxt);
+    ctxt.push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.zero));
+    ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+    ctxt.push_st(ir::Statement::Return);
 }
 
 fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
-    let function_str = mk_compute(ir::Expr::Str("function".to_string()), ctxt);
+    let function_str = ctxt.push_compute(ir::Expr::Str("function".to_string()));
 
-    let arg = mk_compute(ir::Expr::Arg, ctxt);
-    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
-    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
-    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
-    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
-    let val = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg1)), ctxt);
+    let arg = ctxt.push_compute(ir::Expr::Arg);
+    let args_str = ctxt.push_compute(ir::Expr::Str(String::from("args")));
+    let retval_str = ctxt.push_compute(ir::Expr::Str(String::from("retval")));
+    let args = ctxt.push_compute(ir::Expr::Index(arg, args_str));
+    let arg1 = ctxt.push_compute(ir::Expr::Index(args, ctxt.one));
+    let val = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg1)));
     let (is_fn, _) = mk_fn_check(arg1, ctxt);
 
     let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one), ctxt);
+    ctxt.push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.one));
     let if_body = vec![
         ir::Statement::Store(ret, ctxt.one, function_str)
     ];
     let else_body = vec![
         ir::Statement::Store(ret, ctxt.one, val)
     ];
-    push_st(ir::Statement::If(is_fn, if_body, else_body), ctxt);
+    ctxt.push_st(ir::Statement::If(is_fn, if_body, else_body));
     
-    push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
-    push_st(ir::Statement::Return, ctxt);
+    ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+    ctxt.push_st(ir::Statement::Return);
 }
 
 fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
-    let arg = mk_compute(ir::Expr::Arg, ctxt);
-    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
-    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
-    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
+    let arg = ctxt.push_compute(ir::Expr::Arg);
+    let args_str = ctxt.push_compute(ir::Expr::Str(String::from("args")));
+    let retval_str = ctxt.push_compute(ir::Expr::Str(String::from("retval")));
+    let args = ctxt.push_compute(ir::Expr::Index(arg, args_str));
     let two = mk_num(2, ctxt);
 
-    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
+    let arg1 = ctxt.push_compute(ir::Expr::Index(args, ctxt.one));
     mk_assert(mk_proper_table_check(arg1, ctxt), "Argument to next is not a table!", ctxt);
-    let arg2 = mk_compute(ir::Expr::Index(args, two), ctxt);
-    let new_index = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Next(arg1, arg2)), ctxt);
-    let new_val = mk_compute(ir::Expr::Index(arg1, new_index), ctxt);
+    let arg2 = ctxt.push_compute(ir::Expr::Index(args, two));
+    let new_index = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Next(arg1, arg2)));
+    let new_val = ctxt.push_compute(ir::Expr::Index(arg1, new_index));
 
     let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, two), ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.one, new_index), ctxt);
-    push_st(ir::Statement::Store(ret, two, new_val), ctxt);
+    ctxt.push_st(ir::Statement::Store(ret, ctxt.zero, two));
+    ctxt.push_st(ir::Statement::Store(ret, ctxt.one, new_index));
+    ctxt.push_st(ir::Statement::Store(ret, two, new_val));
     
-    push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
-    push_st(ir::Statement::Return, ctxt);
+    ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+    ctxt.push_st(ir::Statement::Return);
 }
 
 fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
-    let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
-    let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
-    let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
-    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
+    let args_str = ctxt.push_compute(ir::Expr::Str(String::from("args")));
+    let upvalues_str = ctxt.push_compute(ir::Expr::Str(String::from("upvalues")));
+    let call_str = ctxt.push_compute(ir::Expr::Str(String::from("call")));
+    let retval_str = ctxt.push_compute(ir::Expr::Str(String::from("retval")));
 
     let two = mk_num(2, ctxt);
     let three = mk_num(3, ctxt);
 
-    let arg = mk_compute(ir::Expr::Arg, ctxt);
-    let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
-    let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
+    let arg = ctxt.push_compute(ir::Expr::Arg);
+    let args = ctxt.push_compute(ir::Expr::Index(arg, args_str));
+    let arg1 = ctxt.push_compute(ir::Expr::Index(args, ctxt.one));
 
     let next_table = mk_table(ctxt);
-    push_st(ir::Statement::Store(next_table, upvalues_str, mk_table(ctxt)), ctxt);
+    let tmp = mk_table(ctxt);
+    ctxt.push_st(ir::Statement::Store(next_table, upvalues_str, tmp));
 
-    let next_fn = mk_compute(ir::Expr::LitFunction(native_impls["next"]), ctxt);
-    push_st(ir::Statement::Store(next_table, call_str, next_fn), ctxt);
+    let next_fn = ctxt.push_compute(ir::Expr::LitFunction(native_impls["next"]));
+    ctxt.push_st(ir::Statement::Store(next_table, call_str, next_fn));
 
     let ret = mk_table(ctxt);
-    push_st(ir::Statement::Store(ret, ctxt.zero, three), ctxt);
+    ctxt.push_st(ir::Statement::Store(ret, ctxt.zero, three));
 
-    push_st(ir::Statement::Store(ret, ctxt.one, next_table), ctxt);
-    push_st(ir::Statement::Store(ret, two, arg1), ctxt);
-    let nil_node = mk_compute(ir::Expr::Nil, ctxt);
-    push_st(ir::Statement::Store(ret, three, nil_node), ctxt);
+    ctxt.push_st(ir::Statement::Store(ret, ctxt.one, next_table));
+    ctxt.push_st(ir::Statement::Store(ret, two, arg1));
+    let nil_node = ctxt.push_compute(ir::Expr::Nil);
+    ctxt.push_st(ir::Statement::Store(ret, three, nil_node));
     
-    push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
-    push_st(ir::Statement::Return, ctxt);
+    ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
+    ctxt.push_st(ir::Statement::Return);
 }

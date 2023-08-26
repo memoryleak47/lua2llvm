@@ -8,7 +8,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
     let t = mk_table(ctxt);
 
     if let Some(n) = start_node {
-        push_st(ir::Statement::Store(t, ctxt.one, n), ctxt);
+        ctxt.push_st(ir::Statement::Store(t, ctxt.one, n));
     }
 
     if calc_length && fields.is_empty() {
@@ -16,7 +16,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
             Some(_) => ctxt.one,
             None => ctxt.zero,
         };
-        push_st(ir::Statement::Store(t, ctxt.zero, len), ctxt);
+        ctxt.push_st(ir::Statement::Store(t, ctxt.zero, len));
         return t;
     }
 
@@ -31,18 +31,18 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
 
                     counter += 1;
                     let val = lower_expr1(&expr, ctxt);
-                    push_st(ir::Statement::Store(t, idx, val), ctxt);
+                    ctxt.push_st(ir::Statement::Store(t, idx, val));
                 }
             },
             Field::NameToExpr(name, expr) => {
                 assert_eq!(calc_length, false);
 
                 let idx = ir::Expr::Str(name.clone());
-                let idx = mk_compute(idx, ctxt);
+                let idx = ctxt.push_compute(idx);
 
                 let val = lower_expr1(expr, ctxt);
 
-                push_st(ir::Statement::Store(t, idx, val), ctxt);
+                ctxt.push_st(ir::Statement::Store(t, idx, val));
             },
             Field::ExprToExpr(idx, val) => {
                 assert_eq!(calc_length, false);
@@ -50,7 +50,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
                 let idx = lower_expr1(idx, ctxt);
                 let val = lower_expr1(val, ctxt);
 
-                push_st(ir::Statement::Store(t, idx, val), ctxt);
+                ctxt.push_st(ir::Statement::Store(t, idx, val));
             },
         }
     }
@@ -68,7 +68,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         let orig_t_len = mk_num((counter-1) as f64, ctxt);
 
         // `len = val[0]`
-        let len = mk_compute(ir::Expr::Index(val, ctxt.zero), ctxt);
+        let len = ctxt.push_compute(ir::Expr::Index(val, ctxt.zero));
 
         // `local i = 1`
         let i_var = mk_table_with(ctxt.one, ctxt);
@@ -77,47 +77,47 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
             // `loop {`
 
             // `if i > len: break`
-            let i = mk_compute(ir::Expr::Index(i_var, ctxt.one), ctxt);
+            let i = ctxt.push_compute(ir::Expr::Index(i_var, ctxt.one));
             let cond = ir::Expr::BinOp(ir::BinOpKind::Gt, i, len);
-            let cond = mk_compute(cond, ctxt);
+            let cond = ctxt.push_compute(cond);
             let brk = ir::Statement::Break;
-            push_st(ir::Statement::If(cond, vec![brk], Vec::new()), ctxt);
+            ctxt.push_st(ir::Statement::If(cond, vec![brk], Vec::new()));
 
             // `t[i+orig_t_len] = val[i]`
-            let r = mk_compute(ir::Expr::Index(val, i), ctxt);
+            let r = ctxt.push_compute(ir::Expr::Index(val, i));
             let idx = ir::Expr::BinOp(ir::BinOpKind::Plus, i, orig_t_len.clone());
-            let idx = mk_compute(idx, ctxt);
+            let idx = ctxt.push_compute(idx);
             let store = ir::Statement::Store(t, idx, r);
-            push_st(store, ctxt);
+            ctxt.push_st(store);
 
             // `i = i + 1`
             let r = ir::Expr::BinOp(ir::BinOpKind::Plus, i, ctxt.one);
-            let r = mk_compute(r, ctxt);
+            let r = ctxt.push_compute(r);
             let store = ir::Statement::Store(i_var, ctxt.one, r);
-            push_st(store, ctxt);
+            ctxt.push_st(store);
 
             // `}`
         });
 
-        push_st(ir::Statement::Loop(body), ctxt);
+        ctxt.push_st(ir::Statement::Loop(body));
 
         if calc_length {
             // `outlength = i + (orig_t_len - 1)`
             let i = ir::Expr::Index(i_var, ctxt.one);
-            let i = mk_compute(i, ctxt);
+            let i = ctxt.push_compute(i);
 
             let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, mk_num(counter as f64 - 2.0, ctxt));
-            let x = mk_compute(x, ctxt);
+            let x = ctxt.push_compute(x);
 
-            push_st(ir::Statement::Store(t, ctxt.zero, x), ctxt);
+            ctxt.push_st(ir::Statement::Store(t, ctxt.zero, x));
         }
     } else {
         let idx = mk_num(counter as f64, ctxt);
-        push_st(ir::Statement::Store(t, idx, val), ctxt);
+        ctxt.push_st(ir::Statement::Store(t, idx, val));
 
         if calc_length {
             let len = idx; // length of array is the same as the highest index.
-            push_st(ir::Statement::Store(t, ctxt.zero, len), ctxt);
+            ctxt.push_st(ir::Statement::Store(t, ctxt.zero, len));
         }
     }
 }

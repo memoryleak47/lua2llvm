@@ -47,14 +47,14 @@ pub(self) struct Ctxt {
 fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/ Node) {
     // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) != "function"
 
-    let t = mk_table_with(mk_compute(ir::Expr::Bool(false), ctxt), ctxt);
+    let t = mk_table_with(ctxt.push_compute(ir::Expr::Bool(false)), ctxt);
 
-    let table_str = mk_compute(ir::Expr::Str("table".to_string()), ctxt);
-    let function_str = mk_compute(ir::Expr::Str("function".to_string()), ctxt);
-    let call_str = mk_compute(ir::Expr::Str("call".to_string()), ctxt);
+    let table_str = ctxt.push_compute(ir::Expr::Str("table".to_string()));
+    let function_str = ctxt.push_compute(ir::Expr::Str("function".to_string()));
+    let call_str = ctxt.push_compute(ir::Expr::Str("call".to_string()));
 
-    let ty = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)), ctxt);
-    let is_table = mk_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str), ctxt);
+    let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
+    let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str));
 
     let arg_call = mk_node(ctxt);
     let ty_call = mk_node(ctxt);
@@ -66,9 +66,9 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
         ir::Statement::Compute(ty_call_is_fn, ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, function_str)), // type(arg["call"]) == "function"
         ir::Statement::Store(t, ctxt.one, ty_call_is_fn), // t[1] = type(arg["call"]) == "function"
     ];
-    push_st(ir::Statement::If(is_table, if_body, vec![]), ctxt);
+    ctxt.push_st(ir::Statement::If(is_table, if_body, vec![]));
 
-    let bool_node = mk_compute(ir::Expr::Index(t, ctxt.one), ctxt); // return t[1]
+    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one)); // return t[1]
 
     (bool_node, arg_call)
 }
@@ -76,14 +76,14 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
 // check whether arg is a table, and not a function table!
 fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) != "function"
-    let t = mk_table_with(mk_compute(ir::Expr::Bool(false), ctxt), ctxt);
+    let t = mk_table_with(ctxt.push_compute(ir::Expr::Bool(false)), ctxt);
 
-    let table_str = mk_compute(ir::Expr::Str("table".to_string()), ctxt);
-    let function_str = mk_compute(ir::Expr::Str("function".to_string()), ctxt);
-    let call_str = mk_compute(ir::Expr::Str("call".to_string()), ctxt);
+    let table_str = ctxt.push_compute(ir::Expr::Str("table".to_string()));
+    let function_str = ctxt.push_compute(ir::Expr::Str("function".to_string()));
+    let call_str = ctxt.push_compute(ir::Expr::Str("call".to_string()));
 
-    let ty = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)), ctxt);
-    let is_table = mk_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str), ctxt);
+    let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
+    let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str));
 
     let arg_call = mk_node(ctxt);
     let ty_call = mk_node(ctxt);
@@ -95,9 +95,9 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
         ir::Statement::Compute(ty_call_is_fn, ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, function_str)), // type(arg["call"]) != "function"
         ir::Statement::Store(t, ctxt.one, ty_call_is_fn), // t[1] = type(arg["call"]) != "function"
     ];
-    push_st(ir::Statement::If(is_table, if_body, vec![]), ctxt);
+    ctxt.push_st(ir::Statement::If(is_table, if_body, vec![]));
 
-    let bool_node = mk_compute(ir::Expr::Index(t, ctxt.one), ctxt); // return t[1]
+    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one)); // return t[1]
 
     bool_node
 }
@@ -106,7 +106,7 @@ fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
     let else_body = vec![
         ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Throw(s.to_string())))
     ];
-    push_st(ir::Statement::If(n, vec![], else_body), ctxt);
+    ctxt.push_st(ir::Statement::If(n, vec![], else_body));
 }
 
 impl Ctxt {
@@ -120,14 +120,27 @@ impl Ctxt {
 
         body
     }
+
+    fn push_st(&mut self, st: ir::Statement) {
+        self.body.push(st);
+    }
+
+    fn push_compute(&mut self, expr: ir::Expr) -> Node {
+        let node = mk_node(self);
+        self.push_st(ir::Statement::Compute(node, expr));
+
+        node
+    }
+
+    fn push_store(&mut self, table: Node, index: Node, val: Node) {
+        self.push_st(ir::Statement::Store(table, index, val));
+    }
 }
 
-fn mk_num(x: impl Into<f64>, ctxt: &mut Ctxt) -> Node {
-    let node = mk_node(ctxt);
-    let expr = ir::Expr::Num(x.into());
-    push_st(ir::Statement::Compute(node, expr), ctxt);
 
-    node
+fn mk_num(x: impl Into<f64>, ctxt: &mut Ctxt) -> Node {
+    let expr = ir::Expr::Num(x.into());
+    ctxt.push_compute(expr)
 }
 
 fn mk_node(ctxt: &mut Ctxt) -> Node {
@@ -137,20 +150,13 @@ fn mk_node(ctxt: &mut Ctxt) -> Node {
     node
 }
 
-fn mk_compute(expr: ir::Expr, ctxt: &mut Ctxt) -> Node {
-    let node = mk_node(ctxt);
-    push_st(ir::Statement::Compute(node, expr), ctxt);
-
-    node
-}
-
 fn mk_table(ctxt: &mut Ctxt) -> Node {
-    mk_compute(ir::Expr::NewTable, ctxt)
+    ctxt.push_compute(ir::Expr::NewTable)
 }
 
 fn mk_table_with(val: Node, ctxt: &mut Ctxt) -> Node {
     let n = mk_table(ctxt);
-    push_st(ir::Statement::Store(n, ctxt.one, val), ctxt);
+    ctxt.push_store(n, ctxt.one, val);
 
     n
 }
@@ -174,8 +180,4 @@ fn table_wrap_exprlist(exprs: &[Expr], start_node: Option<Node>, ctxt: &mut Ctxt
                       .collect();
 
     lower_table(&fields, start_node, /*calc-length: */ true, ctxt)
-}
-
-fn push_st(st: ir::Statement, ctxt: &mut Ctxt) {
-    ctxt.body.push(st);
 }

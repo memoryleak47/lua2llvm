@@ -5,7 +5,7 @@ pub(in crate::lower) fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
     let (n, tabled) = lower_expr(expr, ctxt);
     if tabled {
         let x = ir::Expr::Index(n, mk_num(1.0, ctxt));
-        let x = mk_compute(x, ctxt);
+        let x = ctxt.push_compute(x);
 
         x
     } else {
@@ -25,23 +25,23 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
             ctxt.ellipsis_node.expect("lowering `...` in non-variadic function!")
         },
         Expr::Literal(Literal::Function(args, variadic, body)) => {
-            let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
-            let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
+            let call_str = ctxt.push_compute(ir::Expr::Str(String::from("call")));
+            let upvalues_str = ctxt.push_compute(ir::Expr::Str(String::from("upvalues")));
 
             let (fid, upvalue_idents) = lower_fn(args, variadic, body, false, ctxt);
 
             let n = mk_table(ctxt);
 
-            let call = mk_compute(ir::Expr::LitFunction(fid), ctxt);
-            push_st(ir::Statement::Store(n, call_str, call), ctxt);
+            let call = ctxt.push_compute(ir::Expr::LitFunction(fid));
+            ctxt.push_st(ir::Statement::Store(n, call_str, call));
 
             let upvalues = mk_table(ctxt);
             for u in &upvalue_idents {
-                let upvalue_ident = mk_compute(ir::Expr::Str(u.to_string()), ctxt);
+                let upvalue_ident = ctxt.push_compute(ir::Expr::Str(u.to_string()));
                 let n = locate_ident(u, ctxt);
-                push_st(ir::Statement::Store(upvalues, upvalue_ident, n), ctxt);
+                ctxt.push_st(ir::Statement::Store(upvalues, upvalue_ident, n));
             }
-            push_st(ir::Statement::Store(n, upvalues_str, upvalues), ctxt);
+            ctxt.push_st(ir::Statement::Store(n, upvalues_str, upvalues));
 
             n
         },
@@ -52,7 +52,7 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
             let (t, idx) = lower_lvalue(lval, ctxt);
             let x = ir::Expr::Index(t, idx);
 
-            mk_compute(x, ctxt)
+            ctxt.push_compute(x)
         },
         Expr::BinOp(kind, l, r) => lower_binop(kind, l, r, ctxt),
         Expr::UnOp(kind, r) => lower_unop(kind, r, ctxt),
@@ -64,9 +64,9 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
 
         // literals
         Expr::Literal(Literal::Num(i)) => mk_num(*i as f64, ctxt),
-        Expr::Literal(Literal::Bool(b)) => mk_compute(ir::Expr::Bool(*b), ctxt),
-        Expr::Literal(Literal::Str(s)) => mk_compute(ir::Expr::Str(s.clone()), ctxt),
-        Expr::Literal(Literal::Nil) => mk_compute(ir::Expr::Nil, ctxt),
+        Expr::Literal(Literal::Bool(b)) => ctxt.push_compute(ir::Expr::Bool(*b)),
+        Expr::Literal(Literal::Str(s)) => ctxt.push_compute(ir::Expr::Str(s.clone())),
+        Expr::Literal(Literal::Nil) => ctxt.push_compute(ir::Expr::Nil),
     };
 
     (node, tabled)
@@ -94,12 +94,12 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             let if_body = ctxt.in_block(|ctxt| {
                 let r: Node = lower_expr1(r, ctxt);
-                push_st(ir::Statement::Store(t, ctxt.one, r), ctxt);
+                ctxt.push_st(ir::Statement::Store(t, ctxt.one, r));
             });
 
-            push_st(ir::Statement::If(l, if_body, vec![]), ctxt);
+            ctxt.push_st(ir::Statement::If(l, if_body, vec![]));
 
-            return mk_compute(ir::Expr::Index(t, ctxt.one),  ctxt);
+            return ctxt.push_compute(ir::Expr::Index(t, ctxt.one));
         },
         BinOpKind::Or => {
             let l: Node = lower_expr1(l, ctxt);
@@ -107,12 +107,12 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             let else_body = ctxt.in_block(|ctxt| {
                 let r: Node = lower_expr1(r, ctxt);
-                push_st(ir::Statement::Store(t, ctxt.one, r), ctxt);
+                ctxt.push_st(ir::Statement::Store(t, ctxt.one, r));
             });
 
-            push_st(ir::Statement::If(l, vec![], else_body), ctxt);
+            ctxt.push_st(ir::Statement::If(l, vec![], else_body));
 
-            return mk_compute(ir::Expr::Index(t, ctxt.one), ctxt);
+            return ctxt.push_compute(ir::Expr::Index(t, ctxt.one));
         },
     };
 
@@ -120,7 +120,7 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
     let r = lower_expr1(r, ctxt);
     let x = ir::Expr::BinOp(kind, l, r);
 
-    mk_compute(x, ctxt)
+    ctxt.push_compute(x)
 }
 
 fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
@@ -130,21 +130,21 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
         UnOpKind::Neg => ir::Expr::BinOp(ir::BinOpKind::Minus, ctxt.zero, r),
         UnOpKind::Len => ir::Expr::Len(r),
         UnOpKind::Not => {
-            let true_v = mk_compute(ir::Expr::Bool(true), ctxt);
+            let true_v = ctxt.push_compute(ir::Expr::Bool(true));
             let t = mk_table_with(true_v, ctxt);
 
             let if_body = ctxt.in_block(|ctxt| {
-                let false_v = mk_compute(ir::Expr::Bool(false), ctxt);
-                push_st(ir::Statement::Store(t, ctxt.one, false_v), ctxt);
+                let false_v = ctxt.push_compute(ir::Expr::Bool(false));
+                ctxt.push_st(ir::Statement::Store(t, ctxt.one, false_v));
             });
 
-            push_st(ir::Statement::If(r, if_body, vec![]), ctxt);
+            ctxt.push_st(ir::Statement::If(r, if_body, vec![]));
 
             ir::Expr::Index(t, ctxt.one)
         },
     };
 
-    mk_compute(x, ctxt)
+    ctxt.push_compute(x)
 
 }
 
@@ -183,7 +183,7 @@ pub(in crate::lower) fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> (/*tab
         },
         LValue::Dot(expr, field) => {
             let l = lower_expr1(expr, ctxt);
-            let r = mk_compute(ir::Expr::Str(field.clone()), ctxt);
+            let r = ctxt.push_compute(ir::Expr::Str(field.clone()));
             mk_assert(mk_proper_table_check(l, ctxt), "Trying to index into non-table!", ctxt);
 
             (l, r)

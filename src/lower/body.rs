@@ -19,7 +19,7 @@ fn lower_if(ifblocks: &[IfBlock], optelse: &Option<Vec<Statement>>, ctxt: &mut C
             lower_if(&ifblocks[1..], optelse, ctxt);
         }
     });
-    push_st(ir::Statement::If(cond, ifbody, elsebody), ctxt);
+    ctxt.push_st(ir::Statement::If(cond, ifbody, elsebody));
 }
 
 pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
@@ -49,17 +49,17 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 lower_return(t, ctxt);
             },
             Statement::Break => {
-                push_st(ir::Statement::Break, ctxt);
+                ctxt.push_st(ir::Statement::Break);
             }
             Statement::While(cond, body) => {
                 let body = ctxt.in_block(|ctxt| {
                     let cond = lower_expr1(cond, ctxt);
-                    push_st(ir::Statement::If(cond, vec![], vec![ir::Statement::Break]), ctxt);
+                    ctxt.push_st(ir::Statement::If(cond, vec![], vec![ir::Statement::Break]));
 
                     lower_body(body, ctxt);
                 });
 
-                push_st(ir::Statement::Loop(body), ctxt);
+                ctxt.push_st(ir::Statement::Loop(body));
             },
             Statement::If(ifblocks, optelse) => { lower_if(ifblocks, optelse, ctxt); }
             Statement::Block(body) => {
@@ -77,11 +77,11 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
 pub(in crate::lower) fn lower_return(/*the table we want to return*/ ret: Node, ctxt: &mut Ctxt) {
     if !ctxt.is_main {
-        let retval_str = mk_compute(ir::Expr::Str("retval".to_string()), ctxt);
-        let arg = mk_compute(ir::Expr::Arg, ctxt);
-        push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
+        let retval_str = ctxt.push_compute(ir::Expr::Str("retval".to_string()));
+        let arg = ctxt.push_compute(ir::Expr::Arg);
+        ctxt.push_st(ir::Statement::Store(arg, retval_str, ret));
     }
-    push_st(ir::Statement::Return, ctxt);
+    ctxt.push_st(ir::Statement::Return);
 }
 
 
@@ -90,9 +90,9 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
 
     // if exprs == [], just set everything to Nil!
     if exprs.is_empty() {
-        let nil = mk_compute(ir::Expr::Nil, ctxt);
+        let nil = ctxt.push_compute(ir::Expr::Nil);
         for (t, idx) in lvalues.iter() {
-            push_st(ir::Statement::Store(*t, *idx, nil), ctxt);
+            ctxt.push_st(ir::Statement::Store(*t, *idx, nil));
         }
 
         return;
@@ -111,7 +111,7 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
         rnodes.push(last);
     }
     for ((t, i), r) in lvalues.iter().zip(rnodes.iter()) {
-        push_st(ir::Statement::Store(*t, *i, *r), ctxt);
+        ctxt.push_st(ir::Statement::Store(*t, *i, *r));
     }
     let min = rnodes.len();
     let max = lvalues.len();
@@ -125,8 +125,8 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
         } else {
             ir::Expr::Nil
         };
-        let r = mk_compute(expr, ctxt);
+        let r = ctxt.push_compute(expr);
         let (t, idx) = lvalues[i].clone();
-        push_st(ir::Statement::Store(t, idx, r), ctxt);
+        ctxt.push_st(ir::Statement::Store(t, idx, r));
     }
 }
