@@ -404,6 +404,7 @@ fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
     let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
     let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
     let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
 
     match call {
         // f(x, y, z) --> f["call"]({"upvalues": f["upvalues"], "args": {[0]=3, x, y, z}})
@@ -419,7 +420,9 @@ fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
             let upvalues = mk_compute(ir::Expr::Index(f, upvalues_str), ctxt);
             push_st(ir::Statement::Store(arg, upvalues_str, upvalues), ctxt);
 
-            mk_compute(ir::Expr::FnCall(f_call, arg), ctxt)
+            push_st(ir::Statement::FnCall(f_call, arg), ctxt);
+
+            mk_compute(ir::Expr::Index(arg, retval_str), ctxt)
         },
         // obj:f(x, y, z) --> t[idx]["call"]({"upvalues": t[idx]["upvalues"], "args": {[0]=4, obj, x, y, z}})
         FunctionCall::Colon(t, idx, args) => {
@@ -439,7 +442,8 @@ fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
             let upvalues = mk_compute(ir::Expr::Index(f, upvalues_str), ctxt);
             push_st(ir::Statement::Store(arg, upvalues_str, upvalues), ctxt);
 
-            mk_compute(ir::Expr::FnCall(f_call, arg), ctxt)
+            push_st(ir::Statement::FnCall(f_call, arg), ctxt);
+            mk_compute(ir::Expr::Index(arg, retval_str), ctxt)
         },
     }
 }
@@ -501,7 +505,7 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             Statement::FunctionCall(call) => { lower_fn_call(call, ctxt); },
             Statement::Return(exprs) => {
                 let t = table_wrap_exprlist(exprs, None, ctxt);
-                push_st(ir::Statement::Return(t), ctxt);
+                lower_return(t, ctxt);
             },
             Statement::Break => {
                 push_st(ir::Statement::Break, ctxt);
@@ -528,6 +532,15 @@ fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             Statement::Repeat(..) => unreachable!(),
         }
     }
+}
+
+fn lower_return(/*the table we want to return*/ ret: Node, ctxt: &mut Ctxt) {
+    if !ctxt.is_main {
+        let retval_str = mk_compute(ir::Expr::Str("retval".to_string()), ctxt);
+        let arg = mk_compute(ir::Expr::Arg, ctxt);
+        push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
+    }
+    push_st(ir::Statement::Return, ctxt);
 }
 
 fn push_st(st: ir::Statement, ctxt: &mut Ctxt) {
@@ -652,10 +665,10 @@ fn lower_fn(args: &[String], variadic: &Variadic, statements: &[Statement], is_m
         lower_body(statements, ctxt);
 
         // add `return` if missing
-        if !matches!(ctxt.body.last(), Some(ir::Statement::Return(_))) {
+        if !matches!(ctxt.body.last(), Some(ir::Statement::Return)) {
             let t = mk_table(ctxt);
             push_st(ir::Statement::Store(t, ctxt.zero, ctxt.zero), ctxt);
-            push_st(ir::Statement::Return(t), ctxt);
+            lower_return(t, ctxt);
         }
 
         ctxt.upvalue_idents.clone()

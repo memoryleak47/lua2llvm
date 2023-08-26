@@ -19,7 +19,6 @@ fn is_const(expr: &Expr) -> bool {
     match expr {
         Expr::Index(_, _) => false,
         Expr::Arg => true,
-        Expr::FnCall(_, _) => false,
         Expr::NewTable => false,
         Expr::LitFunction(_) => true,
         Expr::BinOp(_, _, _) => true,
@@ -84,7 +83,7 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, const_nodes: &mut Con
         Store(t, i, n) => {
             write!(f, "{}[{}] <- {}", node_string(*t, const_nodes), node_string(*i, const_nodes), node_string(*n, const_nodes))?;
         }
-        Return(n) => write!(f, "return {}", node_string(*n, const_nodes))?,
+        Return => write!(f, "return")?,
         If(cond, body, else_body) => {
             write!(f, "if {}:\n", node_string(*cond, const_nodes))?;
             display_body(body, tabs+2, ir, const_nodes, f)?;
@@ -97,6 +96,7 @@ fn display_statement(st: &Statement, tabs: usize, ir: &IR, const_nodes: &mut Con
             display_body(body, tabs+2, ir, const_nodes, f)?;
             write!(f, "{}end", &indent)?;
         },
+        FnCall(n, t) => write!(f, "{}({})", node_string(*n, const_nodes), node_string(*t, const_nodes))?,
         Break => write!(f, "break")?,
     }
 
@@ -138,7 +138,6 @@ fn display_expr(expr: &Expr, const_nodes: &ConstNodes, f: &mut Formatter<'_>) ->
     match expr {
         Index(t, i) => write!(f, "{}[{}]", node_string(*t, const_nodes), node_string(*i, const_nodes))?,
         Arg => write!(f, "arg")?,
-        FnCall(n, t) => write!(f, "{}({})", node_string(*n, const_nodes), node_string(*t, const_nodes))?,
         NewTable => write!(f, "{{}}")?,
         LitFunction(fid) => write!(f, "f{}", fid)?,
         Intrinsic(intrinsic) => display_intrinsic(intrinsic, const_nodes, f)?,

@@ -27,9 +27,10 @@ pub type FnId = usize;
 pub enum Statement {
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
     Store(/*table: */ Node, /*index: */ Node, Node), // store the value from the Node in the table `table` at index `index`.
-    Return(Node),
+    Return,
     If(Node, /*then*/ Vec<Statement>, /*else*/ Vec<Statement>),
     Loop(Vec<Statement>), // loops until a break happens
+    FnCall(/*func: */ Node, /* arg: */ Node),
     Break,
 }
 
@@ -38,7 +39,6 @@ pub enum Expr {
     Index(/*table: */ Node, /*index: */ Node),
 
     Arg,
-    FnCall(/*func: */ Node, /* arg: */ Node),
     NewTable, // equivalent to {}
     LitFunction(FnId),
     BinOp(BinOpKind, Node, Node),

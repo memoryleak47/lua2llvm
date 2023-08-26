@@ -10,16 +10,12 @@ pub fn compile_start_fn(main_fn: FnId, ctxt: &mut Ctxt) {
         ctxt.alloca_br_instr = Some(LLVMBuildBr(ctxt.builder, bb));
         LLVMPositionBuilderAtEnd(ctxt.builder, bb);
 
-        let out_val = alloc(ctxt);
         let in_val = alloc_val(mk_nil(ctxt), ctxt);
 
-        let mut args = [
-            in_val,
-            out_val,
-        ];
+        let mut args = [in_val];
         LLVMBuildCall2(
             /*builder: */ ctxt.builder,
-            /*type: */ ctxt.v2v_t(),
+            /*type: */ ctxt.v2void_t(),
             /*Fn: */ ctxt.lit_fns[&main_fn],
             /*Args: */ args.as_mut_ptr(),
             /*Num Args: */ args.len() as u32,

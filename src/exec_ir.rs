@@ -4,7 +4,7 @@ type TablePtr = usize;
 
 enum ControlFlow {
     Break,
-    Return(Value),
+    Return,
     End,
 }
 
@@ -143,17 +143,6 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
         },
         Expr::Arg => ctxt.arg.clone(),
         Expr::Intrinsic(intrinsic) => exec_intrinsic(intrinsic, ctxt),
-        Expr::FnCall(f, arg) => {
-            let f = ctxt.nodes[*f].clone();
-            let arg = ctxt.nodes[*arg].clone();
-
-            let ret = match f {
-                Value::LitFn(f_id) => exec_fn(f_id, arg, ctxt),
-                v => panic!("trying to execute non-function value! {:?}", v),
-            };
-
-            ret
-        },
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
         Expr::LitFunction(fnid) => Value::LitFn(*fnid),
         Expr::BinOp(kind, l, r) => {
@@ -221,10 +210,7 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                 let Value::TablePtr(t) = t.clone() else { panic!("indexing into non-table!") };
                 table_set(t, idx, val, ctxt);
             },
-            Return(n) => {
-                let v = ctxt.nodes[*n].clone();
-                return ControlFlow::Return(v);
-            },
+            Return => return ControlFlow::Return,
             If(cond, then_body, else_body) => {
                 let cond = ctxt.nodes[*cond].clone();
                 if truthy(&cond) {
@@ -244,9 +230,19 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
                     match exec_body(body, ctxt) {
                         ControlFlow::Break => break,
                         ControlFlow::End => {},
-                        ret@ControlFlow::Return(_) => return ret,
+                        ControlFlow::Return => return ControlFlow::Return,
                     }
                 }
+            },
+
+            FnCall(f, arg) => {
+                let f = ctxt.nodes[*f].clone();
+                let arg = ctxt.nodes[*arg].clone();
+
+                match f {
+                    Value::LitFn(f_id) => exec_fn(f_id, arg, ctxt),
+                    v => panic!("trying to execute non-function value! {:?}", v),
+                };
             },
             Break => return ControlFlow::Break,
         }
@@ -255,7 +251,7 @@ fn exec_body(statements: &[Statement], ctxt: &mut Ctxt) -> ControlFlow {
     ControlFlow::End
 }
 
-fn exec_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) -> Value {
+fn exec_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) {
     let mut nodes = Vec::new();
     let mut arg = arg;
 
@@ -268,8 +264,8 @@ fn exec_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) -> Value {
     std::mem::swap(&mut arg, &mut ctxt.arg);
 
     match flow {
+        ControlFlow::Return => {},
         ControlFlow::Break => panic!("cannot break, if you are not in a loop!"),
-        ControlFlow::Return(v) => v,
         ControlFlow::End => panic!("function ended without returning!"),
     }
 }

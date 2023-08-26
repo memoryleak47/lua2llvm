@@ -26,7 +26,7 @@ fn test_ir() -> ir::IR {
 
     let body = vec![
         Statement::Compute(0, Expr::Intrinsic(Intrinsic::Throw("ok".to_string()))),
-        Statement::Return(0),
+        Statement::Return,
     ];
 
     IR {

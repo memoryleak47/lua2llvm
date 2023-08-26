@@ -16,11 +16,7 @@ fn compile_body(body: &[Statement], ctxt: &mut Ctxt) -> Terminated {
                     let v = alloc_val(ctxt.nodes[v], ctxt);
                     call_extra_fn("table_set", &[t, i, v], ctxt);
                 },
-                Statement::Return(v) => {
-                    let v = ctxt.nodes[v];
-                    let f = ctxt.lit_fns[&ctxt.current_fid];
-                    let out = LLVMGetParam(f, 1);
-                    LLVMBuildStore(ctxt.builder, v, out);
+                Statement::Return => {
                     LLVMBuildRetVoid(ctxt.builder);
 
                     return Terminated::Yes;
@@ -70,6 +66,12 @@ fn compile_body(body: &[Statement], ctxt: &mut Ctxt) -> Terminated {
 
                     LLVMPositionBuilderAtEnd(ctxt.builder, postbb);
                 },
+                Statement::FnCall(f, arg) => {
+                    let f = ctxt.nodes[f];
+                    let arg = ctxt.nodes[arg];
+
+                    fn_call(f, arg, ctxt);
+                }
                 Statement::Break => {
                     let bb = ctxt.break_bb.unwrap();
                     LLVMBuildBr(ctxt.builder, bb);
@@ -82,6 +84,29 @@ fn compile_body(body: &[Statement], ctxt: &mut Ctxt) -> Terminated {
         Terminated::No
     }
 }
+
+fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef /* Value */, ctxt: &mut Ctxt) {
+    unsafe {
+        // check tag
+        let t = tag_err(f_val, Tag::FN, ctxt);
+        err_chk(t, "trying to call non-function!", ctxt);
+
+        // call fn
+        let f /* i64 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
+        let f /* Value (*fn)(Value) */ = LLVMBuildIntToPtr(ctxt.builder, f, ctxt.v2void_ptr_t(), EMPTY);
+
+        let mut fargs = [alloc_val(arg, ctxt)];
+        LLVMBuildCall2(
+            /*builder: */ ctxt.builder,
+            /*type: */ ctxt.v2void_t(),
+            /*Fn: */ f,
+            /*Args: */ fargs.as_mut_ptr(),
+            /*Num Args: */ fargs.len() as u32,
+            /*Name: */ EMPTY,
+        );
+    }
+}
+
 
 fn truthy(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* i1 */ {
     unsafe {

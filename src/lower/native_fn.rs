@@ -32,6 +32,7 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     // TODO consider iterating over the table to print everything.
     let arg = mk_compute(ir::Expr::Arg, ctxt);
     let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
     let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
     let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
     let (is_fn, call_node) = mk_fn_check(arg1, ctxt);
@@ -46,7 +47,8 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
 
     let ret = mk_table(ctxt);
     push_st(ir::Statement::Store(ret, ctxt.zero, ctxt.zero), ctxt);
-    push_st(ir::Statement::Return(ret), ctxt);
+    push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
+    push_st(ir::Statement::Return, ctxt);
 }
 
 fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
@@ -54,6 +56,7 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
 
     let arg = mk_compute(ir::Expr::Arg, ctxt);
     let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
     let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
     let arg1 = mk_compute(ir::Expr::Index(args, ctxt.one), ctxt);
     let val = mk_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg1)), ctxt);
@@ -69,12 +72,14 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     ];
     push_st(ir::Statement::If(is_fn, if_body, else_body), ctxt);
     
-    push_st(ir::Statement::Return(ret), ctxt);
+    push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
+    push_st(ir::Statement::Return, ctxt);
 }
 
 fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let arg = mk_compute(ir::Expr::Arg, ctxt);
     let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
+    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
     let args = mk_compute(ir::Expr::Index(arg, args_str), ctxt);
     let two = mk_num(2, ctxt);
 
@@ -89,13 +94,15 @@ fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     push_st(ir::Statement::Store(ret, ctxt.one, new_index), ctxt);
     push_st(ir::Statement::Store(ret, two, new_val), ctxt);
     
-    push_st(ir::Statement::Return(ret), ctxt);
+    push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
+    push_st(ir::Statement::Return, ctxt);
 }
 
 fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
     let args_str = mk_compute(ir::Expr::Str(String::from("args")), ctxt);
     let upvalues_str = mk_compute(ir::Expr::Str(String::from("upvalues")), ctxt);
     let call_str = mk_compute(ir::Expr::Str(String::from("call")), ctxt);
+    let retval_str = mk_compute(ir::Expr::Str(String::from("retval")), ctxt);
 
     let two = mk_num(2, ctxt);
     let three = mk_num(3, ctxt);
@@ -118,5 +125,6 @@ fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
     let nil_node = mk_compute(ir::Expr::Nil, ctxt);
     push_st(ir::Statement::Store(ret, three, nil_node), ctxt);
     
-    push_st(ir::Statement::Return(ret), ctxt);
+    push_st(ir::Statement::Store(arg, retval_str, ret), ctxt);
+    push_st(ir::Statement::Return, ctxt);
 }

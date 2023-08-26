@@ -92,13 +92,13 @@ impl Ctxt {
         unsafe { LLVMPointerType(self.value_t(), 0) }
     }
 
-    pub fn v2v_t(&mut self) -> LLVMTypeRef {
-        let mut args = [self.value_ptr_t(), self.value_ptr_t()];
+    pub fn v2void_t(&mut self) -> LLVMTypeRef {
+        let mut args = [self.value_ptr_t()];
         unsafe { LLVMFunctionType(self.void_t(), args.as_mut_ptr(), args.len() as _, 0) }
     }
 
-    pub fn v2v_ptr_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMPointerType(self.v2v_t(), 0) }
+    pub fn v2void_ptr_t(&mut self) -> LLVMTypeRef {
+        unsafe { LLVMPointerType(self.v2void_t(), 0) }
     }
 
     pub fn i8_t(&mut self) -> LLVMTypeRef {

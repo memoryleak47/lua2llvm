@@ -63,7 +63,7 @@ pub fn compile(ir: &IR) {
         // declare lit fns
         for fid in 0..ir.fns.len() {
             let name = format!("f{}\0", fid);
-            let function = LLVMAddFunction(ctxt.module, name.as_bytes().as_ptr() as *const _, ctxt.v2v_t());
+            let function = LLVMAddFunction(ctxt.module, name.as_bytes().as_ptr() as *const _, ctxt.v2void_t());
             ctxt.lit_fns.insert(fid, function);
         }
 

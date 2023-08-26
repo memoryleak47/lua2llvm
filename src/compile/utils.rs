@@ -94,7 +94,7 @@ pub fn extract_num(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef
     }
 }
 
-// f should be generated using LLVMAddFunction of type v2v_t.
+// f should be generated using LLVMAddFunction of type v2void_t.
 pub fn mk_fn(f: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         let val = LLVMBuildPtrToInt(ctxt.builder, f, ctxt.i64_t(), EMPTY);

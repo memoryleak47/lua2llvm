@@ -71,12 +71,6 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
                 call_extra_fn("table_get", &[t, i, out], ctxt);
                 load_val(out, ctxt)
             },
-            Expr::FnCall(f, arg) => {
-                let f = ctxt.nodes[f];
-                let arg = ctxt.nodes[arg];
-
-                fn_call(f, arg, ctxt)
-            }
             Expr::Arg => {
                 let fid = ctxt.current_fid;
                 let param = LLVMGetParam(ctxt.lit_fns[&fid], 0);
@@ -165,30 +159,5 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> LLVMValue
 
             mk_bool(x, ctxt)
         } else { unreachable!() }
-    }
-}
-
-fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* Value */ {
-    unsafe {
-        // check tag
-        let t = tag_err(f_val, Tag::FN, ctxt);
-        err_chk(t, "trying to call non-function!", ctxt);
-
-        // call fn
-        let f /* i64 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
-        let f /* Value (*fn)(Value) */ = LLVMBuildIntToPtr(ctxt.builder, f, ctxt.v2v_ptr_t(), EMPTY);
-
-        let out = alloc(ctxt);
-        let mut fargs = [alloc_val(arg, ctxt), out];
-        LLVMBuildCall2(
-            /*builder: */ ctxt.builder,
-            /*type: */ ctxt.v2v_t(),
-            /*Fn: */ f,
-            /*Args: */ fargs.as_mut_ptr(),
-            /*Num Args: */ fargs.len() as u32,
-            /*Name: */ EMPTY,
-        );
-
-        load_val(out, ctxt)
     }
 }
