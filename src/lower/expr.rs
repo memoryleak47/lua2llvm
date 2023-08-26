@@ -97,7 +97,8 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
                 ctxt.push_store(t, ctxt.one, r);
             });
 
-            ctxt.push_st(ir::Statement::If(l, if_body, vec![]));
+            let else_body = ctxt.empty_block();
+            ctxt.push_st(ir::Statement::If(l, if_body, else_body));
 
             return ctxt.push_compute(ir::Expr::Index(t, ctxt.one));
         },
@@ -105,12 +106,13 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
             let l: Node = lower_expr1(l, ctxt);
             let t = mk_table_with(l, ctxt);
 
+            let then_body = ctxt.empty_block();
             let else_body = ctxt.in_block(|ctxt| {
                 let r: Node = lower_expr1(r, ctxt);
                 ctxt.push_store(t, ctxt.one, r);
             });
 
-            ctxt.push_st(ir::Statement::If(l, vec![], else_body));
+            ctxt.push_st(ir::Statement::If(l, then_body, else_body));
 
             return ctxt.push_compute(ir::Expr::Index(t, ctxt.one));
         },
@@ -137,8 +139,9 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
                 let false_v = ctxt.push_compute(ir::Expr::Bool(false));
                 ctxt.push_store(t, ctxt.one, false_v);
             });
+            let else_body = ctxt.empty_block();
 
-            ctxt.push_st(ir::Statement::If(r, if_body, vec![]));
+            ctxt.push_st(ir::Statement::If(r, if_body, else_body));
 
             ir::Expr::Index(t, ctxt.one)
         },

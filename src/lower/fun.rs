@@ -49,7 +49,9 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
                     // if i > E_LEN: break
                     let i_node = ctxt.push_compute(ir::Expr::Index(i, ctxt.one));
                     let i_gt_e_len = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::Gt, i_node, e_len));
-                    ctxt.push_st(ir::Statement::If(i_gt_e_len, vec![ir::Statement::Break], vec![]));
+                    let then_body = ctxt.in_block(|ctxt| ctxt.push_st(ir::Statement::Break));
+                    let else_body = ctxt.empty_block();
+                    ctxt.push_st(ir::Statement::If(i_gt_e_len, then_body, else_body));
 
                     // n[i] = argtable[i+ARG_LEN]
                     let i_plus_arg_len = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::Plus, i_node, arg_len));

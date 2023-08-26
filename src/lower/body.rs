@@ -54,7 +54,9 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
             Statement::While(cond, body) => {
                 let body = ctxt.in_block(|ctxt| {
                     let cond = lower_expr1(cond, ctxt);
-                    ctxt.push_st(ir::Statement::If(cond, vec![], vec![ir::Statement::Break]));
+                    let then_body = ctxt.empty_block();
+                    let else_body = ctxt.in_block(|ctxt| ctxt.push_st(ir::Statement::Break));
+                    ctxt.push_st(ir::Statement::If(cond, then_body, else_body));
 
                     lower_body(body, ctxt);
                 });

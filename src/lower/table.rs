@@ -80,8 +80,10 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
             let i = ctxt.push_compute(ir::Expr::Index(i_var, ctxt.one));
             let cond = ir::Expr::BinOp(ir::BinOpKind::Gt, i, len);
             let cond = ctxt.push_compute(cond);
-            let brk = ir::Statement::Break;
-            ctxt.push_st(ir::Statement::If(cond, vec![brk], Vec::new()));
+
+            let then_body = ctxt.in_block(|ctxt| ctxt.push_st(ir::Statement::Break));
+            let else_body = ctxt.empty_block();
+            ctxt.push_st(ir::Statement::If(cond, then_body, else_body));
 
             // `t[i+orig_t_len] = val[i]`
             let r = ctxt.push_compute(ir::Expr::Index(val, i));

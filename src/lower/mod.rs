@@ -56,17 +56,17 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
     let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
     let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str));
 
-    let arg_call = mk_node(ctxt);
-    let ty_call = mk_node(ctxt);
-    let ty_call_is_fn = mk_node(ctxt);
+    let (if_body, arg_call) = ctxt.in_block_with(|ctxt| {
+        let arg_call = ctxt.push_compute(ir::Expr::Index(arg, call_str));  // arg["call"]
+        let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
+        let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, function_str)); // type(arg["call"]) == "function"
+        ctxt.push_store(t, ctxt.one, ty_call_is_fn); // t[1] = type(arg["call"]) == "function"
 
-    let if_body = vec![
-        ir::Statement::Compute(arg_call, ir::Expr::Index(arg, call_str)), // arg["call"]
-        ir::Statement::Compute(ty_call, ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call))), // type(arg["call"])
-        ir::Statement::Compute(ty_call_is_fn, ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, function_str)), // type(arg["call"]) == "function"
-        ir::Statement::Store(t, ctxt.one, ty_call_is_fn), // t[1] = type(arg["call"]) == "function"
-    ];
-    ctxt.push_st(ir::Statement::If(is_table, if_body, vec![]));
+        arg_call
+    });
+
+    let else_body = ctxt.empty_block();
+    ctxt.push_st(ir::Statement::If(is_table, if_body, else_body));
 
     let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one)); // return t[1]
 
@@ -85,17 +85,14 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
     let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, table_str));
 
-    let arg_call = mk_node(ctxt);
-    let ty_call = mk_node(ctxt);
-    let ty_call_is_fn = mk_node(ctxt);
-
-    let if_body = vec![
-        ir::Statement::Compute(arg_call, ir::Expr::Index(arg, call_str)), // arg["call"]
-        ir::Statement::Compute(ty_call, ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call))), // type(arg["call"])
-        ir::Statement::Compute(ty_call_is_fn, ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, function_str)), // type(arg["call"]) != "function"
-        ir::Statement::Store(t, ctxt.one, ty_call_is_fn), // t[1] = type(arg["call"]) != "function"
-    ];
-    ctxt.push_st(ir::Statement::If(is_table, if_body, vec![]));
+    let if_body = ctxt.in_block(|ctxt| {
+        let arg_call = ctxt.push_compute(ir::Expr::Index(arg, call_str));  // arg["call"]
+        let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
+        let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, function_str)); // type(arg["call"]) == "function"
+        ctxt.push_store(t, ctxt.one, ty_call_is_fn); // t[1] = type(arg["call"]) == "function"
+    });
+    let else_body = ctxt.empty_block();
+    ctxt.push_st(ir::Statement::If(is_table, if_body, else_body));
 
     let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one)); // return t[1]
 
@@ -103,22 +100,31 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
 }
 
 fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
-    let else_body = vec![
-        ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Throw(s.to_string())))
-    ];
-    ctxt.push_st(ir::Statement::If(n, vec![], else_body));
+    let else_body = ctxt.in_block(|ctxt| {
+        ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Throw(s.to_string())));
+    });
+    let then_body = ctxt.empty_block();
+    ctxt.push_st(ir::Statement::If(n, then_body, else_body));
 }
 
 impl Ctxt {
-    fn in_block(&mut self, f: impl FnOnce(&mut Ctxt)) -> Vec<ir::Statement> {
+    fn in_block_with<T>(&mut self, f: impl FnOnce(&mut Ctxt) -> T) -> (Vec<ir::Statement>, T) {
         self.locals.push(Default::default());
         let mut body = Vec::new();
         std::mem::swap(&mut self.body, &mut body);
-        f(self);
+        let t = f(self);
         std::mem::swap(&mut self.body, &mut body);
         self.locals.pop().unwrap();
 
-        body
+        (body, t)
+    }
+
+    fn in_block(&mut self, f: impl FnOnce(&mut Ctxt)) -> Vec<ir::Statement> {
+        self.in_block_with(f).0
+    }
+
+    fn empty_block(&mut self) -> Vec<ir::Statement> {
+        self.in_block(|_| ())
     }
 
     fn push_st(&mut self, st: ir::Statement) {

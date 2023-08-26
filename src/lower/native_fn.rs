@@ -37,12 +37,12 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let arg1 = ctxt.push_compute(ir::Expr::Index(args, ctxt.one));
     let (is_fn, call_node) = mk_fn_check(arg1, ctxt);
 
-    let if_body = vec![
-        ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Print(call_node)))
-    ];
-    let else_body = vec![
-        ir::Statement::Compute(mk_node(ctxt), ir::Expr::Intrinsic(ir::Intrinsic::Print(arg1)))
-    ];
+    let if_body = ctxt.in_block(|ctxt| {
+        ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Print(call_node)));
+    });
+    let else_body = ctxt.in_block(|ctxt| {
+        ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Print(arg1)));
+    });
     ctxt.push_st(ir::Statement::If(is_fn, if_body, else_body));
 
     let ret = mk_table(ctxt);
@@ -64,12 +64,12 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
 
     let ret = mk_table(ctxt);
     ctxt.push_store(ret, ctxt.zero, ctxt.one);
-    let if_body = vec![
-        ir::Statement::Store(ret, ctxt.one, function_str)
-    ];
-    let else_body = vec![
-        ir::Statement::Store(ret, ctxt.one, val)
-    ];
+    let if_body = ctxt.in_block(|ctxt| {
+        ctxt.push_store(ret, ctxt.one, function_str);
+    });
+    let else_body = ctxt.in_block(|ctxt| {
+        ctxt.push_store(ret, ctxt.one, val);
+    });
     ctxt.push_st(ir::Statement::If(is_fn, if_body, else_body));
     
     ctxt.push_store(arg, retval_str, ret);
