@@ -48,7 +48,7 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
 
     ctxt.set_active_block(post_bid);
     let ret = mk_table(ctxt);
-    ctxt.push_store(ret, ctxt.zero(), ctxt.zero());
+    ctxt.push_store(ret, ctxt.fcx().count_str, ctxt.zero());
     ctxt.push_store(arg, ctxt.fcx().retval_str, ret);
 }
 
@@ -60,7 +60,7 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let (is_fn, _) = mk_fn_check(arg1, ctxt);
 
     let ret = mk_table(ctxt);
-    ctxt.push_store(ret, ctxt.zero(), ctxt.one());
+    ctxt.push_store(ret, ctxt.fcx().count_str, ctxt.one());
 
     let then_bid = ctxt.alloc_block();
     let else_bid = ctxt.alloc_block();
@@ -92,7 +92,7 @@ fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let new_val = ctxt.push_compute(ir::Expr::Index(arg1, new_index));
 
     let ret = mk_table(ctxt);
-    ctxt.push_store(ret, ctxt.zero(), two);
+    ctxt.push_store(ret, ctxt.fcx().count_str, two);
     ctxt.push_store(ret, ctxt.one(), new_index);
     ctxt.push_store(ret, two, new_val);
     
@@ -115,7 +115,7 @@ fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
     ctxt.push_store(next_table, ctxt.fcx().call_str, next_fn);
 
     let ret = mk_table(ctxt);
-    ctxt.push_store(ret, ctxt.zero(), three);
+    ctxt.push_store(ret, ctxt.fcx().count_str, three);
 
     ctxt.push_store(ret, ctxt.one(), next_table);
     ctxt.push_store(ret, two, arg1);

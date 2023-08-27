@@ -45,6 +45,7 @@ struct FnCtxt {
     args_str: Node,
     table_str: Node,
     function_str: Node,
+    count_str: Node,
 
     // typically block 0, used to initialize zero & one, and other things.
     init_block: Node,

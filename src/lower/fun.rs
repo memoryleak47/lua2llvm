@@ -24,10 +24,10 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
 
             if *variadic == Variadic::Yes {
                 // ARG_LEN = args.len()
-                // ARGT_LEN = argtable[0]
+                // ARGT_LEN = argtable["count"]
                 // E_LEN = ARGT_LEN - ARG_LEN -- length of ellipsis `...`
                 // n = {}
-                // n[0] <- E_LEN
+                // n["count"] <- E_LEN
                 // i = 1
                 // loop {
                 //   if i > E_LEN: break
@@ -35,10 +35,10 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
                 //   i = i + 1
                 // }
                 let arg_len = mk_num(args.len() as f64, ctxt);
-                let argt_len = ctxt.push_compute(ir::Expr::Index(argtable, ctxt.zero()));
+                let argt_len = ctxt.push_compute(ir::Expr::Index(argtable, ctxt.fcx().count_str));
                 let e_len = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::Minus, argt_len, arg_len));
                 let n = mk_table(ctxt);
-                ctxt.push_store(n, ctxt.zero(), e_len);
+                ctxt.push_store(n, ctxt.fcx().count_str, e_len);
 
                 let i = mk_table_with(ctxt.one(), ctxt);
 
@@ -77,7 +77,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
         // add `return` if missing
         if ctxt.fcx().active_block.is_some() {
             let t = mk_table(ctxt);
-            ctxt.push_store(t, ctxt.zero(), ctxt.zero());
+            ctxt.push_store(t, ctxt.fcx().count_str, ctxt.zero());
             lower_return(t, ctxt);
         }
 
@@ -112,6 +112,7 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
         args_str: usize::MAX,
         table_str: usize::MAX,
         function_str: usize::MAX,
+        count_str: usize::MAX,
         active_block: Some(0),
         init_block: 0,
         fn_id: fid,
@@ -128,6 +129,7 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
     ctxt.fcx_mut().args_str = mk_str("args", ctxt);
     ctxt.fcx_mut().table_str = mk_str("table", ctxt);
     ctxt.fcx_mut().function_str = mk_str("function", ctxt);
+    ctxt.fcx_mut().count_str = mk_str("count", ctxt);
 
     let post_init_block = ctxt.alloc_block();
     ctxt.push_goto(post_init_block);
