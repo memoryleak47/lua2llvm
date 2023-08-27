@@ -102,9 +102,8 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
 pub(in crate::lower) fn lower_return(/*the table we want to return*/ ret: Node, ctxt: &mut Ctxt) {
     if !ctxt.is_main() {
-        let retval_str = ctxt.push_compute(ir::Expr::Str("retval".to_string()));
         let arg = ctxt.push_compute(ir::Expr::Arg);
-        ctxt.push_store(arg, retval_str, ret);
+        ctxt.push_store(arg, ctxt.fcx().retval_str, ret);
     }
 
     ctxt.fcx_mut().active_block = None;

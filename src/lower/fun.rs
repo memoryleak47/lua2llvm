@@ -10,8 +10,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
         if !args.is_empty() || *variadic == Variadic::Yes {
             // function args
             let arg = ctxt.push_compute(ir::Expr::Arg);
-            let args_str = ctxt.push_compute(ir::Expr::Str("args".to_string()));
-            let argtable = ctxt.push_compute(ir::Expr::Index(arg, args_str));
+            let argtable = ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().args_str));
 
             for (i, arg) in args.iter().enumerate() {
                 let t = mk_table(ctxt);
@@ -107,6 +106,12 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
         ellipsis_node: None,
         zero: usize::MAX,
         one: usize::MAX,
+        retval_str: usize::MAX,
+        call_str: usize::MAX,
+        upvalues_str: usize::MAX,
+        args_str: usize::MAX,
+        table_str: usize::MAX,
+        function_str: usize::MAX,
         active_block: Some(0),
         init_block: 0,
         fn_id: fid,
@@ -117,6 +122,12 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
     // currently active block = init_block
     ctxt.fcx_mut().zero = mk_num(0.0, ctxt);
     ctxt.fcx_mut().one = mk_num(1.0, ctxt);
+    ctxt.fcx_mut().retval_str = mk_str("retval", ctxt);
+    ctxt.fcx_mut().call_str = mk_str("call", ctxt);
+    ctxt.fcx_mut().upvalues_str = mk_str("upvalues", ctxt);
+    ctxt.fcx_mut().args_str = mk_str("args", ctxt);
+    ctxt.fcx_mut().table_str = mk_str("table", ctxt);
+    ctxt.fcx_mut().function_str = mk_str("function", ctxt);
 
     let post_init_block = ctxt.alloc_block();
     ctxt.push_goto(post_init_block);
@@ -131,28 +142,23 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
 
 // result is always tabled = true.
 pub(in crate::lower) fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> Node {
-    let call_str = ctxt.push_compute(ir::Expr::Str(String::from("call")));
-    let upvalues_str = ctxt.push_compute(ir::Expr::Str(String::from("upvalues")));
-    let args_str = ctxt.push_compute(ir::Expr::Str(String::from("args")));
-    let retval_str = ctxt.push_compute(ir::Expr::Str(String::from("retval")));
-
     match call {
         // f(x, y, z) --> f["call"]({"upvalues": f["upvalues"], "args": {[0]=3, x, y, z}})
         FunctionCall::Direct(f, args) => {
             let f = lower_expr1(f, ctxt);
-            let f_call = ctxt.push_compute(ir::Expr::Index(f, call_str));
+            let f_call = ctxt.push_compute(ir::Expr::Index(f, ctxt.fcx().call_str));
 
             let arg = mk_table(ctxt);
 
             let args = table_wrap_exprlist(args, None, ctxt);
-            ctxt.push_store(arg, args_str, args);
+            ctxt.push_store(arg, ctxt.fcx().args_str, args);
 
-            let upvalues = ctxt.push_compute(ir::Expr::Index(f, upvalues_str));
-            ctxt.push_store(arg, upvalues_str, upvalues);
+            let upvalues = ctxt.push_compute(ir::Expr::Index(f, ctxt.fcx().upvalues_str));
+            ctxt.push_store(arg, ctxt.fcx().upvalues_str, upvalues);
 
             ctxt.push_st(ir::Statement::FnCall(f_call, arg));
 
-            ctxt.push_compute(ir::Expr::Index(arg, retval_str))
+            ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().retval_str))
         },
         // obj:f(x, y, z) --> t[idx]["call"]({"upvalues": t[idx]["upvalues"], "args": {[0]=4, obj, x, y, z}})
         FunctionCall::Colon(t, idx, args) => {
@@ -162,18 +168,18 @@ pub(in crate::lower) fn lower_fn_call(call: &FunctionCall, ctxt: &mut Ctxt) -> N
             let idx = ctxt.push_compute(idx);
 
             let f = ctxt.push_compute(ir::Expr::Index(t, idx));
-            let f_call = ctxt.push_compute(ir::Expr::Index(f, call_str));
+            let f_call = ctxt.push_compute(ir::Expr::Index(f, ctxt.fcx().call_str));
 
             let arg = mk_table(ctxt);
 
             let args = table_wrap_exprlist(args, Some(t), ctxt);
-            ctxt.push_store(arg, args_str, args);
+            ctxt.push_store(arg, ctxt.fcx().args_str, args);
 
-            let upvalues = ctxt.push_compute(ir::Expr::Index(f, upvalues_str));
-            ctxt.push_store(arg, upvalues_str, upvalues);
+            let upvalues = ctxt.push_compute(ir::Expr::Index(f, ctxt.fcx().upvalues_str));
+            ctxt.push_store(arg, ctxt.fcx().upvalues_str, upvalues);
 
             ctxt.push_st(ir::Statement::FnCall(f_call, arg));
-            ctxt.push_compute(ir::Expr::Index(arg, retval_str))
+            ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().retval_str))
         },
     }
 }

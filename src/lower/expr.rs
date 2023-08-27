@@ -25,15 +25,12 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
             ctxt.fcx().ellipsis_node.expect("lowering `...` in non-variadic function!")
         },
         Expr::Literal(Literal::Function(args, variadic, body)) => {
-            let call_str = ctxt.push_compute(ir::Expr::Str(String::from("call")));
-            let upvalues_str = ctxt.push_compute(ir::Expr::Str(String::from("upvalues")));
-
             let (fid, upvalue_idents) = lower_fn(args, variadic, body, false, ctxt);
 
             let n = mk_table(ctxt);
 
             let call = ctxt.push_compute(ir::Expr::LitFunction(fid));
-            ctxt.push_store(n, call_str, call);
+            ctxt.push_store(n, ctxt.fcx().call_str, call);
 
             let upvalues = mk_table(ctxt);
             for u in &upvalue_idents {
@@ -41,7 +38,7 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
                 let n = locate_ident(u, ctxt);
                 ctxt.push_store(upvalues, upvalue_ident, n);
             }
-            ctxt.push_store(n, upvalues_str, upvalues);
+            ctxt.push_store(n, ctxt.fcx().upvalues_str, upvalues);
 
             n
         },
@@ -179,8 +176,7 @@ pub(in crate::lower) fn locate_ident(s: &str, ctxt: &mut Ctxt) -> Node {
             ctxt.push_compute(ir::Expr::NewTable)
         } else {
             let arg = ctxt.push_compute(ir::Expr::Arg);
-            let upvalues_str = ctxt.push_compute(ir::Expr::Str("upvalues".to_string()));
-            let upvalues_table = ctxt.push_compute(ir::Expr::Index(arg, upvalues_str));
+            let upvalues_table = ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().upvalues_str));
             let upvalue_ident = ctxt.push_compute(ir::Expr::Str(s.to_string()));
 
             ctxt.push_compute(ir::Expr::Index(upvalues_table, upvalue_ident))
