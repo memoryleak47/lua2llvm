@@ -50,7 +50,7 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 let mut lvalues: Vec<(Node, Node)> = Vec::new();
                 for _ in vars.iter() {
                     let n = mk_table(ctxt);
-                    lvalues.push((n, ctxt.fcx().inner_str));
+                    lvalues.push((n, ctxt.inner_str()));
                 }
                 lower_assign(&lvalues, exprs, ctxt);
                 let map: &mut HashMap<_, _> = ctxt.fcx_mut().locals.last_mut().unwrap();
@@ -103,7 +103,7 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 pub(in crate::lower) fn lower_return(/*the table we want to return*/ ret: Node, ctxt: &mut Ctxt) {
     if !ctxt.is_main() {
         let arg = ctxt.push_compute(ir::Expr::Arg);
-        ctxt.push_store(arg, ctxt.fcx().retval_str, ret);
+        ctxt.push_store(arg, ctxt.retval_str(), ret);
     }
 
     ctxt.fcx_mut().active_block = None;

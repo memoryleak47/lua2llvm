@@ -130,6 +130,14 @@ impl Ctxt {
 
     fn zero(&self) -> Node { self.fcx().zero }
     fn one(&self) -> Node { self.fcx().one }
+    fn retval_str(&self) -> Node { self.fcx().retval_str }
+    fn call_str(&self) -> Node { self.fcx().call_str }
+    fn upvalues_str(&self) -> Node { self.fcx().upvalues_str }
+    fn args_str(&self) -> Node { self.fcx().args_str }
+    fn table_str(&self) -> Node { self.fcx().table_str }
+    fn function_str(&self) -> Node { self.fcx().function_str }
+    fn count_str(&self) -> Node { self.fcx().count_str }
+    fn inner_str(&self) -> Node { self.fcx().inner_str }
 
     // add a few things to the init block.
     // This temporarily removes the `If` leading away from the init block.
@@ -175,7 +183,7 @@ fn mk_table(ctxt: &mut Ctxt) -> Node {
 
 fn mk_table_with(val: Node, ctxt: &mut Ctxt) -> Node {
     let n = mk_table(ctxt);
-    ctxt.push_store(n, ctxt.fcx().inner_str, val);
+    ctxt.push_store(n, ctxt.inner_str(), val);
 
     n
 }
@@ -194,7 +202,7 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
     let t = mk_table_with(ctxt.push_compute(ir::Expr::Bool(false)), ctxt);
 
     let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
-    let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, ctxt.fcx().table_str));
+    let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, ctxt.table_str()));
 
     let then_body = ctxt.alloc_block();
     let post_body = ctxt.alloc_block();
@@ -202,15 +210,15 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
     ctxt.push_if(is_table, then_body, post_body);
 
     ctxt.set_active_block(then_body);
-    let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().call_str));  // arg["call"]
+    let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.call_str()));  // arg["call"]
     let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
-    let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, ctxt.fcx().function_str)); // type(arg["call"]) == "function"
-    ctxt.push_store(t, ctxt.fcx().inner_str, ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
+    let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, ctxt.function_str())); // type(arg["call"]) == "function"
+    ctxt.push_store(t, ctxt.inner_str(), ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
     ctxt.push_goto(post_body);
 
     ctxt.set_active_block(post_body);
 
-    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.fcx().inner_str)); // return t["inner"]
+    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.inner_str())); // return t["inner"]
 
     (bool_node, arg_call)
 }
@@ -221,7 +229,7 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     let t = mk_table_with(ctxt.push_compute(ir::Expr::Bool(false)), ctxt);
 
     let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
-    let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, ctxt.fcx().table_str));
+    let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, ctxt.table_str()));
 
     let then_body = ctxt.alloc_block();
     let post_body = ctxt.alloc_block();
@@ -229,14 +237,14 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     ctxt.push_if(is_table, then_body, post_body);
 
     ctxt.set_active_block(then_body);
-    let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().call_str));  // arg["call"]
+    let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.call_str()));  // arg["call"]
     let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
-    let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, ctxt.fcx().function_str)); // type(arg["call"]) == "function"
-    ctxt.push_store(t, ctxt.fcx().inner_str, ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
+    let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, ctxt.function_str())); // type(arg["call"]) == "function"
+    ctxt.push_store(t, ctxt.inner_str(), ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
     ctxt.push_goto(post_body);
 
     ctxt.set_active_block(post_body);
-    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.fcx().inner_str)); // return t["inner"]
+    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.inner_str())); // return t["inner"]
 
     bool_node
 }

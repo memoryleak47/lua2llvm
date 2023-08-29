@@ -16,7 +16,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
             Some(_) => ctxt.one(),
             None => ctxt.zero(),
         };
-        ctxt.push_store(t, ctxt.fcx().count_str, len);
+        ctxt.push_store(t, ctxt.count_str(), len);
         return t;
     }
 
@@ -68,7 +68,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         let orig_t_len = mk_num((counter-1) as f64, ctxt);
 
         // `len = val["count"]`
-        let len = ctxt.push_compute(ir::Expr::Index(val, ctxt.fcx().count_str));
+        let len = ctxt.push_compute(ir::Expr::Index(val, ctxt.count_str()));
 
         // `local i = 1`
         let i_var = mk_table_with(ctxt.one(), ctxt);
@@ -84,7 +84,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
 
         // `loop {`
         // `if i > len: break`
-        let i = ctxt.push_compute(ir::Expr::Index(i_var, ctxt.fcx().inner_str));
+        let i = ctxt.push_compute(ir::Expr::Index(i_var, ctxt.inner_str()));
         let cond = ir::Expr::BinOp(ir::BinOpKind::Gt, i, len);
         let cond = ctxt.push_compute(cond);
         ctxt.push_if(cond, loop_end_bid, loop_body_bid);
@@ -101,7 +101,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         // `i = i + 1`
         let r = ir::Expr::BinOp(ir::BinOpKind::Plus, i, ctxt.one());
         let r = ctxt.push_compute(r);
-        ctxt.push_store(i_var, ctxt.fcx().inner_str, r);
+        ctxt.push_store(i_var, ctxt.inner_str(), r);
         ctxt.push_goto(loop_start_bid);
 
         // `}`
@@ -111,13 +111,13 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
 
         if calc_length {
             // `outlength = i + (orig_t_len - 1)`
-            let i = ir::Expr::Index(i_var, ctxt.fcx().inner_str);
+            let i = ir::Expr::Index(i_var, ctxt.inner_str());
             let i = ctxt.push_compute(i);
 
             let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, mk_num(counter as f64 - 2.0, ctxt));
             let x = ctxt.push_compute(x);
 
-            ctxt.push_store(t, ctxt.fcx().count_str, x);
+            ctxt.push_store(t, ctxt.count_str(), x);
         }
     } else {
         let idx = mk_num(counter as f64, ctxt);
@@ -125,7 +125,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
 
         if calc_length {
             let len = idx; // length of array is the same as the highest index.
-            ctxt.push_store(t, ctxt.fcx().count_str, len);
+            ctxt.push_store(t, ctxt.count_str(), len);
         }
     }
 }

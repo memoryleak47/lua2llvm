@@ -30,7 +30,7 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
             let n = mk_table(ctxt);
 
             let call = ctxt.push_compute(ir::Expr::LitFunction(fid));
-            ctxt.push_store(n, ctxt.fcx().call_str, call);
+            ctxt.push_store(n, ctxt.call_str(), call);
 
             let upvalues = mk_table(ctxt);
             for u in &upvalue_idents {
@@ -38,7 +38,7 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
                 let n = locate_ident(u, ctxt);
                 ctxt.push_store(upvalues, upvalue_ident, n);
             }
-            ctxt.push_store(n, ctxt.fcx().upvalues_str, upvalues);
+            ctxt.push_store(n, ctxt.upvalues_str(), upvalues);
 
             n
         },
@@ -96,12 +96,12 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             ctxt.set_active_block(then_bid);
             let r: Node = lower_expr1(r, ctxt);
-            ctxt.push_store(t, ctxt.fcx().inner_str, r);
+            ctxt.push_store(t, ctxt.inner_str(), r);
             ctxt.push_goto(post_bid);
 
             ctxt.set_active_block(post_bid);
 
-            return ctxt.push_compute(ir::Expr::Index(t, ctxt.fcx().inner_str));
+            return ctxt.push_compute(ir::Expr::Index(t, ctxt.inner_str()));
         },
         BinOpKind::Or => {
             let l: Node = lower_expr1(l, ctxt);
@@ -114,12 +114,12 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             ctxt.set_active_block(else_bid);
             let r: Node = lower_expr1(r, ctxt);
-            ctxt.push_store(t, ctxt.fcx().inner_str, r);
+            ctxt.push_store(t, ctxt.inner_str(), r);
             ctxt.push_goto(post_bid);
 
             ctxt.set_active_block(post_bid);
 
-            return ctxt.push_compute(ir::Expr::Index(t, ctxt.fcx().inner_str));
+            return ctxt.push_compute(ir::Expr::Index(t, ctxt.inner_str()));
         },
     };
 
@@ -147,12 +147,12 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             ctxt.set_active_block(then_bid);
             let false_v = ctxt.push_compute(ir::Expr::Bool(false));
-            ctxt.push_store(t, ctxt.fcx().inner_str, false_v);
+            ctxt.push_store(t, ctxt.inner_str(), false_v);
             ctxt.push_goto(post_bid);
 
             ctxt.set_active_block(post_bid);
 
-            ir::Expr::Index(t, ctxt.fcx().inner_str)
+            ir::Expr::Index(t, ctxt.inner_str())
         },
     };
 
@@ -176,7 +176,7 @@ pub(in crate::lower) fn locate_ident(s: &str, ctxt: &mut Ctxt) -> Node {
             ctxt.push_compute(ir::Expr::NewTable)
         } else {
             let arg = ctxt.push_compute(ir::Expr::Arg);
-            let upvalues_table = ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().upvalues_str));
+            let upvalues_table = ctxt.push_compute(ir::Expr::Index(arg, ctxt.upvalues_str()));
             let upvalue_ident = ctxt.push_compute(ir::Expr::Str(s.to_string()));
 
             ctxt.push_compute(ir::Expr::Index(upvalues_table, upvalue_ident))
@@ -193,7 +193,7 @@ pub(in crate::lower) fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> (/*tab
     match lvalue {
         LValue::Var(s) => {
             let n = locate_ident(s, ctxt);
-            return (n, ctxt.fcx().inner_str);
+            return (n, ctxt.inner_str());
         },
         LValue::Dot(expr, field) => {
             let l = lower_expr1(expr, ctxt);
