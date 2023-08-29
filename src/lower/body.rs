@@ -50,7 +50,7 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
                 let mut lvalues: Vec<(Node, Node)> = Vec::new();
                 for _ in vars.iter() {
                     let n = mk_table(ctxt);
-                    lvalues.push((n, ctxt.one()));
+                    lvalues.push((n, ctxt.fcx().inner_str));
                 }
                 lower_assign(&lvalues, exprs, ctxt);
                 let map: &mut HashMap<_, _> = ctxt.fcx_mut().locals.last_mut().unwrap();

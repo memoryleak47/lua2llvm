@@ -17,7 +17,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
                 // lua tables start with 1, not 0.
                 let i = mk_num((i+1) as f64, ctxt);
                 let val = ctxt.push_compute(ir::Expr::Index(argtable, i));
-                ctxt.push_store(t, ctxt.one(), val);
+                ctxt.push_store(t, ctxt.fcx().inner_str, val);
 
                 ctxt.fcx_mut().locals.last_mut().unwrap().insert(arg.clone(), t);
             }
@@ -50,7 +50,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
                 ctxt.set_active_block(loop_start);
 
                 // if i > E_LEN: break
-                let i_node = ctxt.push_compute(ir::Expr::Index(i, ctxt.one()));
+                let i_node = ctxt.push_compute(ir::Expr::Index(i, ctxt.fcx().inner_str));
                 let i_gt_e_len = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::Gt, i_node, e_len));
                 ctxt.push_if(i_gt_e_len, loop_post, loop_body);
 
@@ -63,7 +63,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
 
                 // i = i+1
                 let i_plus_one = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::Plus, i_node, ctxt.one()));
-                ctxt.push_store(i, ctxt.one(), i_plus_one);
+                ctxt.push_store(i, ctxt.fcx().inner_str, i_plus_one);
                 ctxt.push_goto(loop_start);
 
                 ctxt.set_active_block(loop_post);
@@ -113,6 +113,7 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
         table_str: usize::MAX,
         function_str: usize::MAX,
         count_str: usize::MAX,
+        inner_str: usize::MAX,
         active_block: Some(0),
         init_block: 0,
         fn_id: fid,
@@ -130,6 +131,7 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
     ctxt.fcx_mut().table_str = mk_str("table", ctxt);
     ctxt.fcx_mut().function_str = mk_str("function", ctxt);
     ctxt.fcx_mut().count_str = mk_str("count", ctxt);
+    ctxt.fcx_mut().inner_str = mk_str("inner", ctxt);
 
     let post_init_block = ctxt.alloc_block();
     ctxt.push_goto(post_init_block);

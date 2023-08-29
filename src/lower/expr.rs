@@ -96,12 +96,12 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             ctxt.set_active_block(then_bid);
             let r: Node = lower_expr1(r, ctxt);
-            ctxt.push_store(t, ctxt.one(), r);
+            ctxt.push_store(t, ctxt.fcx().inner_str, r);
             ctxt.push_goto(post_bid);
 
             ctxt.set_active_block(post_bid);
 
-            return ctxt.push_compute(ir::Expr::Index(t, ctxt.one()));
+            return ctxt.push_compute(ir::Expr::Index(t, ctxt.fcx().inner_str));
         },
         BinOpKind::Or => {
             let l: Node = lower_expr1(l, ctxt);
@@ -114,12 +114,12 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             ctxt.set_active_block(else_bid);
             let r: Node = lower_expr1(r, ctxt);
-            ctxt.push_store(t, ctxt.one(), r);
+            ctxt.push_store(t, ctxt.fcx().inner_str, r);
             ctxt.push_goto(post_bid);
 
             ctxt.set_active_block(post_bid);
 
-            return ctxt.push_compute(ir::Expr::Index(t, ctxt.one()));
+            return ctxt.push_compute(ir::Expr::Index(t, ctxt.fcx().inner_str));
         },
     };
 
@@ -147,12 +147,12 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             ctxt.set_active_block(then_bid);
             let false_v = ctxt.push_compute(ir::Expr::Bool(false));
-            ctxt.push_store(t, ctxt.one(), false_v);
+            ctxt.push_store(t, ctxt.fcx().inner_str, false_v);
             ctxt.push_goto(post_bid);
 
             ctxt.set_active_block(post_bid);
 
-            ir::Expr::Index(t, ctxt.one())
+            ir::Expr::Index(t, ctxt.fcx().inner_str)
         },
     };
 
@@ -193,7 +193,7 @@ pub(in crate::lower) fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> (/*tab
     match lvalue {
         LValue::Var(s) => {
             let n = locate_ident(s, ctxt);
-            return (n, ctxt.one());
+            return (n, ctxt.fcx().inner_str);
         },
         LValue::Dot(expr, field) => {
             let l = lower_expr1(expr, ctxt);

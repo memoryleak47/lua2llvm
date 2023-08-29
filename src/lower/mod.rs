@@ -46,6 +46,7 @@ struct FnCtxt {
     table_str: Node,
     function_str: Node,
     count_str: Node,
+    inner_str: Node,
 
     // typically block 0, used to initialize zero & one, and other things.
     init_block: Node,
@@ -174,7 +175,7 @@ fn mk_table(ctxt: &mut Ctxt) -> Node {
 
 fn mk_table_with(val: Node, ctxt: &mut Ctxt) -> Node {
     let n = mk_table(ctxt);
-    ctxt.push_store(n, ctxt.one(), val);
+    ctxt.push_store(n, ctxt.fcx().inner_str, val);
 
     n
 }
@@ -204,12 +205,12 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
     let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().call_str));  // arg["call"]
     let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
     let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, ctxt.fcx().function_str)); // type(arg["call"]) == "function"
-    ctxt.push_store(t, ctxt.one(), ty_call_is_fn); // t[1] = type(arg["call"]) == "function"
+    ctxt.push_store(t, ctxt.fcx().inner_str, ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
     ctxt.push_goto(post_body);
 
     ctxt.set_active_block(post_body);
 
-    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one())); // return t[1]
+    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.fcx().inner_str)); // return t["inner"]
 
     (bool_node, arg_call)
 }
@@ -231,11 +232,11 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.fcx().call_str));  // arg["call"]
     let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
     let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, ctxt.fcx().function_str)); // type(arg["call"]) == "function"
-    ctxt.push_store(t, ctxt.one(), ty_call_is_fn); // t[1] = type(arg["call"]) == "function"
+    ctxt.push_store(t, ctxt.fcx().inner_str, ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
     ctxt.push_goto(post_body);
 
     ctxt.set_active_block(post_body);
-    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.one())); // return t[1]
+    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.fcx().inner_str)); // return t["inner"]
 
     bool_node
 }
