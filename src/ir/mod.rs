@@ -29,6 +29,13 @@ pub enum Statement {
     Store(/*table: */ Node, /*index: */ Node, Node), // store the value from the Node in the table `table` at index `index`.
     If(Node, /*then*/ BlockId, /*else*/ BlockId),
     FnCall(/*func: */ Node, /* arg: */ Node),
+    Command(Command),
+}
+
+#[derive(Debug, Clone)]
+pub enum Command {
+    Print(Node),
+    Throw(String),
 }
 
 #[derive(Debug, Clone)]
@@ -53,8 +60,6 @@ pub enum Expr {
 pub enum Intrinsic {
     Next(Node, Node),
     Type(Node),
-    Print(Node),
-    Throw(String),
 }
 
 pub type Block = Vec<Statement>;

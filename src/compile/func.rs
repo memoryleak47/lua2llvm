@@ -31,10 +31,27 @@ fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMBasicBlo
 
                     fn_call(f, arg, ctxt);
                 }
+                Statement::Command(cmd) => compile_command(cmd, ctxt),
             }
         }
 
         LLVMBuildRetVoid(ctxt.builder);
+    }
+}
+
+fn compile_command(cmd: &Command, ctxt: &mut Ctxt) {
+    unsafe {
+        match cmd {
+            Command::Print(var) => {
+                let t = alloc_val(ctxt.nodes[var], ctxt);
+                call_extra_fn("print", &[t], ctxt);
+            },
+            Command::Throw(s) => {
+                let s = format!("{}\0", s);
+                let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
+                call_extra_fn("throw_", &[s], ctxt);
+            },
+        }
     }
 }
 

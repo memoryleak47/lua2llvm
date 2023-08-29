@@ -1,4 +1,4 @@
-use crate::ir::{self, IR, FnId, Statement, Expr, BinOpKind, Node, BlockId};
+use crate::ir::{self, IR, FnId, Statement, Expr, BinOpKind, Node, BlockId, Command};
 use std::fmt::{self, Display, Formatter};
 use std::collections::HashMap;
 
@@ -47,7 +47,7 @@ fn display_fn(id: FnId, is_main: bool, ir: &IR, f: &mut Formatter<'_>) -> fmt::R
         } else {
             write!(f, "  block b{bid}:\n")?;
         }
-        display_block(blk, 4, ir, &mut const_nodes, f)?;
+        display_block(blk, 4, &mut const_nodes, f)?;
     }
 
     write!(f, "end\n\n")?;
@@ -55,15 +55,15 @@ fn display_fn(id: FnId, is_main: bool, ir: &IR, f: &mut Formatter<'_>) -> fmt::R
     Ok(())
 }
 
-fn display_block(statements: &[Statement], tabs: usize, ir: &IR, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
+fn display_block(statements: &[Statement], tabs: usize, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
     for st in statements {
-        display_statement(st, tabs, ir, const_nodes, f)?;
+        display_statement(st, tabs, const_nodes, f)?;
     }
 
     Ok(())
 }
 
-fn display_statement(st: &Statement, tabs: usize, _ir: &IR, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
+fn display_statement(st: &Statement, tabs: usize, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
     use Statement::*;
 
     if let Compute(n, e) = st {
@@ -95,9 +95,17 @@ fn display_statement(st: &Statement, tabs: usize, _ir: &IR, const_nodes: &mut Co
             write!(f, "if {cond} then {then} else {else_}", )?;
         },
         FnCall(n, t) => write!(f, "{}({})", node_string(*n, const_nodes), node_string(*t, const_nodes))?,
+        Command(cmd) => display_command(cmd, const_nodes, f)?,
     }
 
     write!(f, ";\n")
+}
+
+fn display_command(cmd: &Command, const_nodes: &mut ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
+    match cmd {
+        ir::Command::Print(v) => write!(f, "print({})", node_string(*v, const_nodes)),
+        ir::Command::Throw(s) => write!(f, "throw('{s}')"),
+    }
 }
 
 fn display_binop(kind: &BinOpKind) -> &'static str {
@@ -121,10 +129,8 @@ fn display_binop(kind: &BinOpKind) -> &'static str {
 
 fn display_intrinsic(intrinsic: &ir::Intrinsic, const_nodes: &ConstNodes, f: &mut Formatter<'_>) -> fmt::Result {
     match intrinsic {
-        ir::Intrinsic::Print(v) => write!(f, "print({})", node_string(*v, const_nodes))?,
         ir::Intrinsic::Type(v) => write!(f, "type({})", node_string(*v, const_nodes))?,
         ir::Intrinsic::Next(v1, v2) => write!(f, "next({}, {})", node_string(*v1, const_nodes), node_string(*v2, const_nodes))?,
-        ir::Intrinsic::Throw(s) => write!(f, "throw('{s}')")?,
     }
 
     Ok(())

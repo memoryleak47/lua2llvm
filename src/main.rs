@@ -25,7 +25,7 @@ fn test_ir() -> ir::IR {
     use ir::*;
 
     let block = vec![
-        Statement::Compute(0, Expr::Intrinsic(Intrinsic::Throw("ok".to_string()))),
+        Statement::Compute(0, Expr::NewTable),
     ];
 
     let f = LitFunction {

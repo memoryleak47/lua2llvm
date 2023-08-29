@@ -115,6 +115,10 @@ impl Ctxt {
         node
     }
 
+    fn push_command(&mut self, cmd: ir::Command) {
+        self.push_st(ir::Statement::Command(cmd));
+    }
+
     fn push_store(&mut self, table: Node, index: Node, val: Node) {
         self.push_st(ir::Statement::Store(table, index, val));
     }
@@ -256,7 +260,7 @@ fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
     ctxt.push_if(n, post_body, else_body);
 
     ctxt.set_active_block(else_body);
-    ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Throw(s.to_string())));
+    ctxt.push_command(ir::Command::Throw(s.to_string()));
 
     ctxt.set_active_block(post_body);
 }

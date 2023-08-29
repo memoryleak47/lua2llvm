@@ -1,4 +1,4 @@
-use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, Intrinsic, BlockId, Node};
+use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, Intrinsic, BlockId, Node, Command};
 
 use std::collections::HashMap;
 
@@ -99,9 +99,9 @@ struct TableData {
     length: usize,
 }
 
-fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
-    match intrinsic {
-        Intrinsic::Print(n) => {
+fn exec_command(cmd: &Command, ctxt: &mut Ctxt) {
+    match cmd {
+        Command::Print(n) => {
             let val = &ctxt.fcx().nodes[n];
             match val {
                 Value::Nil => println!("nil"),
@@ -111,9 +111,17 @@ fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
                 Value::LitFn(fid) => println!("function: {}", fid),
                 Value::Num(x) => println!("{}", x),
             }
-
-            Value::Nil
         }
+        Command::Throw(s) => {
+            // TODO only terminate this execution, not our whole Rust program.
+            println!("ERROR: {}", s);
+            std::process::exit(0);
+        }
+    }
+}
+
+fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
+    match intrinsic {
         Intrinsic::Next(v1, v2) => {
             let v1 = &ctxt.fcx().nodes[v1];
             let Value::TablePtr(v1_) = v1 else { panic!("calling next onto non-table!") };
@@ -134,11 +142,6 @@ fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
             };
 
             Value::Str(s.to_string())
-        }
-        Intrinsic::Throw(s) => {
-            // TODO only terminate this execution, not our whole Rust program.
-            println!("ERROR: {}", s);
-            std::process::exit(0);
         }
     }
 }
@@ -266,6 +269,7 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
                 v => panic!("trying to execute non-function value! {:?}", v),
             };
         },
+        Command(cmd) => exec_command(cmd, ctxt),
     }
 }
 

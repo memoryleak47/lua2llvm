@@ -1,37 +1,22 @@
 use super::*;
 
 fn compile_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> LLVMValueRef {
-    unsafe {
-        match intrinsic {
-            Intrinsic::Print(var) => {
-                let t = alloc_val(ctxt.nodes[var], ctxt);
-                call_extra_fn("print", &[t], ctxt);
+    match intrinsic {
+        Intrinsic::Type(v) => {
+            let v = alloc_val(ctxt.nodes[v], ctxt);
+            let t = alloc(ctxt);
+            call_extra_fn("type", &[v, t], ctxt);
 
-                mk_nil(ctxt)
-            },
-            Intrinsic::Throw(s) => {
-                let s = format!("{}\0", s);
-                let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
-                call_extra_fn("throw_", &[s], ctxt);
+            load_val(t, ctxt)
+        },
+        Intrinsic::Next(v1, v2) => {
+            let v1 = alloc_val(ctxt.nodes[v1], ctxt);
+            let v2 = alloc_val(ctxt.nodes[v2], ctxt);
+            let t = alloc(ctxt);
+            call_extra_fn("next", &[v1, v2, t], ctxt);
 
-                mk_nil(ctxt)
-            },
-            Intrinsic::Type(v) => {
-                let v = alloc_val(ctxt.nodes[v], ctxt);
-                let t = alloc(ctxt);
-                call_extra_fn("type", &[v, t], ctxt);
-
-                load_val(t, ctxt)
-            },
-            Intrinsic::Next(v1, v2) => {
-                let v1 = alloc_val(ctxt.nodes[v1], ctxt);
-                let v2 = alloc_val(ctxt.nodes[v2], ctxt);
-                let t = alloc(ctxt);
-                call_extra_fn("next", &[v1, v2, t], ctxt);
-
-                load_val(t, ctxt)
-            },
-        }
+            load_val(t, ctxt)
+        },
     }
 }
 

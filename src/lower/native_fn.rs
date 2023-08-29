@@ -39,11 +39,11 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     ctxt.push_if(is_fn, then_bid, else_bid);
 
     ctxt.set_active_block(then_bid);
-    ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Print(call_node)));
+    ctxt.push_command(ir::Command::Print(call_node));
     ctxt.push_goto(post_bid);
 
     ctxt.set_active_block(else_bid);
-    ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Print(arg1)));
+    ctxt.push_command(ir::Command::Print(arg1));
     ctxt.push_goto(post_bid);
 
     ctxt.set_active_block(post_bid);
