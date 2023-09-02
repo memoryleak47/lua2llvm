@@ -31,10 +31,11 @@ unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMB
                 fn_call(f, arg, ctxt);
             }
             Statement::Command(cmd) => compile_command(cmd, ctxt),
+            Statement::Return => {
+                LLVMBuildRetVoid(ctxt.builder);
+            },
         }
     }
-
-    LLVMBuildRetVoid(ctxt.builder);
 }
 
 unsafe fn compile_command(cmd: &Command, ctxt: &mut Ctxt) {
@@ -47,6 +48,7 @@ unsafe fn compile_command(cmd: &Command, ctxt: &mut Ctxt) {
             let s = format!("{}\0", s);
             let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
             call_extra_fn("throw_", &[s], ctxt);
+            LLVMBuildRetVoid(ctxt.builder); // required, even though this function will never return due to the above throw_.
         },
     }
 }

@@ -96,6 +96,7 @@ fn display_statement(st: &Statement, tabs: usize, const_nodes: &mut ConstNodes, 
         },
         FnCall(n, t) => write!(f, "{}({})", node_string(*n, const_nodes), node_string(*t, const_nodes))?,
         Command(cmd) => display_command(cmd, const_nodes, f)?,
+        Return => write!(f, "return")?,
     }
 
     write!(f, ";\n")

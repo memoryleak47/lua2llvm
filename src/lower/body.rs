@@ -106,6 +106,7 @@ pub(in crate::lower) fn lower_return(/*the table we want to return*/ ret: Node, 
         ctxt.push_store(arg, ctxt.retval_str(), ret);
     }
 
+    ctxt.push_st(ir::Statement::Return);
     ctxt.fcx_mut().active_block = None;
 }
 

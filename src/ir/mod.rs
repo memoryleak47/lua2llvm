@@ -30,6 +30,7 @@ pub enum Statement {
     If(Node, /*then*/ BlockId, /*else*/ BlockId),
     FnCall(/*func: */ Node, /* arg: */ Node),
     Command(Command),
+    Return,
 }
 
 #[derive(Debug, Clone)]
@@ -83,7 +84,7 @@ pub struct IR {
 // static: aka well-formedness
 // - a Node is used, but there is a path through the CFG that doesn't initialize it
 // - a single Node has multiple Compute statements
-// - some statement follows after If / Throw (/ Return)
+// - some statement follows after If / Throw / Return
 //
 // runtime:
 // - index / store into a non-table

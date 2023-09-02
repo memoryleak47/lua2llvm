@@ -270,14 +270,14 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
             };
         },
         Command(cmd) => exec_command(cmd, ctxt),
+        Return => {
+            ctxt.stack.pop();
+        },
     }
 }
 
 fn step(ctxt: &mut Ctxt) {
     let l: &FnCtxt = ctxt.stack.last().unwrap();
-    if let Some(stmt) = &ctxt.ir.fns[l.fn_id].blocks[l.block_id].get(l.statement_idx) {
-        step_stmt(stmt, ctxt);
-    } else {
-        ctxt.stack.pop();
-    }
+    let stmt = ctxt.ir.fns[l.fn_id].blocks[l.block_id].get(l.statement_idx).unwrap();
+    step_stmt(stmt, ctxt);
 }

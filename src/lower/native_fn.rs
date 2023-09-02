@@ -50,6 +50,7 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let ret = mk_table(ctxt);
     ctxt.push_store(ret, ctxt.count_str(), ctxt.zero());
     ctxt.push_store(arg, ctxt.retval_str(), ret);
+    ctxt.push_st(ir::Statement::Return);
 }
 
 fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
@@ -78,6 +79,7 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
 
     ctxt.set_active_block(post_bid);
     ctxt.push_store(arg, ctxt.retval_str(), ret);
+    ctxt.push_st(ir::Statement::Return);
 }
 
 fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
@@ -97,6 +99,7 @@ fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     ctxt.push_store(ret, two, new_val);
     
     ctxt.push_store(arg, ctxt.retval_str(), ret);
+    ctxt.push_st(ir::Statement::Return);
 }
 
 fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
@@ -123,4 +126,5 @@ fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
     ctxt.push_store(ret, three, nil_node);
     
     ctxt.push_store(arg, ctxt.retval_str(), ret);
+    ctxt.push_st(ir::Statement::Return);
 }
