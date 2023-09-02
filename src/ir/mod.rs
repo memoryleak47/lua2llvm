@@ -76,3 +76,19 @@ pub struct IR {
     pub fns: Vec<LitFunction>,
     pub main_fn: FnId,
 }
+
+
+// UB definition:
+//
+// static: aka well-formedness
+// - a Node is used, but there is a path through the CFG that doesn't initialize it
+// - a single Node has multiple Compute statements
+// - some statement follows after If / Throw (/ Return)
+//
+// runtime:
+// - index / store into a non-table
+// - function call to a non-function
+// (- a If-node with a non-boolean argument) TODO maybe add this in the future, when truthyness is resolved in lowering.
+// - division/remainder by zero?
+// - store with index nil
+// - argument to next is not a table
