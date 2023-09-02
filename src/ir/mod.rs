@@ -84,7 +84,8 @@ pub struct IR {
 // static: aka well-formedness
 // - a Node is used, but there is a path through the CFG that doesn't initialize it
 // - a single Node has multiple Compute statements
-// - some statement follows after If / Throw / Return
+// - a FunctionId/BlockId is out of range
+// - every Block should have exactly one Terminator (If / Throw / Return), it needs to be the final statement.
 //
 // runtime:
 // - index / store into a non-table
