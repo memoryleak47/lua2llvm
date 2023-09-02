@@ -36,81 +36,79 @@ pub struct Ctxt {
 }
 
 impl Ctxt {
-    pub fn new() -> Self {
-        unsafe {
-            let llctxt = LLVMContextCreate();
-            let module = LLVMModuleCreateWithNameInContext(b"luamod\0".as_ptr() as *const _, llctxt);
-            let target = LLVMGetDefaultTargetTriple();
-            LLVMSetTarget(module, target);
+    pub unsafe fn new() -> Self {
+        let llctxt = LLVMContextCreate();
+        let module = LLVMModuleCreateWithNameInContext(b"luamod\0".as_ptr() as *const _, llctxt);
+        let target = LLVMGetDefaultTargetTriple();
+        LLVMSetTarget(module, target);
 
-            let builder = LLVMCreateBuilderInContext(llctxt);
+        let builder = LLVMCreateBuilderInContext(llctxt);
 
-            let start_fn = {
-                let mut args = [];
-                let start_function_type = LLVMFunctionType(LLVMVoidType(), args.as_mut_ptr(), args.len() as _, 0);
+        let start_fn = {
+            let mut args = [];
+            let start_function_type = LLVMFunctionType(LLVMVoidType(), args.as_mut_ptr(), args.len() as _, 0);
 
-                LLVMAddFunction(module, b"main\0".as_ptr() as *const _, start_function_type)
-            };
+            LLVMAddFunction(module, b"main\0".as_ptr() as *const _, start_function_type)
+        };
 
-            Ctxt {
-                llctxt,
-                module,
-                builder,
-                nodes: Default::default(),
-                extra_fns: Default::default(),
-                start_fn,
-                lit_fns: Default::default(),
-                current_fid: 0,
-                break_bb: None,
-                alloca_br_instr: None,
-            }
+        Ctxt {
+            llctxt,
+            module,
+            builder,
+            nodes: Default::default(),
+            extra_fns: Default::default(),
+            start_fn,
+            lit_fns: Default::default(),
+            current_fid: 0,
+            break_bb: None,
+            alloca_br_instr: None,
         }
     }
 
-    pub fn i32_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMInt32TypeInContext(self.llctxt) }
+    pub unsafe fn i32_t(&mut self) -> LLVMTypeRef {
+        LLVMInt32TypeInContext(self.llctxt)
     }
 
-    pub fn i64_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMInt64TypeInContext(self.llctxt) }
+    pub unsafe fn i64_t(&mut self) -> LLVMTypeRef {
+        LLVMInt64TypeInContext(self.llctxt)
     }
 
-    pub fn void_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMVoidType() }
+    pub unsafe fn void_t(&mut self) -> LLVMTypeRef {
+        LLVMVoidType()
     }
 
-    pub fn f64_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMDoubleTypeInContext(self.llctxt) }
+    pub unsafe fn f64_t(&mut self) -> LLVMTypeRef {
+        LLVMDoubleTypeInContext(self.llctxt)
     }
 
-    pub fn value_t(&mut self) -> LLVMTypeRef {
+    pub unsafe fn value_t(&mut self) -> LLVMTypeRef {
         let mut elements = [self.i64_t(), self.i64_t()];
-        unsafe { LLVMStructTypeInContext(self.llctxt, elements.as_mut_ptr(), elements.len() as u32, 0) }
+        LLVMStructTypeInContext(self.llctxt, elements.as_mut_ptr(), elements.len() as u32, 0)
     }
 
-    pub fn value_ptr_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMPointerType(self.value_t(), 0) }
+    pub unsafe fn value_ptr_t(&mut self) -> LLVMTypeRef {
+        LLVMPointerType(self.value_t(), 0)
     }
 
-    pub fn v2void_t(&mut self) -> LLVMTypeRef {
+    pub unsafe fn v2void_t(&mut self) -> LLVMTypeRef {
         let mut args = [self.value_ptr_t()];
-        unsafe { LLVMFunctionType(self.void_t(), args.as_mut_ptr(), args.len() as _, 0) }
+        LLVMFunctionType(self.void_t(), args.as_mut_ptr(), args.len() as _, 0)
     }
 
-    pub fn v2void_ptr_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMPointerType(self.v2void_t(), 0) }
+    pub unsafe fn v2void_ptr_t(&mut self) -> LLVMTypeRef {
+        LLVMPointerType(self.v2void_t(), 0)
     }
 
-    pub fn i8_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMInt8TypeInContext(self.llctxt) }
+    pub unsafe fn i8_t(&mut self) -> LLVMTypeRef {
+        LLVMInt8TypeInContext(self.llctxt)
     }
 
-    pub fn bool_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMInt1TypeInContext(self.llctxt) }
+    pub unsafe fn bool_t(&mut self) -> LLVMTypeRef {
+        LLVMInt1TypeInContext(self.llctxt)
     }
 
-    pub fn str_t(&mut self) -> LLVMTypeRef {
-        unsafe { LLVMPointerType(self.i8_t(), 0) }
+    pub unsafe fn str_t(&mut self) -> LLVMTypeRef {
+        LLVMPointerType(self.i8_t(), 0)
     }
 }
 

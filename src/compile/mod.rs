@@ -79,30 +79,24 @@ pub fn compile(ir: &IR) {
 }
 
 // will allocate a variable of type Value.
-fn alloc(ctxt: &mut Ctxt) -> LLVMValueRef /* Value* */ {
-    unsafe {
-        let builder = LLVMCreateBuilderInContext(ctxt.llctxt);
-        LLVMPositionBuilderBefore(builder, ctxt.alloca_br_instr.unwrap());
-        let ret = LLVMBuildAlloca(builder, ctxt.value_t(), EMPTY);
-        LLVMDisposeBuilder(builder);
+unsafe fn alloc(ctxt: &mut Ctxt) -> LLVMValueRef /* Value* */ {
+    let builder = LLVMCreateBuilderInContext(ctxt.llctxt);
+    LLVMPositionBuilderBefore(builder, ctxt.alloca_br_instr.unwrap());
+    let ret = LLVMBuildAlloca(builder, ctxt.value_t(), EMPTY);
+    LLVMDisposeBuilder(builder);
 
-        ret
-    }
+    ret
 }
 
 // will allocate a variable pointing to the Value `x`.
-fn alloc_val(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* Value* */ {
-    unsafe {
-        let var = alloc(ctxt);
-        LLVMBuildStore(ctxt.builder, x, var);
+unsafe fn alloc_val(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* Value* */ {
+    let var = alloc(ctxt);
+    LLVMBuildStore(ctxt.builder, x, var);
 
-        var
-    }
+    var
 }
 
 // will load a Value*.
-fn load_val(x: LLVMValueRef /* Value* */, ctxt: &mut Ctxt) -> LLVMValueRef /* Value */ {
-    unsafe {
-        LLVMBuildLoad2(ctxt.builder, ctxt.value_t(), x, EMPTY)
-    }
+unsafe fn load_val(x: LLVMValueRef /* Value* */, ctxt: &mut Ctxt) -> LLVMValueRef /* Value */ {
+    LLVMBuildLoad2(ctxt.builder, ctxt.value_t(), x, EMPTY)
 }
