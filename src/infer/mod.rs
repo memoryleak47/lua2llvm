@@ -1,6 +1,9 @@
 use crate::ir::*;
 use std::collections::{HashSet, HashMap};
 
+mod step;
+use step::*;
+
 type Stmt = (FnId, BlockId, /*statement index*/ usize);
 
 struct Marker {
@@ -54,6 +57,10 @@ fn first_statement(ir: &IR) -> Stmt {
     (fid, bid, 0)
 }
 
+fn eval((fid, bid, sid): Stmt, ir: &IR) -> &Statement {
+    &ir.fns[fid].blocks[bid][sid]
+}
+
 pub fn infer(ir: &IR) -> Infer {
     let mut inf = Infer {
         states: Default::default(),
@@ -63,12 +70,8 @@ pub fn infer(ir: &IR) -> Infer {
     inf.dirty.push(first_statement(ir));
 
     while let Some(stmt) = inf.dirty.pop() {
-        symb_exec_step(stmt, ir, &mut inf);
+        infer_step(stmt, ir, &mut inf);
     }
 
     inf
-}
-
-fn symb_exec_step(stmt: Stmt, ir: &IR, inf: &mut Infer) {
-    unimplemented!();
 }
