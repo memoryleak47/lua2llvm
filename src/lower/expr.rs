@@ -92,7 +92,7 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
             let then_bid = ctxt.alloc_block();
             let post_bid = ctxt.alloc_block();
 
-            ctxt.push_if(l, then_bid, post_bid);
+            ctxt.push_truthy_if(l, then_bid, post_bid);
 
             ctxt.set_active_block(then_bid);
             let r: Node = lower_expr1(r, ctxt);
@@ -110,7 +110,7 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
             let else_bid = ctxt.alloc_block();
             let post_bid = ctxt.alloc_block();
 
-            ctxt.push_if(l, post_bid, else_bid);
+            ctxt.push_truthy_if(l, post_bid, else_bid);
 
             ctxt.set_active_block(else_bid);
             let r: Node = lower_expr1(r, ctxt);
@@ -137,13 +137,12 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
         UnOpKind::Neg => ir::Expr::BinOp(ir::BinOpKind::Minus, ctxt.zero(), r),
         UnOpKind::Len => ir::Expr::Len(r),
         UnOpKind::Not => {
-            let true_v = ctxt.push_compute(ir::Expr::Bool(true));
-            let t = mk_table_with(true_v, ctxt);
+            let t = mk_table_with(ctxt.true_(), ctxt);
 
             let then_bid = ctxt.alloc_block();
             let post_bid = ctxt.alloc_block();
 
-            ctxt.push_if(r, then_bid, post_bid);
+            ctxt.push_truthy_if(r, then_bid, post_bid);
 
             ctxt.set_active_block(then_bid);
             let false_v = ctxt.push_compute(ir::Expr::Bool(false));

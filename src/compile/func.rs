@@ -16,7 +16,7 @@ unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMB
             },
             Statement::If(cond, then_bid, else_bid) => {
                 let cond = ctxt.nodes[cond];
-                let cond = truthy(cond, ctxt);
+                let cond = extract_bool(cond, ctxt);
 
                 let thenbb = bb_mapping[then_bid];
                 let elsebb = bb_mapping[else_bid];
@@ -74,22 +74,10 @@ unsafe fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef
 }
 
 
-unsafe fn truthy(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* i1 */ {
-    let tag = LLVMBuildExtractValue(ctxt.builder, x, 0, EMPTY);
+unsafe fn extract_bool(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* i1 */ {
     let val = LLVMBuildExtractValue(ctxt.builder, x, 1, EMPTY);
-
-    let niltag = LLVMConstInt(ctxt.i64_t(), Tag::NIL as _, 0);
-    let tag_ne_nil = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntNE, tag, niltag, EMPTY);
-
-    let booltag = LLVMConstInt(ctxt.i64_t(), Tag::BOOL as _, 0);
-    let tag_ne_bool = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntNE, tag, booltag, EMPTY);
-
     let one = LLVMConstInt(ctxt.i64_t(), 1, 0);
-    let is_true = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntEQ, one, val, EMPTY);
-
-    // tag_ne_nil && (tag_ne_bool || is_true)
-    let ret = LLVMBuildOr(ctxt.builder, tag_ne_bool, is_true, EMPTY);
-    let ret = LLVMBuildAnd(ctxt.builder, tag_ne_nil, ret, EMPTY);
+    let ret = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntEQ, val, one, EMPTY);
 
     ret
 }

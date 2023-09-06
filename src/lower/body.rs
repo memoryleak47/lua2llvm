@@ -11,7 +11,7 @@ fn lower_if(ifblocks: &[IfBlock], optelse: &Option<Vec<Statement>>, ctxt: &mut C
         let else_bid = ctxt.alloc_block();
 
         let cond = lower_expr1(&cond, ctxt);
-        ctxt.push_if(cond, then_bid, else_bid);
+        ctxt.push_truthy_if(cond, then_bid, else_bid);
 
         ctxt.set_active_block(then_bid);
         lower_body(ifbody, ctxt);
@@ -75,7 +75,7 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
                 ctxt.set_active_block(loop_start);
                 let cond = lower_expr1(cond, ctxt);
-                ctxt.push_if(cond, loop_body, loop_post);
+                ctxt.push_truthy_if(cond, loop_body, loop_post);
 
                 ctxt.set_active_block(loop_body);
                 ctxt.fcx_mut().break_bid_stack.push(loop_post);

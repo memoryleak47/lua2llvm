@@ -90,7 +90,7 @@ pub struct IR {
 // runtime:
 // - index / store into a non-table
 // - function call to a non-function
-// (- a If-node with a non-boolean argument) TODO maybe add this in the future, when truthyness is resolved in lowering.
+// - a If-node with a non-boolean argument
 // - division/remainder by zero?
 // - store with index nil
 // - argument to next is not a table

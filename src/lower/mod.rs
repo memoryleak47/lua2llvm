@@ -39,6 +39,7 @@ struct FnCtxt {
 
     zero: Node,
     one: Node,
+    true_: Node,
     retval_str: Node,
     call_str: Node,
     upvalues_str: Node,
@@ -128,12 +129,41 @@ impl Ctxt {
         self.fcx_mut().active_block = None;
     }
 
+    // like push_if, but `cond := truthy(cond)` is evaluated first.
+    fn push_truthy_if(&mut self, cond: Node, then: BlockId, else_: BlockId) {
+        let t = mk_table_with(self.true_(), self);
+
+        let nil = self.push_compute(ir::Expr::Nil);
+        let is_nil = self.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, cond, nil));
+        let false_ = self.push_compute(ir::Expr::Bool(false));
+        let is_false = self.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, cond, false_));
+
+        let between_bid = self.alloc_block();
+        let write_false_bid = self.alloc_block();
+        let post_bid = self.alloc_block();
+
+        self.push_if(is_nil, write_false_bid, between_bid);
+
+        self.set_active_block(between_bid);
+        self.push_if(is_false, write_false_bid, post_bid);
+
+        self.set_active_block(write_false_bid);
+        self.push_store(t, self.inner_str(), false_);
+        self.push_goto(post_bid);
+
+        self.set_active_block(post_bid);
+        let cond = self.push_compute(ir::Expr::Index(t, self.inner_str()));
+
+        self.push_if(cond, then, else_);
+    }
+
     fn push_goto(&mut self, to: BlockId) {
-        self.push_if(self.one(), to, to);
+        self.push_if(self.true_(), to, to);
     }
 
     fn zero(&self) -> Node { self.fcx().zero }
     fn one(&self) -> Node { self.fcx().one }
+    fn true_(&self) -> Node { self.fcx().true_ }
     fn retval_str(&self) -> Node { self.fcx().retval_str }
     fn call_str(&self) -> Node { self.fcx().call_str }
     fn upvalues_str(&self) -> Node { self.fcx().upvalues_str }
@@ -253,6 +283,7 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     bool_node
 }
 
+// `n` needs to be represent a boolean, otherwise this is UB.
 fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
     let else_body = ctxt.alloc_block();
     let post_body = ctxt.alloc_block();

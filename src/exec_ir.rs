@@ -202,9 +202,6 @@ fn exec_binop(kind: BinOpKind, l: Value, r: Value) -> Value {
     }
 }
 
-fn truthy(v: &Value) -> bool {
-    !matches!(v, Value::Bool(false) | Value::Nil)
-}
 
 fn call_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) {
     let fcx = FnCtxt {
@@ -256,7 +253,11 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
         },
         If(cond, then_body, else_body) => {
             let cond = ctxt.fcx().nodes[cond].clone();
-            let blk = if truthy(&cond) { then_body } else { else_body };
+            let blk = match &cond {
+                Value::Bool(true) => then_body,
+                Value::Bool(false) => else_body,
+                _ => panic!("UB: non-boolean in if-condition"),
+            };
             ctxt.fcx_mut().block_id = *blk;
             ctxt.fcx_mut().statement_idx = 0;
         },

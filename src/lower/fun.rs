@@ -106,6 +106,7 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
         ellipsis_node: None,
         zero: usize::MAX,
         one: usize::MAX,
+        true_: usize::MAX,
         retval_str: usize::MAX,
         call_str: usize::MAX,
         upvalues_str: usize::MAX,
@@ -124,6 +125,7 @@ pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt
     // currently active block = init_block
     ctxt.fcx_mut().zero = mk_num(0.0, ctxt);
     ctxt.fcx_mut().one = mk_num(1.0, ctxt);
+    ctxt.fcx_mut().true_ = ctxt.push_compute(ir::Expr::Bool(true));
     ctxt.fcx_mut().retval_str = mk_str("retval", ctxt);
     ctxt.fcx_mut().call_str = mk_str("call", ctxt);
     ctxt.fcx_mut().upvalues_str = mk_str("upvalues", ctxt);
