@@ -17,6 +17,8 @@ use prepare::prepare;
 mod lower;
 use lower::lower;
 
+mod infer;
+
 mod exec_ir;
 
 mod compile;
