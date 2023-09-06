@@ -29,13 +29,16 @@ fn infer_step_fn_call(func: Node, arg: Node, stmt: Stmt, ir: &IR, inf: &mut Infe
 
 fn infer_step_command(command: &Command, stmt: Stmt, ir: &IR, inf: &mut Infer) {
     match command {
-        Command::Print(_) => mk_next_dirty(stmt, inf),
+        Command::Print(_) => finish_stmt(stmt, inf.states[&stmt].clone(), inf),
         Command::Throw(_) => {},
     }
 }
 
 
-fn mk_next_dirty((fid, bid, sid): Stmt, inf: &mut Infer) {
+fn finish_stmt((fid, bid, sid): Stmt, new_state: HashMap<Marker, State>, inf: &mut Infer) {
     let next = (fid, bid, sid + 1);
-    inf.dirty.push(next);
+    if inf.states.get(&next).map(|old_state| old_state != &new_state).unwrap_or(true) {
+        inf.states.insert(next, new_state);
+        inf.dirty.push(next);
+    }
 }

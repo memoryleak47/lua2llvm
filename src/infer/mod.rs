@@ -1,21 +1,26 @@
 use crate::ir::*;
 use std::collections::{HashSet, HashMap};
+use std::hash::Hash;
 
 mod step;
 use step::*;
 
 type Stmt = (FnId, BlockId, /*statement index*/ usize);
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Marker {
     location: Stmt,
     is_summary: bool,
 }
 
+#[derive(Clone, PartialEq)]
 enum Lattice<T> {
-    Set(HashSet<T>),
+    Set(Vec<T>), // cannot hash f64, hence Vec is chosen.
+    // for finite types like T = bool, nil, FnId; the variant Top should never be chosen.
     Top,
 }
 
+#[derive(Clone, PartialEq)]
 struct PrimitiveState {
     fn_state: Lattice<FnId>,
     bool_state: Lattice<bool>,
@@ -24,6 +29,7 @@ struct PrimitiveState {
     str_state: Lattice<String>,
 }
 
+#[derive(Clone, PartialEq)]
 struct State {
     primitive_state: PrimitiveState,
     marker_state: HashSet<Marker>,
