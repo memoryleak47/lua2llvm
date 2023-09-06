@@ -20,7 +20,11 @@ fn infer_step_store(table: Node, index: Node, val: Node, stmt: Stmt, ir: &IR, in
 }
 
 fn infer_step_if(cond: Node, then_bid: BlockId, else_bid: BlockId, stmt: Stmt, ir: &IR, inf: &mut Infer) {
-    unimplemented!()
+    for bid in [then_bid, else_bid] {
+        let st = (stmt.0, bid, 0);
+        let old = inf.states.get(&stmt).cloned().unwrap_or(Default::default());
+        call_stmt(st, old, inf);
+    }
 }
 
 fn infer_step_fn_call(func: Node, arg: Node, stmt: Stmt, ir: &IR, inf: &mut Infer) {
