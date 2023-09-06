@@ -5,6 +5,9 @@ use std::hash::Hash;
 mod step;
 use step::*;
 
+mod merge;
+use merge::*;
+
 type Stmt = (FnId, BlockId, /*statement index*/ usize);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -36,9 +39,11 @@ struct State {
     table_state: Option<HashSet<(Marker, Marker)>>,
 }
 
+type LocalState = HashMap<Marker, State>;
+
 pub struct Infer {
     // the state of a marker right before executing a particular statement.
-    states: HashMap<Stmt, HashMap<Marker, State>>,
+    states: HashMap<Stmt, LocalState>,
     dirty: Vec<Stmt>, // these stmts need to be re-evaluated.
 }
 

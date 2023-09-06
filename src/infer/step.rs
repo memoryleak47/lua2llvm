@@ -35,10 +35,16 @@ fn infer_step_command(command: &Command, stmt: Stmt, ir: &IR, inf: &mut Infer) {
 }
 
 
-fn finish_stmt((fid, bid, sid): Stmt, new_state: HashMap<Marker, State>, inf: &mut Infer) {
+fn finish_stmt((fid, bid, sid): Stmt, new_state: LocalState, inf: &mut Infer) {
     let next = (fid, bid, sid + 1);
-    if inf.states.get(&next).map(|old_state| old_state != &new_state).unwrap_or(true) {
-        inf.states.insert(next, new_state);
-        inf.dirty.push(next);
+    call_stmt(next, new_state, inf);
+}
+
+fn call_stmt(stmt: Stmt, new_state: LocalState, inf: &mut Infer) {
+    let old = inf.states.get(&stmt).cloned().unwrap_or(Default::default());
+    let merged = merge_local_state(&old, &new_state);
+    if inf.states.get(&stmt) != Some(&merged) {
+        inf.states.insert(stmt, merged);
+        inf.dirty.push(stmt);
     }
 }
