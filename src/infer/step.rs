@@ -27,6 +27,9 @@ fn infer_step_if(cond: Node, then_bid: BlockId, else_bid: BlockId, stmt: Stmt, i
     }
 }
 
+// TODO where is the Arg-type of a function stored? probably in Infer.
+// is `fn_arg_ty: Marker` / `fn_arg_ty: PrimitiveType / Table` fine?
+// actually, we need to find all relevant tables that can be putten into here.
 fn infer_step_fn_call(func: Node, arg: Node, stmt: Stmt, ir: &IR, inf: &mut Infer) {
     unimplemented!()
 }

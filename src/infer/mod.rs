@@ -8,6 +8,9 @@ use step::*;
 mod merge;
 use merge::*;
 
+mod table_state;
+use table_state::*;
+
 type Stmt = (FnId, BlockId, /*statement index*/ usize);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -36,7 +39,8 @@ struct PrimitiveState {
 struct State {
     primitive_state: PrimitiveState,
     marker_state: HashSet<Marker>,
-    table_state: Option<HashSet<(Marker, Marker)>>,
+    // is `Some`, if the corresponding value *might* be a table, `None` otherwise.
+    table_state: Option<TableState>,
 }
 
 type LocalState = HashMap<Marker, State>;
