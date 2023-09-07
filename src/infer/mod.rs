@@ -11,12 +11,16 @@ use merge::*;
 mod table_state;
 use table_state::*;
 
+mod rt_stack;
+use rt_stack::*;
+
 type Stmt = (FnId, BlockId, /*statement index*/ usize);
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 struct Marker {
-    location: Stmt,
-    is_summary: bool,
+    rt_stack: RtStack,
+    // number of elements on the rt_stack that are still recent.
+    recency_count: usize,
 }
 
 #[derive(Clone, PartialEq)]
@@ -49,20 +53,6 @@ pub struct Infer {
     // the state of a marker right before executing a particular statement.
     states: HashMap<Stmt, LocalState>,
     dirty: Vec<Stmt>, // these stmts need to be re-evaluated.
-}
-
-fn find_alloc_locations(ir: &IR) -> Vec<Stmt> {
-    unimplemented!()
-}
-
-fn calc_markers(ir: &IR) -> Vec<Marker> {
-    let mut out = Vec::new();
-    for x in find_alloc_locations(ir) {
-        for b in [true, false] {
-            out.push(Marker { location: x, is_summary: b });
-        }
-    }
-    out
 }
 
 fn first_statement(ir: &IR) -> Stmt {
