@@ -68,8 +68,28 @@ fn infer_step_compute(n: Node, expr: &Expr, state: &mut LocalState, fid: FnId, i
         Expr::Len(_) => {
             v.nums = Lattice::Top;
         },
-        Expr::Intrinsic(i) => unimplemented!(),
+        Expr::Intrinsic(Intrinsic::Next(t, _)) => {
+            // `nil` is always an option for next.
+            v.nils = vec![()].into_iter().collect();
 
+            let t = &state.nodes[t];
+            for cl in &t.classes {
+                for k in state.class_states.0[cl].0.keys() {
+                    v = v.merge(k);
+                }
+            }
+        },
+        Expr::Intrinsic(Intrinsic::Type(o)) => {
+            let o = &state.nodes[o];
+            let mut outputs = Vec::new();
+            if !o.strings.is_empty() { outputs.push("string"); }
+            if !o.nums.is_empty() { outputs.push("number"); }
+            if !o.nils.is_empty() { outputs.push("nil"); }
+            if !o.fns.is_empty() { outputs.push("function"); }
+            if !o.classes.is_empty() { outputs.push("table"); }
+            if !o.bools.is_empty() { outputs.push("boolean"); }
+            v.strings = Lattice::Set(outputs.into_iter().map(|x| x.to_string()).collect());
+        },
         Expr::Num(num) => {
             let num = (*num).try_into().unwrap();
             v.nums = Lattice::Set(vec![num].into_iter().collect());
