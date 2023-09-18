@@ -4,7 +4,7 @@ use crate::infer::*;
 pub(in crate::infer) struct ClassStates(pub(in crate::infer) Map<Class, ClassState>);
 
 #[derive(Default, PartialEq, Eq, Hash, Clone)]
-pub(in crate::infer) struct ClassState(pub(in crate::infer) Set<(Value, Value)>);
+pub(in crate::infer) struct ClassState(pub(in crate::infer) Map<Value, Value>);
 
 impl ClassStates {
     pub(in crate::infer) fn set(&mut self, t: &Value, k: &Value, v: &Value) {
@@ -30,7 +30,20 @@ impl ClassStates {
 
 impl ClassState {
     pub(in crate::infer) fn set(&mut self, k: &Value, v: &Value) {
-        unimplemented!()
+        if k.is_concrete() {
+            self.0.insert(k.clone(), v.clone());
+        } else {
+            // add the possibilities of `v` to `map[k]`.
+            let r = self.0.entry(k.clone()).or_insert(Value::bot());
+            *r = r.merge(v);
+
+            // also add the possibilities of `v` to all concrete ones that overlap
+            for (k_, v_) in self.0.iter_mut() {
+                if k_.is_concrete() && k_.compare(k) == Comparison::Overlap {
+                    *v_ = v_.merge(v);
+                }
+            }
+        }
     }
 
     pub(in crate::infer) fn weak_set(&mut self, k: &Value, v: &Value) {

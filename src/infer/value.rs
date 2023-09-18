@@ -80,9 +80,13 @@ impl Value {
             compare_set(&self.classes, &other.classes),
         ].iter().fold(Comparison::Disjoint, join_comparison)
     }
+
+    pub fn is_concrete(&self) -> bool {
+        self.compare(self) == Comparison::ConcreteEq
+    }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(in crate::infer) enum Comparison {
     ConcreteEq,
     Overlap,
