@@ -41,7 +41,10 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
         },
 
         Statement::Return => {
-            unimplemented!()
+            let st = inf.fn_state.get_mut(&fid).unwrap();
+            // TODO is a merge correct, even if the previous state was empty?
+            // Maybe I need Option to prevent a merge here?
+            st.out_state = st.out_state.merge(&state.class_states);
         },
     }
 }
