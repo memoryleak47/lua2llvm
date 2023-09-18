@@ -77,7 +77,7 @@ impl Value {
             compare_lattice(&self.nums, &other.nums),
             compare_set(&self.nils, &other.nils),
             compare_set(&self.bools, &other.bools),
-            compare_set(&self.classes, &other.classes),
+            compare_classes(&self.classes, &other.classes),
         ].iter().fold(Comparison::Disjoint, join_comparison)
     }
 
@@ -108,6 +108,20 @@ fn compare_set<T: Hash + Eq>(a: &Set<T>, b: &Set<T>) -> Comparison {
         return Comparison::ConcreteEq;
     }
     return Comparison::Overlap;
+}
+
+fn compare_classes(a: &Set<Class>, b: &Set<Class>) -> Comparison {
+    let intersection: Set<&Class> = a.intersection(b).collect();
+    if intersection.is_empty() { return Comparison::Disjoint; }
+    if a.len() > 1 || b.len() > 1 {
+        return Comparison::Overlap;
+    }
+    // we know that a = b = intersection = [X].
+    // question is, whether X is concrete or not.
+    match a.iter().next().unwrap() {
+        Class::Summary(_) => Comparison::Overlap,
+        Class::Concrete(_) => Comparison::ConcreteEq,
+    }
 }
 
 fn compare_lattice<T: Hash + Eq>(a: &Lattice<T>, b: &Lattice<T>) -> Comparison {
