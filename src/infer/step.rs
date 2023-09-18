@@ -1,6 +1,7 @@
 use crate::infer::*;
 
-pub(in crate::infer) fn infer_step(st: &Statement, stmt: Stmt, inf: &mut Infer, ir: &IR) {
+pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &mut Infer, ir: &IR) {
+    let nxt_stmt = || (fid, bid, sid+1);
     match st {
         Statement::Compute(n, expr) => {
             unimplemented!()
@@ -19,7 +20,15 @@ pub(in crate::infer) fn infer_step(st: &Statement, stmt: Stmt, inf: &mut Infer, 
         },
 
         Statement::Command(cmd) => {
-            unimplemented!()
+            match cmd {
+                Command::Print(_) => {
+                    let current_state = inf.fn_state[&fid].state[&(bid, sid)].clone();
+                    to_stmt(nxt_stmt(), current_state, inf);
+                }
+                Command::Throw(_) => {
+                    // nothing to do after this, nothing gets "dirty".
+                },
+            }
         },
 
         Statement::Return => {

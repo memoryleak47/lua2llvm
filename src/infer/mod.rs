@@ -13,10 +13,10 @@ type StatementIndex = usize;
 type Stmt = (FnId, BlockId, StatementIndex);
 
 // an alloc location
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 struct Location(Stmt);
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 enum TableClass {
     Concrete(Location),
     Summary(Location),
@@ -32,7 +32,7 @@ struct InState {
     table_state: TableState,
 }
 
-#[derive(Default, PartialEq, Eq, Hash)]
+#[derive(Default, PartialEq, Eq, Hash, Clone)]
 struct TableState(Map<TableClass, TableType>);
 
 struct FnState {
@@ -44,10 +44,10 @@ struct FnState {
 }
 
 
-#[derive(Default, PartialEq, Eq, Hash)]
+#[derive(Default, PartialEq, Eq, Hash, Clone)]
 struct TableType(Set<(Value, Value)>);
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 struct LocalState {
     nodes: Map<Node, Value>,
     table_state: TableState,

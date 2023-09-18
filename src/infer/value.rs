@@ -1,21 +1,21 @@
 use crate::infer::*;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub(in crate::infer) struct Value {
     prim: PrimitiveValue,
     table: TableValue,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub(in crate::infer) struct TableValue(Set<TableClass>);
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub(in crate::infer) enum Lattice<T: Eq + Hash> {
     Top,
     Set(Set<T>),
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub(in crate::infer) struct PrimitiveValue {
     str_val: Lattice<String>,
     fn_val: Set<FnId>,
