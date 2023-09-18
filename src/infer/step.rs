@@ -66,7 +66,8 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
 
 fn to_stmt(new: Stmt, state: LocalState, inf: &mut Infer) {
     let (fid, bid, sid) = new;
-    let old_state = &inf.fn_state[&fid].state[&(bid, sid)];
+    let def = LocalState::default();
+    let old_state = inf.fn_state[&fid].state.get(&(bid, sid)).unwrap_or(&def);
     let result_state = state.merge(old_state);
     if &result_state != old_state {
         inf.fn_state.get_mut(&fid).unwrap().state.insert((bid, sid), result_state);

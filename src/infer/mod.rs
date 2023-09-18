@@ -31,13 +31,8 @@ pub struct Infer {
     dirty: Vec<Stmt>,
 }
 
-struct InState {
-    argval: Value,
-    class_states: ClassStates,
-}
-
 struct FnState {
-    in_state: InState,
+    argval: Value,
     out_state: ClassStates,
 
     // the state right before executing a statement.
@@ -45,7 +40,7 @@ struct FnState {
 }
 
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Default)]
 struct LocalState {
     nodes: Map<Node, Value>,
     class_states: ClassStates,
@@ -58,8 +53,13 @@ pub fn infer(ir: &IR) -> Infer {
     };
 
     let fid = ir.main_fn;
-    inf.fn_state.insert(fid, FnState::new(InState::nil()));
-    let start_stmt = (fid, ir.fns[fid].start_block, 0);
+    let bid = ir.fns[fid].start_block;
+
+    let mut fstate = FnState::new();
+    fstate.push_call(Value::nil(), ClassStates::default(), bid);
+
+    inf.fn_state.insert(fid, fstate);
+    let start_stmt = (fid, bid, 0);
     inf.dirty.push(start_stmt);
 
     while let Some((fid, bid, sid)) = inf.dirty.pop() {
@@ -71,21 +71,18 @@ pub fn infer(ir: &IR) -> Infer {
 }
 
 impl FnState {
-    fn new(in_state: InState) -> FnState {
+    fn new() -> FnState {
         FnState {
-            in_state,
-            out_state: Default::default(),
+            argval: Value::bot(),
+            out_state: ClassStates::default(),
             state: Map::new(),
         }
     }
-}
 
-impl InState {
-    fn nil() -> InState {
-        InState {
-            argval: Value::nil(),
-            class_states: ClassStates::default(),
-        }
+    fn push_call(&mut self, argval: Value, class_states: ClassStates, start_bid: BlockId) {
+        self.argval = self.argval.merge(&argval);
+        let loc_st: &mut LocalState = self.state.entry((start_bid, 0)).or_insert(LocalState::default());
+        loc_st.class_states = loc_st.class_states.merge(&class_states);
     }
 }
 
