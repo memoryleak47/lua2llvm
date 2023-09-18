@@ -29,9 +29,28 @@ impl<T: Hash + Eq> Lattice<T> {
     }
 }
 
+fn merge_set<T: Eq + Hash + Clone>(a: &Set<T>, b: &Set<T>) -> Set<T> {
+    a.union(b).cloned().collect()
+}
+
+fn merge_lattice<T: Eq + Hash + Clone>(a: &Lattice<T>, b: &Lattice<T>) -> Lattice<T> {
+    match (a, b) {
+        (Lattice::Top, _) => Lattice::Top,
+        (_, Lattice::Top) => Lattice::Top,
+        (Lattice::Set(s1), Lattice::Set(s2)) => Lattice::Set(merge_set(s1, s2)),
+    }
+}
+
 impl Value {
     pub(in crate::infer) fn merge(&self, other: &Value) -> Value {
-        unimplemented!()
+        Value {
+            strings: merge_lattice(&self.strings, &other.strings),
+            fns: merge_set(&self.fns, &other.fns),
+            nums: merge_lattice(&self.nums, &other.nums),
+            nils: merge_set(&self.nils, &other.nils),
+            bools: merge_set(&self.bools, &other.bools),
+            classes: merge_set(&self.classes, &other.classes),
+        }
     }
 
     pub(in crate::infer) fn bot() -> Value {
