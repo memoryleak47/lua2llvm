@@ -28,7 +28,20 @@ impl ClassStates {
     }
 
     pub(in crate::infer) fn merge(&self, other: &ClassStates) -> ClassStates {
-        unimplemented!()
+        let mut out = ClassStates::default();
+
+        let mut classes: Set<&Class> = self.0.keys().collect();
+        classes.extend(other.0.keys());
+
+        for cl in &classes {
+            let empty = ClassState::default();
+            let st1 = self.0.get(cl).unwrap_or(&empty);
+            let st2 = other.0.get(cl).unwrap_or(&empty);
+            let st = st1.merge(&st2);
+            out.0.insert((**cl).clone(), st);
+        }
+
+        out
     }
 }
 
