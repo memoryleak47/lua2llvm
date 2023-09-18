@@ -28,8 +28,11 @@ impl LocalState {
         }
     }
 
-    pub(in crate::infer) fn map_classes(&self, f: impl Fn(Class) -> Class) -> Self {
-        unimplemented!()
+    pub(in crate::infer) fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
+        LocalState {
+            nodes: self.nodes.into_iter().map(|(k, v)| (*k, v.map_classes(f))).collect(),
+            class_states: self.class_states.map_classes(f),
+        }
     }
 }
 

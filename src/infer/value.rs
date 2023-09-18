@@ -84,6 +84,13 @@ impl Value {
     pub fn is_concrete(&self) -> bool {
         self.compare(self) == Comparison::ConcreteEq
     }
+
+    pub fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
+        let mut out = self.clone();
+        out.classes = out.classes.into_iter().map(|cl| f(*cl)).collect();
+        out
+    }
+
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

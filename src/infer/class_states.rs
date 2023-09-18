@@ -44,7 +44,7 @@ impl ClassStates {
         out
     }
 
-    pub(in crate::infer) fn map_classes(&self, f: impl Fn(Class) -> Class) -> Self {
+    pub(in crate::infer) fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
         unimplemented!()
     }
 }

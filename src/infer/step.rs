@@ -63,7 +63,7 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, sid, bid): Stmt, inf: &mut Inf
         },
         Expr::NewTable => {
             let loc = Location((fid, sid, bid));
-            state = state.map_classes(|cl| {
+            state = state.map_classes(&|cl| {
                 if cl == Class::Concrete(loc) { return Class::Summary(loc); }
                 return cl;
             });
