@@ -16,8 +16,9 @@ type Stmt = (FnId, BlockId, StatementIndex);
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 struct Location(Stmt);
 
+// A conceptual set of table objects.
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-enum TableClass {
+enum Class {
     Concrete(Location),
     Summary(Location),
 }
@@ -29,28 +30,28 @@ struct Infer {
 
 struct InState {
     argval: Value,
-    table_state: TableState,
+    class_states: ClassStates,
 }
 
 #[derive(Default, PartialEq, Eq, Hash, Clone)]
-struct TableState(Map<TableClass, TableType>);
+struct ClassStates(Map<Class, ClassState>);
+
+#[derive(Default, PartialEq, Eq, Hash, Clone)]
+struct ClassState(Set<(Value, Value)>);
 
 struct FnState {
     in_state: InState,
-    out_state: TableState,
+    out_state: ClassStates,
 
     // the state right before executing a statement.
     state: Map<(BlockId, StatementIndex), LocalState>,
 }
 
 
-#[derive(Default, PartialEq, Eq, Hash, Clone)]
-struct TableType(Set<(Value, Value)>);
-
 #[derive(PartialEq, Eq, Clone)]
 struct LocalState {
     nodes: Map<Node, Value>,
-    table_state: TableState,
+    class_states: ClassStates,
 }
 
 fn infer(ir: &IR) -> Infer {
@@ -86,7 +87,7 @@ impl InState {
     fn nil() -> InState {
         InState {
             argval: Value::nil(),
-            table_state: TableState::default(),
+            class_states: ClassStates::default(),
         }
     }
 }
