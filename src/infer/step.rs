@@ -16,7 +16,12 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
         },
 
         Statement::If(cond, then, else_) => {
-            unimplemented!()
+            let cond: Value = state.nodes[&cond].clone();
+            for (b, jump_bid) in [(true, *then), (false, *else_)] {
+                if cond.bools.contains(&b) {
+                    to_stmt((fid, jump_bid, 0), state.clone(), inf);
+                }
+            }
         },
 
         Statement::FnCall(f, arg) => {
