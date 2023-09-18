@@ -1,6 +1,6 @@
 use crate::ir::*;
 use hashable::{HashableHashSet as Set, HashableHashMap as Map};
-use noisy_float::prelude::R64;
+use noisy_float::prelude::{R64, Float};
 use std::hash::Hash;
 
 mod value;

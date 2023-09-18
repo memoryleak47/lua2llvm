@@ -72,7 +72,11 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
         Expr::LitFunction(fid) => {
             v.fns = vec![*fid].into_iter().collect();
         },
-        Expr::BinOp(kind, n1, n2) => unimplemented!(),
+        Expr::BinOp(kind, l, r) => {
+            let l = &state.nodes[&l];
+            let r = &state.nodes[&r];
+            v = infer_binop(kind, l, r);
+        },
         Expr::Len(_) => {
             v.nums = Lattice::Top;
         },
@@ -114,6 +118,39 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
     }
     state.nodes.insert(n, v);
     to_stmt((fid, bid, sid+1), state, inf);
+}
+
+fn infer_binop(kind: &BinOpKind, l: &Value, r: &Value) -> Value {
+    let num_attempts = |f: fn(_, _) -> _| {
+        let mut out = Value::bot();
+
+        let Lattice::Set(l) = &l.nums else { out.nums = Lattice::Top; return out; };
+        let Lattice::Set(r) = &r.nums else { out.nums = Lattice::Top; return out; };
+
+        let mut set = Set::new();
+        for l in l {
+            for r in r {
+                set.insert(f(*l, *r));
+            }
+        }
+
+        if set.len() > 50 {
+            out.nums = Lattice::Top;
+        } else {
+            out.nums = Lattice::Set(set);
+        }
+
+        out
+    };
+
+    match kind {
+        BinOpKind::Plus => num_attempts(|x, y| x + y),
+        BinOpKind::Minus => num_attempts(|x, y| x - y),
+        BinOpKind::Mul => num_attempts(|x, y| x * y),
+        BinOpKind::Div => num_attempts(|x, y| x / y),
+        BinOpKind::Pow => num_attempts(|x, y| x.powf(y)),
+        _ => unimplemented!(),
+    }
 }
 
 fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) {
