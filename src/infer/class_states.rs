@@ -26,6 +26,10 @@ impl ClassStates {
         }
         out_val
     }
+
+    pub(in crate::infer) fn merge(&self, other: &ClassStates) -> ClassStates {
+        unimplemented!()
+    }
 }
 
 impl ClassState {
