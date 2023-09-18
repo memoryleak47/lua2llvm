@@ -34,10 +34,14 @@ impl ClassStates {
         classes.extend(other.0.keys());
 
         for cl in &classes {
-            let empty = ClassState::default();
-            let st1 = self.0.get(cl).unwrap_or(&empty);
-            let st2 = other.0.get(cl).unwrap_or(&empty);
-            let st = st1.merge(&st2);
+            let st1 = self.0.get(cl);
+            let st2 = other.0.get(cl);
+            let st = match (st1, st2) {
+                (Some(a), None) => a.clone(),
+                (None, Some(b)) => b.clone(),
+                (Some(a), Some(b)) => a.merge(&b),
+                (None, None) => unreachable!(),
+            };
             out.0.insert((**cl).clone(), st);
         }
 
