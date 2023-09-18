@@ -70,6 +70,25 @@ impl ClassState {
     }
 
     pub(in crate::infer) fn merge(&self, other: &ClassState) -> ClassState {
-        unimplemented!()
+        let mut out = ClassState::default();
+
+        let mut keys: Set<&_> = self.0.keys().collect();
+        keys.extend(other.0.keys());
+
+        for k in &keys {
+            let v = if k.is_concrete() {
+                let l1 = self.get(k);
+                let l2 = other.get(k);
+                l1.merge(&l2)
+            } else {
+                let bot = Value::bot();
+                let l1 = self.0.get(k).unwrap_or(&bot);
+                let l2 = other.0.get(k).unwrap_or(&bot);
+                l1.merge(&l2)
+            };
+            out.0.insert((**k).clone(), v);
+        }
+
+        out
     }
 }
