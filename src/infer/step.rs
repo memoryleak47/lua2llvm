@@ -65,7 +65,9 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
                 if cl == Class::Concrete(loc) { return Class::Summary(loc); }
                 return cl;
             });
-            v.classes.insert(Class::Concrete(loc));
+            let cl = Class::Concrete(loc);
+            v.classes.insert(cl);
+            state.class_states.0.insert(cl, ClassState::default());
         },
         Expr::LitFunction(fid) => {
             v.fns = vec![*fid].into_iter().collect();
