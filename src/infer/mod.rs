@@ -1,12 +1,22 @@
 use crate::ir::*;
-use std::collections::{HashSet as Set, HashMap as Map};
+use hashable::{HashableHashSet as Set, HashableHashMap as Map};
+use noisy_float::prelude::R64;
+use std::hash::Hash;
+
+mod value;
+use value::*;
+
+mod step;
+use step::*;
 
 type StatementIndex = usize;
 type Stmt = (FnId, BlockId, StatementIndex);
 
 // an alloc location
+#[derive(PartialEq, Eq, Hash)]
 struct Location(Stmt);
 
+#[derive(PartialEq, Eq, Hash)]
 enum TableClass {
     Concrete(Location),
     Summary(Location),
@@ -22,37 +32,22 @@ struct InState {
     table_state: TableState,
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq, Hash)]
 struct TableState(Map<TableClass, TableType>);
 
 struct FnState {
     in_state: InState,
     out_state: TableState,
+
+    // the state right before executing a statement.
     state: Map<(BlockId, StatementIndex), LocalState>,
 }
 
-struct Value {
-    prim: PrimitiveValue,
-    table: TableValue,
-}
 
-struct TableValue(Set<TableClass>);
-
-enum Lattice<T> {
-    Top,
-    Set(Set<T>),
-}
-
-struct PrimitiveValue {
-    str_val: Lattice<String>,
-    fn_val: Set<FnId>,
-    num_val: Lattice<f64>,
-    nil_val: Set<()>,
-    bool_val: Set<bool>,
-}
-
+#[derive(Default, PartialEq, Eq, Hash)]
 struct TableType(Set<(Value, Value)>);
 
+#[derive(PartialEq, Eq)]
 struct LocalState {
     nodes: Map<Node, Value>,
     table_state: TableState,
@@ -71,14 +66,10 @@ fn infer(ir: &IR) -> Infer {
 
     while let Some((fid, bid, sid)) = inf.dirty.pop() {
         let st = &ir.fns[fid].blocks[bid][sid];
-        infer_step(st, &mut inf, ir);
+        infer_step(st, (fid, bid, sid), &mut inf, ir);
     }
 
     inf
-}
-
-fn infer_step(st: &Statement, inf: &mut Infer, ir: &IR) {
-    unimplemented!()
 }
 
 impl FnState {
@@ -100,29 +91,8 @@ impl InState {
     }
 }
 
-impl Value {
-    fn nil() -> Value {
-        Value {
-            prim: PrimitiveValue::nil(),
-            table: TableValue(Set::new()),
-        }
-    }
-}
-
-impl PrimitiveValue {
-    fn nil() -> PrimitiveValue {
-        PrimitiveValue {
-            str_val: Lattice::new(),
-            fn_val: Set::new(),
-            num_val: Lattice::new(),
-            nil_val: Some(()).into_iter().collect(),
-            bool_val: Set::new(),
-        }
-    }
-}
-
-impl<T> Lattice<T> {
-    fn new() -> Lattice<T> {
-        Lattice::Set(Set::new())
+impl LocalState {
+    fn merge(&self, other: &LocalState) -> LocalState {
+        unimplemented!()
     }
 }

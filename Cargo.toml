@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 llvm-sys = {version = "160", features = ["prefer-dynamic"]}
+hashable = "*"
+noisy_float = "*"
