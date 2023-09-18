@@ -26,7 +26,7 @@ enum Class {
     Summary(Location),
 }
 
-struct Infer {
+pub struct Infer {
     fn_state: Map<FnId, FnState>,
     dirty: Vec<Stmt>,
 }
@@ -51,7 +51,7 @@ struct LocalState {
     class_states: ClassStates,
 }
 
-fn infer(ir: &IR) -> Infer {
+pub fn infer(ir: &IR) -> Infer {
     let mut inf = Infer {
         fn_state: Map::default(),
         dirty: Vec::new(),

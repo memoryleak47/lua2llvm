@@ -18,6 +18,7 @@ mod lower;
 use lower::lower;
 
 mod infer;
+use infer::infer;
 
 mod exec_ir;
 
@@ -58,6 +59,8 @@ fn main() {
         prepare(&mut ast);
         lower(&ast)
     };
+
+    let inf = infer(&ir);
 
     if arg("--dump-ir") {
         eprintln!("{}", &ir);
