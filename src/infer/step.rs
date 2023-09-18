@@ -49,7 +49,15 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
         Expr::Len(n) => unimplemented!(),
         Expr::Intrinsic(i) => unimplemented!(),
 
-        Expr::Num(num) => unimplemented!(),
+        Expr::Num(num) => {
+            let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
+            let mut v = Value::bot();
+            let num = (*num).try_into().unwrap();
+            v.nums = Lattice::Set(vec![num].into_iter().collect());
+
+            state.nodes.insert(n, v);
+            to_stmt((fid, bid, sid+1), state, inf);
+        },
         Expr::Bool(b) => unimplemented!(),
         Expr::Nil => unimplemented!(),
         Expr::Str(s) => unimplemented!(),
