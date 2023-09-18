@@ -3,10 +3,7 @@ use crate::infer::*;
 pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &mut Infer, ir: &IR) {
     let nxt_stmt = || (fid, bid, sid+1);
     match st {
-        Statement::Compute(n, expr) => {
-            unimplemented!()
-        },
-
+        Statement::Compute(n, expr) => infer_step_compute(*n, expr, (fid, bid, sid), inf),
         Statement::Store(t, i, v) => {
             let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
             let t: Value = state.nodes[&t].clone();
@@ -39,6 +36,23 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
         Statement::Return => {
             unimplemented!()
         },
+    }
+}
+
+fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Infer) {
+    match expr {
+        Expr::Index(t, i) => unimplemented!(),
+        Expr::Arg => unimplemented!(),
+        Expr::NewTable => unimplemented!(),
+        Expr::LitFunction(fid) => unimplemented!(),
+        Expr::BinOp(kind, n1, n2) => unimplemented!(),
+        Expr::Len(n) => unimplemented!(),
+        Expr::Intrinsic(i) => unimplemented!(),
+
+        Expr::Num(num) => unimplemented!(),
+        Expr::Bool(b) => unimplemented!(),
+        Expr::Nil => unimplemented!(),
+        Expr::Str(s) => unimplemented!(),
     }
 }
 
