@@ -4,8 +4,7 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
     let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
     match st {
         Statement::Compute(n, expr) => {
-            infer_step_compute(*n, expr, &mut state, fid, inf);
-            to_stmt((fid, bid, sid+1), state, inf);
+            infer_step_compute(*n, expr, (fid, bid, sid), inf);
         },
         Statement::Store(t, i, v) => {
             let t: Value = state.nodes[&t].clone();
@@ -49,7 +48,9 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
     }
 }
 
-fn infer_step_compute(n: Node, expr: &Expr, state: &mut LocalState, fid: FnId, inf: &mut Infer) {
+fn infer_step_compute(n: Node, expr: &Expr, (fid, sid, bid): Stmt, inf: &mut Infer) {
+    let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
+
     let mut v = Value::bot();
     match expr {
         Expr::Index(t, i) => {
@@ -60,7 +61,14 @@ fn infer_step_compute(n: Node, expr: &Expr, state: &mut LocalState, fid: FnId, i
         Expr::Arg => {
             v = inf.fn_state[&fid].argval.clone();
         },
-        Expr::NewTable => unimplemented!(),
+        Expr::NewTable => {
+            let loc = Location((fid, sid, bid));
+            state = state.map_classes(|cl| {
+                if cl == Class::Concrete(loc) { return Class::Summary(loc); }
+                return cl;
+            });
+            v.classes.insert(Class::Concrete(loc));
+        },
         Expr::LitFunction(fid) => {
             v.fns = vec![*fid].into_iter().collect();
         },
@@ -105,6 +113,7 @@ fn infer_step_compute(n: Node, expr: &Expr, state: &mut LocalState, fid: FnId, i
         },
     }
     state.nodes.insert(n, v);
+    to_stmt((fid, bid, sid+1), state, inf);
 }
 
 fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) {

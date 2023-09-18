@@ -107,4 +107,8 @@ impl LocalState {
             class_states,
         }
     }
+
+    fn map_classes(&self, f: impl Fn(Class) -> Class) -> Self {
+        unimplemented!()
+    }
 }
