@@ -45,7 +45,17 @@ impl ClassStates {
     }
 
     pub(in crate::infer) fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
-        unimplemented!()
+        let mut out = ClassStates::default();
+
+        for cl in self.0.keys() {
+            let mut cl_state = self.0[cl].map_classes(f);
+            let cl = f(*cl);
+            if out.0.contains_key(&cl) {
+                cl_state = out.0[&cl].merge(&cl_state);
+            }
+            out.0.insert(cl, cl_state);
+        }
+        out
     }
 }
 
@@ -108,6 +118,21 @@ impl ClassState {
                 l1.merge(&l2)
             };
             out.0.insert((**k).clone(), v);
+        }
+
+        out
+    }
+
+    pub(in crate::infer) fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
+        let mut out = ClassState::default();
+
+        for k in self.0.keys() {
+            let mut v = self.0[k].map_classes(f);
+            let k = k.map_classes(f);
+            if out.0.contains_key(&k) {
+                v = out.0[&k].merge(&v);
+            }
+            out.0.insert(k, v);
         }
 
         out
