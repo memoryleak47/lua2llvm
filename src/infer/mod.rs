@@ -9,6 +9,9 @@ use value::*;
 mod step;
 use step::*;
 
+mod class_states;
+use class_states::*;
+
 type StatementIndex = usize;
 type Stmt = (FnId, BlockId, StatementIndex);
 
@@ -32,12 +35,6 @@ struct InState {
     argval: Value,
     class_states: ClassStates,
 }
-
-#[derive(Default, PartialEq, Eq, Hash, Clone)]
-struct ClassStates(Map<Class, ClassState>);
-
-#[derive(Default, PartialEq, Eq, Hash, Clone)]
-struct ClassState(Set<(Value, Value)>);
 
 struct FnState {
     in_state: InState,

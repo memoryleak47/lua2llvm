@@ -8,7 +8,12 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
         },
 
         Statement::Store(t, i, v) => {
-            unimplemented!()
+            let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
+            let t: Value = state.nodes[&t].clone();
+            let i: Value = state.nodes[&i].clone();
+            let v: Value = state.nodes[&v].clone();
+            state.class_states.set(&t, &i, &v);
+            to_stmt(nxt_stmt(), state, inf);
         },
 
         Statement::If(cond, then, else_) => {
