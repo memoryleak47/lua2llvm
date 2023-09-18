@@ -4,7 +4,7 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
     let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
     match st {
         Statement::Compute(n, expr) => {
-            infer_step_compute(*n, expr, &mut state, inf);
+            infer_step_compute(*n, expr, &mut state, fid, inf);
             to_stmt((fid, bid, sid+1), state, inf);
         },
         Statement::Store(t, i, v) => {
@@ -49,15 +49,25 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
     }
 }
 
-fn infer_step_compute(n: Node, expr: &Expr, state: &mut LocalState, inf: &mut Infer) {
+fn infer_step_compute(n: Node, expr: &Expr, state: &mut LocalState, fid: FnId, inf: &mut Infer) {
     let mut v = Value::bot();
     match expr {
-        Expr::Index(t, i) => unimplemented!(),
-        Expr::Arg => unimplemented!(),
+        Expr::Index(t, i) => {
+            let t = &state.nodes[&t];
+            let i = &state.nodes[&i];
+            v = state.class_states.get(t, i);
+        },
+        Expr::Arg => {
+            v = inf.fn_state[&fid].argval.clone();
+        },
         Expr::NewTable => unimplemented!(),
-        Expr::LitFunction(fid) => unimplemented!(),
+        Expr::LitFunction(fid) => {
+            v.fns = vec![*fid].into_iter().collect();
+        },
         Expr::BinOp(kind, n1, n2) => unimplemented!(),
-        Expr::Len(n) => unimplemented!(),
+        Expr::Len(_) => {
+            v.nums = Lattice::Top;
+        },
         Expr::Intrinsic(i) => unimplemented!(),
 
         Expr::Num(num) => {
