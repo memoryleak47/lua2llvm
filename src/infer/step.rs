@@ -46,7 +46,7 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
     }
 }
 
-fn infer_step_compute(n: Node, expr: &Expr, (fid, sid, bid): Stmt, inf: &mut Infer) {
+fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Infer) {
     let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
 
     let mut v = Value::bot();
@@ -60,7 +60,7 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, sid, bid): Stmt, inf: &mut Inf
             v = inf.fn_state[&fid].argval.clone();
         },
         Expr::NewTable => {
-            let loc = Location((fid, sid, bid));
+            let loc = Location((fid, bid, sid));
             state = state.map_classes(&|cl| {
                 if cl == Class::Concrete(loc) { return Class::Summary(loc); }
                 return cl;
