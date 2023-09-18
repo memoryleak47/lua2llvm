@@ -40,7 +40,20 @@ impl ClassState {
     }
 
     pub(in crate::infer) fn get(&self, k: &Value) -> Value {
-        unimplemented!()
+        let mut weak_val = Value::nil();
+        for (k_, v) in &self.0 {
+            match k_.compare(k) {
+                Comparison::ConcreteEq => {
+                    return v.clone();
+                },
+                Comparison::Overlap => {
+                    weak_val = weak_val.merge(v);
+                },
+                Comparison::Disjoint => {},
+            }
+        }
+
+        weak_val
     }
 
     pub(in crate::infer) fn merge(&self, other: &ClassState) -> ClassState {

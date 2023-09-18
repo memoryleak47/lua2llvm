@@ -43,4 +43,14 @@ impl Value {
         v.nils.insert(());
         v
     }
+
+    pub(in crate::infer) fn compare(&self, other: &Value) -> Comparison {
+        unimplemented!()
+    }
+}
+
+pub(in crate::infer) enum Comparison {
+    ConcreteEq,
+    Overlap,
+    Disjoint,
 }
