@@ -143,13 +143,67 @@ fn infer_binop(kind: &BinOpKind, l: &Value, r: &Value) -> Value {
         out
     };
 
+    let cmp_attempts = |f: fn(_, _) -> _| {
+        let mut out = Value::bot();
+
+        let top = vec![true, false].into_iter().collect();
+        let Lattice::Set(l) = &l.nums else { out.bools = top; return out; };
+        let Lattice::Set(r) = &r.nums else { out.bools = top; return out; };
+
+        for l in l {
+            for r in r {
+                out.bools.insert(f(*l, *r));
+            }
+        }
+
+        out
+    };
+
     match kind {
         BinOpKind::Plus => num_attempts(|x, y| x + y),
         BinOpKind::Minus => num_attempts(|x, y| x - y),
         BinOpKind::Mul => num_attempts(|x, y| x * y),
         BinOpKind::Div => num_attempts(|x, y| x / y),
+        BinOpKind::Mod => num_attempts(|x, y| x % y),
         BinOpKind::Pow => num_attempts(|x, y| x.powf(y)),
-        _ => unimplemented!(),
+
+        BinOpKind::Lt => cmp_attempts(|x, y| x < y),
+        BinOpKind::Gt => cmp_attempts(|x, y| x > y),
+        BinOpKind::Le => cmp_attempts(|x, y| x <= y),
+        BinOpKind::Ge => cmp_attempts(|x, y| x >= y),
+
+        BinOpKind::Concat => {
+            let mut out = Value::bot();
+            out.strings = Lattice::Top;
+
+            out
+        },
+
+        BinOpKind::IsEqual => {
+            let opts = match l.compare(r) {
+                Comparison::ConcreteEq => vec![true],
+                Comparison::Overlap => vec![true, false],
+                Comparison::Disjoint => vec![false],
+            };
+
+            let mut out = Value::bot();
+            out.bools = opts.into_iter().collect();
+
+            out
+        },
+
+        BinOpKind::IsNotEqual => {
+            let opts = match l.compare(r) {
+                Comparison::ConcreteEq => vec![false],
+                Comparison::Overlap => vec![true, false],
+                Comparison::Disjoint => vec![true],
+            };
+
+            let mut out = Value::bot();
+            out.bools = opts.into_iter().collect();
+
+            out
+        },
     }
 }
 
