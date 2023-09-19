@@ -8,13 +8,16 @@ pub(in crate::infer) struct ClassState(pub(in crate::infer) Map<Value, Value>);
 
 impl ClassStates {
     pub(in crate::infer) fn set(&mut self, t: &Value, k: &Value, v: &Value) {
-        if t.classes.len() > 1 {
-            for c in &t.classes {
-                self.0.get_mut(c).unwrap().weak_set(k, v);
+        let mut tt = Value::bot();
+        tt.classes = t.classes.clone();
+
+        if tt.is_concrete() {
+            for c in &tt.classes {
+                self.0.get_mut(c).unwrap().set(k, v);
             }
         } else {
-            for c in &t.classes {
-                self.0.get_mut(c).unwrap().set(k, v);
+            for c in &tt.classes {
+                self.0.get_mut(c).unwrap().weak_set(k, v);
             }
         }
     }
