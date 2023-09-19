@@ -24,7 +24,19 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
         },
 
         Statement::FnCall(f, arg) => {
-            unimplemented!()
+            let f: Value = state.nodes[&f].clone();
+            let arg: Value = state.nodes[&arg].clone();
+
+            for &child_fid in &f.fns {
+                let start_bid = ir.fns[child_fid].start_block;
+                if !inf.fn_state.contains_key(&child_fid) {
+                    inf.fn_state.insert(child_fid, FnState::new());
+                }
+                let changed = inf.fn_state.get_mut(&child_fid).unwrap().register_call_site(&arg, &state.class_states, (fid, bid, sid), start_bid);
+                if changed {
+                    inf.dirty.push((child_fid, start_bid, 0));
+                }
+            }
         },
 
         Statement::Command(cmd) => {

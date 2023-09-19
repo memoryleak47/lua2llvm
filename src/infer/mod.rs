@@ -47,7 +47,7 @@ pub fn infer(ir: &IR) -> Infer {
     let bid = ir.fns[fid].start_block;
 
     let mut fstate = FnState::new();
-    fstate.push_call(Value::nil(), ClassStates::default(), bid);
+    fstate.state.insert((bid, 0), LocalState::default());
 
     inf.fn_state.insert(fid, fstate);
     let start_stmt = (fid, bid, 0);
