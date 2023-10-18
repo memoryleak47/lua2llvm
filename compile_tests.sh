@@ -6,7 +6,7 @@ rm -r build
 mkdir build
 
 echo compiling lua2llvm ...
-cargo b
+cargo b --release
 
 echo compiling extra files ...
 for x in $(cd extra; ls *.cpp)
@@ -22,7 +22,7 @@ do
     echo
 
     [ -f ./build./exe ] && rm ./build/exe
-    ./target/debug/lua2llvm --compile "tests/${i}.lua" 2> build/file.ll
+    ./target/release/lua2llvm --compile "tests/${i}.lua" 2> build/file.ll
     clang++ build/*.ll -o build/exe
     [ ! -f ./build/exe ] && echo "compilation failed!" && exit
     res1=$(./build/exe)
