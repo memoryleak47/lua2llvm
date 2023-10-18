@@ -24,17 +24,32 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
         },
 
         Statement::FnCall(f, arg) => {
-            let f: Value = state.nodes[&f].clone();
-            let arg: Value = state.nodes[&arg].clone();
+            let summ_state: LocalState = state.map_classes(&summarize_all);
+
+            let f: Value = summ_state.nodes[&f].clone();
+            let arg: Value = summ_state.nodes[&arg].clone();
 
             for &child_fid in &f.fns {
+                let orig: Option<FnState> = inf.fn_state.get(&child_fid).cloned();
+                let fn_state: &mut FnState = inf.fn_state.entry(child_fid).or_insert(FnState::new());
+
+                fn_state.argval = fn_state.argval.merge(&arg);
+                fn_state.call_sites.insert((fid, bid, sid));
+
                 let start_bid = ir.fns[child_fid].start_block;
-                if !inf.fn_state.contains_key(&child_fid) {
-                    inf.fn_state.insert(child_fid, FnState::new());
-                }
-                let changed = inf.fn_state.get_mut(&child_fid).unwrap().register_call_site(&arg, &state.class_states, (fid, bid, sid), start_bid);
-                if changed {
+                let loc: &mut LocalState = fn_state.state.entry((start_bid, 0)).or_insert(LocalState::default());
+                loc.class_states = loc.class_states.merge(&summ_state.class_states);
+
+                // if something changed, set the newly called function to "dirty".
+                if Some(&*fn_state) != orig.as_ref() {
                     inf.dirty.push((child_fid, start_bid, 0));
+                }
+
+                // take the current output state of that function as well.
+                if let Some(ret_class_states) = &fn_state.out_state {
+                    let mut new_state = summ_state.clone();
+                    new_state.class_states = new_state.class_states.merge(ret_class_states);
+                    to_stmt((fid, bid, sid+1), new_state, inf);
                 }
             }
         },
@@ -52,8 +67,21 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
         },
 
         Statement::Return => {
-            let st = inf.fn_state.get_mut(&fid).unwrap();
-            st.out_state = st.out_state.merge(&state.class_states);
+            let st: &mut FnState = inf.fn_state.get_mut(&fid).unwrap();
+            let new_out: ClassStates = state.class_states.map_classes(&summarize_all);
+            let new_out: ClassStates = match &st.out_state {
+                Some(x) => x.merge(&new_out),
+                None => new_out,
+            };
+            st.out_state = Some(new_out.clone());
+            let call_sites = st.call_sites.clone();
+
+            for &(fid_, bid_, sid_) in &call_sites {
+                let mut new_state = inf.fn_state[&fid_].state[&(bid_, sid_)].map_classes(&summarize_all);
+                new_state.class_states = new_state.class_states.merge(&new_out);
+
+                to_stmt((fid_, bid_, sid_+1), new_state, inf);
+            }
         },
     }
 }
@@ -226,5 +254,12 @@ fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) {
     if &result_state != old_state {
         inf.fn_state.get_mut(&fid).unwrap().state.insert((bid, sid), result_state);
         inf.dirty.push((fid, bid, sid));
+    }
+}
+
+fn summarize_all(c: Class) -> Class {
+    match c {
+        Class::Concrete(x) => Class::Summary(x),
+        Class::Summary(x) => Class::Summary(x),
     }
 }
