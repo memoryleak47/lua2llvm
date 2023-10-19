@@ -1,6 +1,6 @@
 use crate::infer::*;
 
-#[derive(PartialEq, Eq, Clone, Default)]
+#[derive(PartialEq, Eq, Clone, Default, Debug)]
 pub(in crate::infer) struct LocalState {
     pub nodes: Map<Node, Value>,
     pub class_states: ClassStates,

@@ -3,6 +3,8 @@ use hashable::{HashableHashSet as Set, HashableHashMap as Map};
 use noisy_float::prelude::{R64, Float};
 use std::hash::Hash;
 
+mod display;
+
 mod value;
 use value::*;
 
@@ -32,6 +34,7 @@ enum Class {
     Summary(Location),
 }
 
+#[derive(Debug)]
 pub struct Infer {
     fn_state: Map<FnId, FnState>,
     dirty: Vec<Stmt>,

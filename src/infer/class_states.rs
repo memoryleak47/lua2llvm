@@ -1,6 +1,6 @@
 use crate::infer::*;
 
-#[derive(Default, PartialEq, Eq, Hash, Clone)]
+#[derive(Default, PartialEq, Eq, Hash, Clone, Debug)]
 pub(in crate::infer) struct ClassStates(pub(in crate::infer) Map<Class, ClassState>);
 
 #[derive(Default, PartialEq, Eq, Hash, Clone)]
