@@ -34,5 +34,12 @@ impl LocalState {
             class_states: self.class_states.map_classes(f),
         }
     }
+
+    pub(in crate::infer) fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        LocalState {
+            nodes: self.nodes.into_iter().map(|(k, v)| (*k, v.map_stmt(f))).collect(),
+            class_states: self.class_states.map_stmt(f),
+        }
+    }
 }
 

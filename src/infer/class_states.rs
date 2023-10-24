@@ -64,6 +64,10 @@ impl ClassStates {
         }
         out
     }
+
+    pub(in crate::infer) fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        Self(self.0.iter().map(|(k, v)| (k.map_stmt(f), v.map_stmt(f))).collect())
+    }
 }
 
 impl ClassState {
@@ -143,5 +147,9 @@ impl ClassState {
         }
 
         out
+    }
+
+    pub(in crate::infer) fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        Self(self.0.iter().map(|(k, v)| (k.map_stmt(f), v.map_stmt(f))).collect())
     }
 }

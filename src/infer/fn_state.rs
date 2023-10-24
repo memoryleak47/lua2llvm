@@ -20,4 +20,12 @@ impl FnState {
             call_sites: Set::new(),
         }
     }
+
+    pub(in crate::infer) fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        Self {
+            argval: self.argval.map_stmt(f),
+            out_state: self.out_state.as_ref().map(|x| x.map_stmt(f)),
+            call_sites: self.call_sites.iter().copied().map(f).collect(),
+        }
+    }
 }

@@ -91,6 +91,11 @@ impl Value {
         out
     }
 
+    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        let mut out = self.clone();
+        out.classes = out.classes.into_iter().map(|cl| cl.map_stmt(f)).collect();
+        out
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

@@ -63,3 +63,29 @@ pub fn infer(ir: &IR) -> Infer {
 
     inf
 }
+
+impl Infer {
+    fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        Self {
+            fn_state: self.fn_state.iter().map(|(fid, state)| (*fid, state.map_stmt(f))).collect(),
+            dirty: self.dirty.iter().copied().map(f).collect(),
+            local_state: self.local_state.iter().map(|(stmt, local)| (f(*stmt), local.map_stmt(f))).collect(),
+        }
+    }
+}
+
+impl Class {
+    fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        match self {
+            Self::Concrete(loc) => Self::Concrete(loc.map_stmt(f)),
+            Self::Summary(loc) => Self::Summary(loc.map_stmt(f)),
+        }
+    }
+}
+
+impl Location {
+    fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        Self(f(self.0))
+    }
+}
+

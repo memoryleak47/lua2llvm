@@ -24,23 +24,8 @@ mod exec_ir;
 
 mod compile;
 
-fn test_ir() -> ir::IR {
-    use ir::*;
-
-    let block = vec![
-        Statement::Compute(0, Expr::NewTable),
-    ];
-
-    let f = LitFunction {
-        blocks: vec![block],
-        start_block: 0,
-    };
-
-    IR {
-        main_fn: 0,
-        fns: vec![f],
-    }
-}
+mod optimize;
+use optimize::optimize;
 
 fn main() {
     let args: Vec<String> = std::env::args()
@@ -48,25 +33,23 @@ fn main() {
                                 .collect();
     let arg = |s| args.iter().find(|x| **x == s).is_some();
 
-    let ir = if arg("--test-ir") {
-        test_ir()
-    } else {
-        let filename = args.iter().find(|x| !x.starts_with("--")).expect("no input file given!");
-        let code = std::fs::read_to_string(filename).unwrap();
-        let tokens = token::tokenize(&code);
-        let mut ast = parse::parse(&tokens).expect("Ast::parse failed!");
+    
+    let filename = args.iter().find(|x| !x.starts_with("--")).expect("no input file given!");
+    let code = std::fs::read_to_string(filename).unwrap();
+    let tokens = token::tokenize(&code);
+    let mut ast = parse::parse(&tokens).expect("Ast::parse failed!");
 
-        prepare(&mut ast);
-        lower(&ast)
-    };
+    prepare(&mut ast);
+    let mut ir = lower(&ast);
+    let mut inf = infer(&ir);
 
-    let inf = infer(&ir);
+    optimize(&mut ir, &mut inf);
 
     if arg("--dump-ir") {
         eprintln!("{}", &ir);
     } else if arg("--compile") {
         compile::compile(&ir);
-     } else {
+    } else {
         exec_ir::exec(&ir);
     }
 }
