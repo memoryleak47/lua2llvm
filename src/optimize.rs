@@ -109,8 +109,8 @@ fn rm_unused_node(ir: &mut IR, inf: &mut Infer) -> Changed {
 
 fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
     for (fid, bid, sid) in stmts(ir) {
-        if inf.local_state.get(&(fid, bid, sid)).is_none() { continue; };
-        if inf.local_state.get(&(fid, bid, sid+1)).is_none() { continue; };
+        if !inf.local_state[&(fid, bid, sid)].executed { continue; };
+
         let Statement::Compute(node, expr) = deref_stmt((fid, bid, sid), ir) else { continue; };
         if matches!(expr, Expr::LitFunction(_) | Expr::Num(_) | Expr::Bool(_) | Expr::Nil | Expr::Str(_)) { continue; };
 

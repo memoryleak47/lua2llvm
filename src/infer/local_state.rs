@@ -4,6 +4,7 @@ use crate::infer::*;
 pub struct LocalState {
     pub nodes: Map<Node, Value>,
     pub class_states: ClassStates,
+    pub executed: bool,
 }
 
 impl LocalState {
@@ -25,6 +26,7 @@ impl LocalState {
         LocalState {
             nodes,
             class_states,
+            executed: self.executed || other.executed,
         }
     }
 
@@ -32,6 +34,7 @@ impl LocalState {
         LocalState {
             nodes: self.nodes.into_iter().map(|(k, v)| (*k, v.map_classes(f))).collect(),
             class_states: self.class_states.map_classes(f),
+            executed: self.executed,
         }
     }
 
@@ -39,6 +42,7 @@ impl LocalState {
         LocalState {
             nodes: self.nodes.into_iter().map(|(k, v)| (*k, v.map_stmt(f))).collect(),
             class_states: self.class_states.map_stmt(f),
+            executed: self.executed,
         }
     }
 }

@@ -1,6 +1,8 @@
 use crate::infer::*;
 
 pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &mut Infer, ir: &IR) {
+    inf.local_state.get_mut(&(fid, bid, sid)).unwrap().executed = true;
+
     let mut state: LocalState = inf.local_state[&(fid, bid, sid)].clone();
     match st {
         Statement::Compute(n, expr) => {
@@ -30,18 +32,18 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
             let arg: Value = summ_state.nodes[&arg].clone();
 
             for &child_fid in &f.fns {
-                let orig: Option<FnState> = inf.fn_state.get(&child_fid).cloned();
-                let fn_state: &mut FnState = inf.fn_state.entry(child_fid).or_insert(FnState::new());
+                let orig: FnState = inf.fn_state[&child_fid].clone();
+                let fn_state: &mut FnState = inf.fn_state.get_mut(&child_fid).unwrap();
 
                 fn_state.argval = fn_state.argval.merge(&arg);
                 fn_state.call_sites.insert((fid, bid, sid));
 
                 let start_bid = ir.fns[child_fid].start_block;
-                let loc: &mut LocalState = inf.local_state.entry((child_fid, start_bid, 0)).or_insert(LocalState::default());
+                let loc: &mut LocalState = inf.local_state.get_mut(&(child_fid, start_bid, 0)).unwrap();
                 loc.class_states = loc.class_states.merge(&summ_state.class_states);
 
                 // if something changed, set the newly called function to "dirty".
-                if Some(&*fn_state) != orig.as_ref() {
+                if fn_state != &orig {
                     inf.dirty.push((child_fid, start_bid, 0));
                 }
 
@@ -248,8 +250,7 @@ fn infer_binop(kind: &BinOpKind, l: &Value, r: &Value) -> Value {
 }
 
 fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) {
-    let def = LocalState::default();
-    let old_state = inf.local_state.get(&(fid, bid, sid)).unwrap_or(&def);
+    let old_state = &inf.local_state[&(fid, bid, sid)];
     let result_state = state.merge(old_state);
     if &result_state != old_state {
         inf.local_state.insert((fid, bid, sid), result_state);

@@ -48,12 +48,18 @@ pub fn infer(ir: &IR) -> Infer {
         local_state: Map::default(),
     };
 
+    // initialize everything, so we can index without care later on.
+    for fid in 0..ir.fns.len() {
+        inf.fn_state.insert(fid, FnState::new());
+        for bid in 0..ir.fns[fid].blocks.len() {
+            for sid in 0..ir.fns[fid].blocks[bid].len() {
+                inf.local_state.insert((fid, bid, sid), LocalState::default());
+            }
+        }
+    }
+
     let fid = ir.main_fn;
     let bid = ir.fns[fid].start_block;
-
-    inf.local_state.insert((fid, bid, 0), LocalState::default());
-    inf.fn_state.insert(fid, FnState::new());
-
     inf.dirty.push((fid, bid, 0));
 
     while let Some((fid, bid, sid)) = inf.dirty.pop() {
