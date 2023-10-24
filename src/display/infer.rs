@@ -49,7 +49,11 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
             write!(f, "{} = {}; ", self.node_string(*node), self.value_string(value))?;
         }
         write!(f, "\n\n")?;
-        write!(f, "    executed: {}\n", local_state.executed)?;
+
+        if !local_state.executed {
+            write!(f, "    never executed.\n")?;
+        }
+
         write!(f, "------------------------------------\n")?;
         Ok(())
     }

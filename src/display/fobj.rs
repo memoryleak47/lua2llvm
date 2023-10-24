@@ -28,7 +28,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
 
         write!(f, "{main_prefix}function f{fid}({argval}):\n")?;
         if let Some(inf) = self.inf {
-            write!(f, "  [out] ")?;
+            write!(f, "  out state:\n")?;
             match &inf.fn_state[&fid].out_state {
                 Some(out_state) => self.display_class_states(out_state, f)?,
                 None => write!(f, "!")?,

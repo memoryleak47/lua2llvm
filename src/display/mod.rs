@@ -8,7 +8,7 @@ use crate::infer::*;
 
 use std::fmt::{self, Formatter};
 
-const INLINE_CONST_NODES: bool = true;
+const INLINE_CONST_NODES: bool = false;
 
 pub fn ir_to_string(ir: &IR, inf: Option<&Infer>) -> String {
     let mut out = String::new();
