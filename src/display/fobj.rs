@@ -1,10 +1,9 @@
 use crate::ir::{self, IR, FnId, Statement, Expr, BinOpKind, Node, BlockId, Command};
 use crate::infer::Infer;
+use crate::display::*;
 
 use std::fmt::{self, Formatter};
 use std::collections::HashMap;
-
-const INLINE_CONST_NODES: bool = true;
 
 pub struct FnDisplayObj<'ir, 'inf> {
     ir: &'ir IR,
@@ -19,10 +18,21 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
     }
 
     pub fn display_fn(&mut self, fid: FnId, f: &mut Formatter<'_>) -> fmt::Result {
-        if self.ir.main_fn == fid {
-            write!(f, "main function f{}:\n", fid)?;
-        } else {
-            write!(f, "function f{}:\n", fid)?;
+        let main_prefix = if self.ir.main_fn == fid { "main " } else { "" };
+        
+        
+        let argval = if let Some(inf) = self.inf {
+            self.value_string(&inf.fn_state[&fid].argval)
+        } else { String::new() };
+
+
+        write!(f, "{main_prefix}function f{fid}({argval}):\n")?;
+        if let Some(inf) = self.inf {
+            write!(f, "  [out] ")?;
+            match &inf.fn_state[&fid].out_state {
+                Some(out_state) => self.display_class_states(out_state, f)?,
+                None => write!(f, "!")?,
+            }
         }
 
         for bid in 0..self.ir.fns[fid].blocks.len() {
@@ -42,15 +52,21 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
         }
 
         let statements = &self.ir.fns[fid].blocks[bid];
-        for st in statements {
-            self.display_statement(st, f)?;
+        for sid in 0..statements.len() {
+            self.display_statement((fid, bid, sid), f)?;
         }
 
         Ok(())
     }
 
-    fn display_statement(&mut self, st: &Statement, f: &mut Formatter<'_>) -> fmt::Result {
+    fn display_statement(&mut self, (fid, bid, sid): Stmt, f: &mut Formatter<'_>) -> fmt::Result {
         use Statement::*;
+
+        let st = &self.ir.fns[fid].blocks[bid][sid];
+
+        if let Some(inf) = self.inf {
+            self.display_local_state(&inf.local_state[&(fid, bid, sid)], f)?;
+        }
 
         if INLINE_CONST_NODES {
             if let Compute(n, e) = st {
@@ -94,7 +110,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
         }
     }
 
-    fn node_string(&self, node: Node) -> String {
+    pub fn node_string(&self, node: Node) -> String {
         match self.const_nodes.get(&node) {
             Some(e) => {
                 let mut s = String::new();

@@ -3,8 +3,6 @@ pub use hashable::{HashableHashSet as Set, HashableHashMap as Map};
 use noisy_float::prelude::{R64, Float};
 use std::hash::Hash;
 
-mod display;
-
 mod value;
 pub use value::*;
 
@@ -25,7 +23,7 @@ pub type Stmt = (FnId, BlockId, StatementIndex);
 
 // an alloc location
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub struct Location(Stmt);
+pub struct Location(pub Stmt);
 
 // A conceptual set of table objects.
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
@@ -34,7 +32,6 @@ pub enum Class {
     Summary(Location),
 }
 
-#[derive(Debug)]
 pub struct Infer {
     pub fn_state: Map<FnId, FnState>,
     pub local_state: Map<Stmt, LocalState>,

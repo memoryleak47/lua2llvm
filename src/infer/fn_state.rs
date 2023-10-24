@@ -1,6 +1,6 @@
 use crate::infer::*;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct FnState {
     pub argval: Value,
 
