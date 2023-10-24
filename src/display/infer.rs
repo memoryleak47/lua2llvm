@@ -40,15 +40,12 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
 
     pub fn display_local_state(&self, local_state: &LocalState, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "------------------------------------\n")?;
-        write!(f, "    class states:\n")?;
         self.display_class_states(&local_state.class_states, f)?;
 
-        write!(f, "    node states:\n")?;
-        write!(f, "    ")?;
         for (node, value) in &local_state.nodes {
-            write!(f, "{} = {}; ", self.node_string(*node), self.value_string(value))?;
+            write!(f, "    {} = {},\n", self.node_string(*node), self.value_string(value))?;
         }
-        write!(f, "\n\n")?;
+        write!(f, "\n")?;
 
         if !local_state.executed {
             write!(f, "    never executed.\n")?;
@@ -74,6 +71,6 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
         for (k, v) in class_state.0.iter() {
             parts.push(format!("{}: {}", self.value_string(k), self.value_string(v)));
         }
-        write!(f, "[{}]", parts.join(", "))
+        write!(f, "[{}],", parts.join(", "))
     }
 }
