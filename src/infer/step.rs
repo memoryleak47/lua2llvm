@@ -32,23 +32,10 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
             let arg: Value = summ_state.nodes[&arg].clone();
 
             for &child_fid in &f.fns {
-                let orig: FnState = inf.fn_state[&child_fid].clone();
-                let fn_state: &mut FnState = inf.fn_state.get_mut(&child_fid).unwrap();
-
-                fn_state.argval = fn_state.argval.merge(&arg);
-                fn_state.call_sites.insert((fid, bid, sid));
-
-                let start_bid = ir.fns[child_fid].start_block;
-                let loc: &mut LocalState = inf.local_state.get_mut(&(child_fid, start_bid, 0)).unwrap();
-                loc.class_states = loc.class_states.merge(&summ_state.class_states);
-
-                // if something changed, set the newly called function to "dirty".
-                if fn_state != &orig {
-                    inf.dirty.push((child_fid, start_bid, 0));
-                }
+                to_fn(child_fid, (fid, bid, sid), &summ_state.class_states, &arg, ir, inf);
 
                 // take the current output state of that function as well.
-                if let Some(ret_class_states) = &fn_state.out_state {
+                if let Some(ret_class_states) = &inf.fn_state[&child_fid].out_state {
                     let mut new_state = summ_state.clone();
                     new_state.class_states = new_state.class_states.merge(ret_class_states);
                     to_stmt((fid, bid, sid+1), new_state, inf);
@@ -249,12 +236,35 @@ fn infer_binop(kind: &BinOpKind, l: &Value, r: &Value) -> Value {
     }
 }
 
-fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) {
+fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) -> bool {
     let old_state = &inf.local_state[&(fid, bid, sid)];
     let result_state = state.merge(old_state);
     if &result_state != old_state {
         inf.local_state.insert((fid, bid, sid), result_state);
         inf.dirty.push((fid, bid, sid));
+
+        true
+    } else { false }
+}
+
+fn to_fn(fid: FnId, call_site: Stmt, class_states: &ClassStates, argval: &Value, ir: &IR, inf: &mut Infer) {
+    let bid = ir.fns[fid].start_block;
+
+    // set the LocalState accordingly.
+    let mut loc = LocalState::default();
+    loc.class_states = class_states.clone();
+    let set_to_dirty = to_stmt((fid, bid, 0), loc, inf);
+
+    // set the FnState accordingly.
+    let fn_state: &mut FnState = inf.fn_state.get_mut(&fid).unwrap();
+    let new_argval = fn_state.argval.merge(argval);
+    let needs_update = /*old argval*/ fn_state.argval != new_argval;
+
+    fn_state.argval = new_argval;
+    fn_state.call_sites.insert(call_site);
+
+    if needs_update && !set_to_dirty {
+        inf.dirty.push((fid, bid, 0));
     }
 }
 
