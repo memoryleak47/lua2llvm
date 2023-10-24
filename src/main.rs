@@ -45,7 +45,9 @@ fn main() {
 
     optimize(&mut ir, &mut inf);
 
-    if arg("--dump-ir") {
+    if arg("--dump-infer") {
+        dbg!(&inf);
+    } else if arg("--dump-ir") {
         eprintln!("{}", &ir);
     } else if arg("--compile") {
         compile::compile(&ir);
