@@ -1,7 +1,7 @@
 use crate::infer::*;
 
 pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &mut Infer, ir: &IR) {
-    let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
+    let mut state: LocalState = inf.local_state[&(fid, bid, sid)].clone();
     match st {
         Statement::Compute(n, expr) => {
             infer_step_compute(*n, expr, (fid, bid, sid), inf);
@@ -37,7 +37,7 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
                 fn_state.call_sites.insert((fid, bid, sid));
 
                 let start_bid = ir.fns[child_fid].start_block;
-                let loc: &mut LocalState = fn_state.state.entry((start_bid, 0)).or_insert(LocalState::default());
+                let loc: &mut LocalState = inf.local_state.entry((child_fid, start_bid, 0)).or_insert(LocalState::default());
                 loc.class_states = loc.class_states.merge(&summ_state.class_states);
 
                 // if something changed, set the newly called function to "dirty".
@@ -57,7 +57,7 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
         Statement::Command(cmd) => {
             match cmd {
                 Command::Print(_) => {
-                    let current_state = inf.fn_state[&fid].state[&(bid, sid)].clone();
+                    let current_state = inf.local_state[&(fid, bid, sid)].clone();
                     to_stmt((fid, bid, sid+1), current_state, inf);
                 }
                 Command::Throw(_) => {
@@ -77,7 +77,7 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
             let call_sites = st.call_sites.clone();
 
             for &(fid_, bid_, sid_) in &call_sites {
-                let mut new_state = inf.fn_state[&fid_].state[&(bid_, sid_)].map_classes(&summarize_all);
+                let mut new_state = inf.local_state[&(fid_, bid_, sid_)].map_classes(&summarize_all);
                 new_state.class_states = new_state.class_states.merge(&new_out);
 
                 to_stmt((fid_, bid_, sid_+1), new_state, inf);
@@ -87,7 +87,7 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
 }
 
 fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Infer) {
-    let mut state: LocalState = inf.fn_state[&fid].state[&(bid, sid)].clone();
+    let mut state: LocalState = inf.local_state[&(fid, bid, sid)].clone();
 
     let mut v = Value::bot();
     match expr {
@@ -249,10 +249,10 @@ fn infer_binop(kind: &BinOpKind, l: &Value, r: &Value) -> Value {
 
 fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) {
     let def = LocalState::default();
-    let old_state = inf.fn_state[&fid].state.get(&(bid, sid)).unwrap_or(&def);
+    let old_state = inf.local_state.get(&(fid, bid, sid)).unwrap_or(&def);
     let result_state = state.merge(old_state);
     if &result_state != old_state {
-        inf.fn_state.get_mut(&fid).unwrap().state.insert((bid, sid), result_state);
+        inf.local_state.insert((fid, bid, sid), result_state);
         inf.dirty.push((fid, bid, sid));
     }
 }

@@ -9,7 +9,7 @@ do
     echo "========="
     echo
 
-    res1=$(cargo r "tests/${i}.lua")
+    res1=$(cargo r --release "tests/${i}.lua")
     if [[ ! "$?" == 0 ]]; then
         echo error!
         exit

@@ -38,23 +38,23 @@ enum Class {
 pub struct Infer {
     fn_state: Map<FnId, FnState>,
     dirty: Vec<Stmt>,
+    local_state: Map<Stmt, LocalState>,
 }
 
 pub fn infer(ir: &IR) -> Infer {
     let mut inf = Infer {
         fn_state: Map::default(),
         dirty: Vec::new(),
+        local_state: Map::default(),
     };
 
     let fid = ir.main_fn;
     let bid = ir.fns[fid].start_block;
 
-    let mut fstate = FnState::new();
-    fstate.state.insert((bid, 0), LocalState::default());
+    inf.local_state.insert((fid, bid, 0), LocalState::default());
+    inf.fn_state.insert(fid, FnState::new());
 
-    inf.fn_state.insert(fid, fstate);
-    let start_stmt = (fid, bid, 0);
-    inf.dirty.push(start_stmt);
+    inf.dirty.push((fid, bid, 0));
 
     while let Some((fid, bid, sid)) = inf.dirty.pop() {
         let st = &ir.fns[fid].blocks[bid][sid];
