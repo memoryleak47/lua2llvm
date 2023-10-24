@@ -17,11 +17,11 @@ pub enum Lattice<T: Eq + Hash> {
 }
 
 impl<T: Hash + Eq> Lattice<T> {
-    pub(in crate::infer) fn new() -> Lattice<T> {
+    pub fn new() -> Lattice<T> {
         Lattice::Set(Set::new())
     }
 
-    pub(in crate::infer) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         match self {
             Lattice::Top => false,
             Lattice::Set(s) => s.is_empty(),
@@ -53,7 +53,7 @@ impl Value {
         }
     }
 
-    pub(in crate::infer) fn bot() -> Value {
+    pub fn bot() -> Value {
         Value {
             strings: Lattice::new(),
             fns: Set::new(),

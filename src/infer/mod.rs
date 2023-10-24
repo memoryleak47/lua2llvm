@@ -1,24 +1,24 @@
 use crate::ir::*;
-use hashable::{HashableHashSet as Set, HashableHashMap as Map};
+pub use hashable::{HashableHashSet as Set, HashableHashMap as Map};
 use noisy_float::prelude::{R64, Float};
 use std::hash::Hash;
 
 mod display;
 
 mod value;
-use value::*;
+pub use value::*;
 
 mod step;
 use step::*;
 
 mod class_states;
-use class_states::*;
+pub use class_states::*;
 
 mod local_state;
-use local_state::*;
+pub use local_state::*;
 
 mod fn_state;
-use fn_state::*;
+pub use fn_state::*;
 
 pub type StatementIndex = usize;
 pub type Stmt = (FnId, BlockId, StatementIndex);
