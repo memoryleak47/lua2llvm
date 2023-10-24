@@ -1,10 +1,10 @@
 use crate::infer::*;
 
 #[derive(Default, PartialEq, Eq, Hash, Clone, Debug)]
-pub(in crate::infer) struct ClassStates(pub(in crate::infer) Map<Class, ClassState>);
+pub struct ClassStates(pub(in crate::infer) Map<Class, ClassState>);
 
 #[derive(Default, PartialEq, Eq, Hash, Clone)]
-pub(in crate::infer) struct ClassState(pub(in crate::infer) Map<Value, Value>);
+pub struct ClassState(pub(in crate::infer) Map<Value, Value>);
 
 impl ClassStates {
     pub(in crate::infer) fn set(&mut self, t: &Value, k: &Value, v: &Value) {

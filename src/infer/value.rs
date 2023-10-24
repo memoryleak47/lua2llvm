@@ -1,7 +1,7 @@
 use crate::infer::*;
 
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub(in crate::infer) struct Value {
+pub struct Value {
     pub strings: Lattice<String>,
     pub fns: Set<FnId>,
     pub nums: Lattice<R64>, // TODO Lua supports NaN & inf, so we need to do that aswell!
@@ -11,7 +11,7 @@ pub(in crate::infer) struct Value {
 }
 
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub(in crate::infer) enum Lattice<T: Eq + Hash> {
+pub enum Lattice<T: Eq + Hash> {
     Top,
     Set(Set<T>),
 }
@@ -99,7 +99,7 @@ impl Value {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(in crate::infer) enum Comparison {
+pub enum Comparison {
     ConcreteEq,
     Overlap,
     Disjoint,

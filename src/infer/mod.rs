@@ -20,25 +20,25 @@ use local_state::*;
 mod fn_state;
 use fn_state::*;
 
-type StatementIndex = usize;
-type Stmt = (FnId, BlockId, StatementIndex);
+pub type StatementIndex = usize;
+pub type Stmt = (FnId, BlockId, StatementIndex);
 
 // an alloc location
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-struct Location(Stmt);
+pub struct Location(Stmt);
 
 // A conceptual set of table objects.
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-enum Class {
+pub enum Class {
     Concrete(Location),
     Summary(Location),
 }
 
 #[derive(Debug)]
 pub struct Infer {
-    fn_state: Map<FnId, FnState>,
+    pub fn_state: Map<FnId, FnState>,
+    pub local_state: Map<Stmt, LocalState>,
     dirty: Vec<Stmt>,
-    local_state: Map<Stmt, LocalState>,
 }
 
 pub fn infer(ir: &IR) -> Infer {
@@ -65,7 +65,7 @@ pub fn infer(ir: &IR) -> Infer {
 }
 
 impl Infer {
-    fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
         Self {
             fn_state: self.fn_state.iter().map(|(fid, state)| (*fid, state.map_stmt(f))).collect(),
             dirty: self.dirty.iter().copied().map(f).collect(),

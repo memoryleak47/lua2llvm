@@ -1,7 +1,7 @@
 use crate::infer::*;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub(in crate::infer) struct FnState {
+pub struct FnState {
     pub argval: Value,
 
     // is set to None, if the function never returned yet.
