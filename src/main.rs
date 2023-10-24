@@ -10,6 +10,8 @@ mod parse;
 mod visit;
 
 mod ir;
+mod display;
+use display::ir_to_string;
 
 mod prepare;
 use prepare::prepare;
@@ -45,10 +47,10 @@ fn main() {
 
     optimize(&mut ir, &mut inf);
 
-    if arg("--dump-infer") {
-        dbg!(&inf);
-    } else if arg("--dump-ir") {
-        eprintln!("{}", &ir);
+    if arg("--dump-ir") {
+        eprintln!("{}", ir_to_string(&ir, None));
+    } else if arg("--dump-infer") {
+        eprintln!("{}", ir_to_string(&ir, Some(&inf)));
     } else if arg("--compile") {
         compile::compile(&ir);
     } else {
