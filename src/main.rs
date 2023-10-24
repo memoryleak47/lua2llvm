@@ -35,14 +35,20 @@ fn main() {
                                 .collect();
     let arg = |s| args.iter().find(|x| **x == s).is_some();
 
-    
     let filename = args.iter().find(|x| !x.starts_with("--")).expect("no input file given!");
     let code = std::fs::read_to_string(filename).unwrap();
-    let tokens = token::tokenize(&code);
-    let mut ast = parse::parse(&tokens).expect("Ast::parse failed!");
 
-    prepare(&mut ast);
-    let mut ir = lower(&ast);
+    let mut ir = if arg("--ir") {
+        ir::parser::parse_ir(&code)
+    } else {
+        let tokens = token::tokenize(&code);
+        let mut ast = parse::parse(&tokens).expect("Ast::parse failed!");
+
+        prepare(&mut ast);
+
+        lower(&ast)
+    };
+
     let mut inf = infer(&ir);
 
     optimize(&mut ir, &mut inf);
