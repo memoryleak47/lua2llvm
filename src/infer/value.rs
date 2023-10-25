@@ -71,14 +71,21 @@ impl Value {
     }
 
     pub(in crate::infer) fn compare(&self, other: &Value) -> Comparison {
-        [
+        let cmp1 = [
             compare_lattice(&self.strings, &other.strings),
             compare_set(&self.fns, &other.fns),
             compare_lattice(&self.nums, &other.nums),
             compare_set(&self.nils, &other.nils),
             compare_set(&self.bools, &other.bools),
             compare_classes(&self.classes, &other.classes),
-        ].iter().fold(Comparison::Disjoint, join_comparison)
+        ].iter().fold(Comparison::Disjoint, join_comparison);
+
+        // TODO fix this hack.
+        if cmp1 == Comparison::ConcreteEq && self != other {
+            return Comparison::Overlap;
+        }
+
+        cmp1
     }
 
     pub fn is_concrete(&self) -> bool {
