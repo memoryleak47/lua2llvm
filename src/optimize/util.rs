@@ -21,9 +21,23 @@ pub fn stmts_in_fid(fid: FnId, ir: &IR) -> Vec<Stmt> {
     out
 }
 
+fn rm_stmt_from_entries(stmt: Stmt, cstates: &mut ClassStates) {
+    for (_, cstate) in cstates.0.iter_mut() {
+        for (_, entry) in cstate.0.iter_mut() {
+            entry.sources.remove(&stmt);
+        }
+    }
+}
+
 pub fn rm_stmt((fid, bid, sid): Stmt, ir: &mut IR, inf: &mut Infer) {
     ir.fns[fid].blocks[bid].remove(sid);
     inf.local_state.remove(&(fid, bid, sid));
+    // TODO how do I remove every relevant thing for a stmt?
+    // - written nodes
+    // - classes allocated in this
+    // - Store-entry sources
+
+    // inf.erase_stmt((fid, bid, sid));
 
     *inf = inf.map_stmt(&|(fid_, bid_, sid_)| {
         // If this assert fails, the old infer state still made use of the removed stmt somewhere.
@@ -35,6 +49,15 @@ pub fn rm_stmt((fid, bid, sid): Stmt, ir: &mut IR, inf: &mut Infer) {
             (fid_, bid_, sid_)
         }
     });
+}
+
+pub fn rm_stmts(mut stmts: Vec<Stmt>, ir: &mut IR, inf: &mut Infer) {
+    // Later stmts should be removed earlier so that the indices don't get messed up.
+    stmts.sort_by_key(|(_fid, _bid, sid)| *sid);
+    stmts.reverse();
+    for stmt in stmts {
+        rm_stmt(stmt, ir, inf);
+    }
 }
 
 pub fn deref_stmt((fid, bid, sid): Stmt, ir: &IR) -> Statement {

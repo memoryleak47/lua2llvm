@@ -73,3 +73,31 @@ fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
 
     Changed::No
 }
+
+fn rm_unread_store(ir: &mut IR, inf: &mut Infer) -> Changed {
+    let mut unread_stores: Set<Stmt> = Set::new();
+    for stmt in stmts(ir) {
+        if let Statement::Store(_, _, _) = deref_stmt(stmt, ir) {
+            unread_stores.insert(stmt);
+        }
+    }
+
+    for stmt in stmts(ir) {
+        let Statement::Compute(_, Expr::Index(t, k)) = deref_stmt(stmt, ir) else { continue; };
+        let loc: &LocalState = &inf.local_state[&stmt];
+        if !loc.executed { continue; }
+        let t = &loc.nodes[&t];
+        let k = &loc.nodes[&k];
+        let entry = loc.class_states.get_entry(t, k);
+        for x in &entry.sources {
+            unread_stores.remove(x);
+        }
+    }
+
+    if unread_stores.is_empty() {
+        Changed::No
+    } else {
+        rm_stmts(unread_stores.iter().copied().collect(), ir, inf);
+        Changed::Yes
+    }
+}
