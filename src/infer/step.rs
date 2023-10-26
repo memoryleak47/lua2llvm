@@ -12,7 +12,7 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
             let t: Value = state.nodes[&t].clone();
             let i: Value = state.nodes[&i].clone();
             let v: Value = state.nodes[&v].clone();
-            state.class_states.set(&t, &i, &v);
+            state.class_states.set(&t, &i, &v, (fid, bid, sid));
             to_stmt((fid, bid, sid+1), state, inf);
         },
 

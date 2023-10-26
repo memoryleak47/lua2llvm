@@ -4,33 +4,43 @@ use crate::infer::*;
 pub struct ClassStates(pub Map<Class, ClassState>);
 
 #[derive(Default, PartialEq, Eq, Hash, Clone)]
-pub struct ClassState(pub Map<Value, Value>);
+pub struct ClassState(pub Map<Value, Entry>);
+
+#[derive(PartialEq, Eq, Clone, Hash)]
+pub struct Entry {
+    pub value: Value,
+    pub sources: Set<Stmt>, // the Store statements that shaped this entry.
+}
 
 impl ClassStates {
-    pub(in crate::infer) fn set(&mut self, t: &Value, k: &Value, v: &Value) {
+    pub(in crate::infer) fn set(&mut self, t: &Value, k: &Value, v: &Value, source: Stmt) {
         let mut tt = Value::bot();
         tt.classes = t.classes.clone();
 
         if tt.is_concrete() {
             for c in &tt.classes {
-                self.0.get_mut(c).unwrap().set(k, v);
+                self.0.get_mut(c).unwrap().set(k, v, source);
             }
         } else {
             for c in &tt.classes {
-                self.0.get_mut(c).unwrap().weak_set(k, v);
+                self.0.get_mut(c).unwrap().weak_set(k, v, source);
             }
         }
     }
 
-    pub(in crate::infer) fn get(&self, t: &Value, k: &Value) -> Value {
-        let mut out_val = Value::bot();
+    pub fn get_entry(&self, t: &Value, k: &Value) -> Entry {
+        let mut out_entry = Entry::bot();
         for c in &t.classes {
-            out_val = out_val.merge(&self.0[c].get(k));
+            out_entry = out_entry.merge(&self.0[c].get_entry(k));
         }
-        out_val
+        out_entry
     }
 
-    pub(in crate::infer) fn merge(&self, other: &ClassStates) -> ClassStates {
+    pub fn get(&self, t: &Value, k: &Value) -> Value {
+        self.get_entry(t, k).value
+    }
+
+    pub fn merge(&self, other: &ClassStates) -> ClassStates {
         let mut out = ClassStates::default();
 
         let mut classes: Set<&Class> = self.0.keys().collect();
@@ -51,7 +61,7 @@ impl ClassStates {
         out
     }
 
-    pub(in crate::infer) fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
+    pub fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
         let mut out = ClassStates::default();
 
         for cl in self.0.keys() {
@@ -65,53 +75,63 @@ impl ClassStates {
         out
     }
 
-    pub(in crate::infer) fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
         Self(self.0.iter().map(|(k, v)| (k.map_stmt(f), v.map_stmt(f))).collect())
     }
 }
 
 impl ClassState {
-    pub(in crate::infer) fn set(&mut self, k: &Value, v: &Value) {
+    pub fn set(&mut self, k: &Value, v: &Value, source: Stmt) {
+        let entry = Entry {
+            value: v.clone(),
+            sources: vec![source].iter().copied().collect(),
+        };
         if k.is_concrete() {
-            self.0.insert(k.clone(), v.clone());
+            self.0.insert(k.clone(), entry);
         } else {
             // add the possibilities of `v` to `map[k]`.
-            let r = self.0.entry(k.clone()).or_insert(Value::bot());
-            *r = r.merge(v);
+            let r = self.0.entry(k.clone()).or_insert(Entry::bot());
+            *r = r.merge(&entry);
 
             // also add the possibilities of `v` to all concrete ones that overlap
-            for (k_, v_) in self.0.iter_mut() {
+            for (k_, entry_) in self.0.iter_mut() {
                 if k_.is_concrete() && k_.compare(k) == Comparison::Overlap {
-                    *v_ = v_.merge(v);
+                    *entry_ = entry_.merge(&entry);
                 }
             }
         }
     }
 
-    pub(in crate::infer) fn weak_set(&mut self, k: &Value, v: &Value) {
+    pub fn weak_set(&mut self, k: &Value, v: &Value, source: Stmt) {
         let mut a = self.clone();
-        a.set(k, v);
+        a.set(k, v, source);
         *self = self.merge(&a);
     }
 
-    pub(in crate::infer) fn get(&self, k: &Value) -> Value {
-        let mut weak_val = Value::nil();
-        for (k_, v) in &self.0 {
+/*
+    pub fn get(&self, k: &Value) -> Value {
+        self.get_entry(k).value
+    }
+*/
+
+    pub fn get_entry(&self, k: &Value) -> Entry {
+        let mut weak_entry = Entry::nil();
+        for (k_, entry) in &self.0 {
             match k_.compare(k) {
                 Comparison::ConcreteEq => {
-                    return v.clone();
+                    return entry.clone();
                 },
                 Comparison::Overlap => {
-                    weak_val = weak_val.merge(v);
+                    weak_entry = weak_entry.merge(entry);
                 },
                 Comparison::Disjoint => {},
             }
         }
 
-        weak_val
+        weak_entry
     }
 
-    pub(in crate::infer) fn merge(&self, other: &ClassState) -> ClassState {
+    pub fn merge(&self, other: &ClassState) -> ClassState {
         let mut out = ClassState::default();
 
         let mut keys: Set<&_> = self.0.keys().collect();
@@ -119,11 +139,11 @@ impl ClassState {
 
         for k in &keys {
             let v = if k.is_concrete() {
-                let l1 = self.get(k);
-                let l2 = other.get(k);
+                let l1 = self.get_entry(k);
+                let l2 = other.get_entry(k);
                 l1.merge(&l2)
             } else {
-                let bot = Value::bot();
+                let bot = Entry::bot();
                 let l1 = self.0.get(k).unwrap_or(&bot);
                 let l2 = other.0.get(k).unwrap_or(&bot);
                 l1.merge(&l2)
@@ -134,7 +154,7 @@ impl ClassState {
         out
     }
 
-    pub(in crate::infer) fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
+    pub fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
         let mut out = ClassState::default();
 
         for k in self.0.keys() {
@@ -149,7 +169,44 @@ impl ClassState {
         out
     }
 
-    pub(in crate::infer) fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
         Self(self.0.iter().map(|(k, v)| (k.map_stmt(f), v.map_stmt(f))).collect())
+    }
+}
+
+impl Entry {
+    pub fn map_classes(&self, f: &impl Fn(Class) -> Class) -> Self {
+        Self {
+            value: self.value.map_classes(f),
+            sources: self.sources.clone(),
+        }
+    }
+
+    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
+        Self {
+            value: self.value.map_stmt(f),
+            sources: self.sources.iter().copied().map(f).collect(),
+        }
+    }
+
+    pub fn merge(&self, other: &Entry) -> Self {
+        Self {
+            value: self.value.merge(&other.value),
+            sources: self.sources.union(&other.sources).copied().collect(),
+        }
+    }
+
+    pub fn bot() -> Self {
+        Self {
+            value: Value::bot(),
+            sources: Set::new(),
+        }
+    }
+
+    pub fn nil() -> Self {
+        Self {
+            value: Value::nil(),
+            sources: Set::new(),
+        }
     }
 }

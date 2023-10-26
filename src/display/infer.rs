@@ -69,7 +69,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
     pub fn display_class_state(&self, class_state: &ClassState, f: &mut Formatter<'_>) -> fmt::Result {
         let mut parts = Vec::new();
         for (k, v) in class_state.0.iter() {
-            parts.push(format!("{}: {}", self.value_string(k), self.value_string(v)));
+            parts.push(format!("{}: {}", self.value_string(k), self.value_string(&v.value)));
         }
         write!(f, "[{}],", parts.join(", "))
     }
