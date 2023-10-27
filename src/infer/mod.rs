@@ -75,6 +75,14 @@ impl Infer {
             local_state: self.local_state.iter().map(|(stmt, local)| (f(*stmt), local.map_stmt(f))).collect(),
         }
     }
+
+    pub fn erase_stmt(&self, stmt: Stmt, ir: &IR) -> Self {
+        Self {
+            fn_state: self.fn_state.iter().map(|(fid, state)| (*fid, state.erase_stmt(stmt))).collect(),
+            dirty: self.dirty.iter().copied().filter(|x| x != &stmt).collect(),
+            local_state: self.local_state.iter().filter(|(stmt2, _)| **stmt2 != stmt).map(|(stmt2, local)| (*stmt2, local.erase_stmt(stmt2.0, stmt, ir))).collect(),
+        }
+    }
 }
 
 impl Class {

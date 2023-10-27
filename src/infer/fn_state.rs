@@ -28,4 +28,12 @@ impl FnState {
             call_sites: self.call_sites.iter().copied().map(f).collect(),
         }
     }
+
+    pub(in crate::infer) fn erase_stmt(&self, stmt: Stmt) -> Self {
+        Self {
+            argval: self.argval.erase_stmt(stmt),
+            out_state: self.out_state.as_ref().map(|x| x.erase_stmt(stmt)),
+            call_sites: self.call_sites.iter().copied().filter(|x| *x != stmt).collect(),
+        }
+    }
 }

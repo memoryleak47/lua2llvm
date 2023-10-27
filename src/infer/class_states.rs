@@ -78,6 +78,10 @@ impl ClassStates {
     pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
         Self(self.0.iter().map(|(k, v)| (k.map_stmt(f), v.map_stmt(f))).collect())
     }
+
+    pub fn erase_stmt(&self, stmt: Stmt) -> Self {
+        Self(self.0.iter().filter(|(cl, _)| !cl.allocated_at(stmt)).map(|(cl, cstate)| (*cl, cstate.erase_stmt(stmt))).collect())
+    }
 }
 
 impl ClassState {
@@ -107,12 +111,6 @@ impl ClassState {
         a.set(k, v, source);
         *self = self.merge(&a);
     }
-
-/*
-    pub fn get(&self, k: &Value) -> Value {
-        self.get_entry(k).value
-    }
-*/
 
     pub fn get_entry(&self, k: &Value) -> Entry {
         let mut weak_entry = Entry::nil();
@@ -172,6 +170,10 @@ impl ClassState {
     pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
         Self(self.0.iter().map(|(k, v)| (k.map_stmt(f), v.map_stmt(f))).collect())
     }
+
+    pub fn erase_stmt(&self, stmt: Stmt) -> Self {
+        Self(self.0.iter().map(|(k, v)| (k.erase_stmt(stmt), v.erase_stmt(stmt))).filter(|(k, v)| *k != Value::bot() && *v != Entry::bot()).collect())
+    }
 }
 
 impl Entry {
@@ -186,6 +188,13 @@ impl Entry {
         Self {
             value: self.value.map_stmt(f),
             sources: self.sources.iter().copied().map(f).collect(),
+        }
+    }
+
+    pub fn erase_stmt(&self, stmt: Stmt) -> Self {
+        Self {
+            value: self.value.erase_stmt(stmt),
+            sources: self.sources.iter().copied().filter(|x| *x != stmt).collect(),
         }
     }
 
@@ -207,6 +216,15 @@ impl Entry {
         Self {
             value: Value::nil(),
             sources: Set::new(),
+        }
+    }
+}
+
+impl Class {
+    pub fn allocated_at(&self, stmt: Stmt) -> bool {
+        match self {
+            Class::Concrete(Location(stmt2)) => stmt2 == &stmt,
+            Class::Summary(Location(stmt2)) => stmt2 == &stmt,
         }
     }
 }

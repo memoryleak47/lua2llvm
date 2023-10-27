@@ -3,6 +3,7 @@ use crate::infer::*;
 
 pub fn stmts(ir: &IR) -> Vec<Stmt> {
     let mut out = Vec::new();
+
     for fid in 0..ir.fns.len() {
         out.extend(stmts_in_fid(fid, ir));
     }
@@ -21,23 +22,13 @@ pub fn stmts_in_fid(fid: FnId, ir: &IR) -> Vec<Stmt> {
     out
 }
 
-fn rm_stmt_from_entries(stmt: Stmt, cstates: &mut ClassStates) {
-    for (_, cstate) in cstates.0.iter_mut() {
-        for (_, entry) in cstate.0.iter_mut() {
-            entry.sources.remove(&stmt);
-        }
-    }
-}
-
 pub fn rm_stmt((fid, bid, sid): Stmt, ir: &mut IR, inf: &mut Infer) {
+    *inf = inf.erase_stmt((fid, bid, sid), ir);
     ir.fns[fid].blocks[bid].remove(sid);
-    inf.local_state.remove(&(fid, bid, sid));
-    // TODO how do I remove every relevant thing for a stmt?
+    // how do I remove every relevant thing for a stmt?
     // - written nodes
-    // - classes allocated in this
+    // - classes allocated in this stmt
     // - Store-entry sources
-
-    // inf.erase_stmt((fid, bid, sid));
 
     *inf = inf.map_stmt(&|(fid_, bid_, sid_)| {
         // If this assert fails, the old infer state still made use of the removed stmt somewhere.
@@ -95,5 +86,13 @@ impl Expr {
             Expr::Nil => false,
             Expr::Str(_) => false,
         }
+    }
+}
+
+// for Compute Statements, this returns the node. otherwise, None.
+pub fn get_node_from_stmt(stmt: Stmt, ir: &IR) -> Option<Node> {
+    match deref_stmt(stmt, ir) {
+        Statement::Compute(n, _) => Some(n),
+        _ => None,
     }
 }

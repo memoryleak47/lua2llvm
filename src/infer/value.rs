@@ -103,6 +103,12 @@ impl Value {
         out.classes = out.classes.into_iter().map(|cl| cl.map_stmt(f)).collect();
         out
     }
+
+    pub fn erase_stmt(&self, stmt: Stmt) -> Self {
+        let mut out = self.clone();
+        out.classes = out.classes.into_iter().copied().filter(|cl| !cl.allocated_at(stmt)).collect();
+        out
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

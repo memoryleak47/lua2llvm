@@ -2,14 +2,14 @@ use crate::ir::*;
 use crate::infer::*;
 use std::hash::Hash;
 
-mod util;
+pub mod util;
 use util::*;
 
 #[derive(PartialEq, Eq)]
 enum Changed { Yes, No }
 type Optimization = fn(&mut IR, &mut Infer) -> Changed;
 
-static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute];
+static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store];
 
 pub fn optimize(ir: &mut IR, inf: &mut Infer) {
     loop {
