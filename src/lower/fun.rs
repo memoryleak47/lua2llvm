@@ -89,11 +89,12 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
 pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt) -> T, ctxt: &mut Ctxt) -> (FnId, T) {
     let fid = ctxt.ir.fns.len();
 
-    let lit_fn = LitFunction {
-        blocks: vec![vec![]],
+    let mut lit_fn = LitFunction {
+        blocks: HashMap::new(),
         start_block: 0,
     };
-    ctxt.ir.fns.push(lit_fn);
+    lit_fn.blocks.insert(0, vec![]);
+    ctxt.ir.fns.insert(fid, lit_fn);
 
     if is_main {
         ctxt.ir.main_fn = fid;

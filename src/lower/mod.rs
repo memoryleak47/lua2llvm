@@ -71,12 +71,12 @@ impl Ctxt {
     }
 
     fn lit_fn(&self) -> &LitFunction {
-        &self.ir.fns[self.fcx().fn_id]
+        &self.ir.fns[&self.fcx().fn_id]
     }
 
     fn lit_fn_mut(&mut self) -> &mut LitFunction {
-        let id = self.fcx().fn_id;
-        &mut self.ir.fns[id]
+        let fid = self.fcx().fn_id;
+        self.ir.fns.get_mut(&fid).unwrap()
     }
 
     fn is_main(&self) -> bool {
@@ -85,10 +85,10 @@ impl Ctxt {
 
     fn alloc_block(&mut self) -> BlockId {
         let fid = self.fcx().fn_id;
-        let block_id = self.ir.fns[fid].blocks.len();
-        self.ir.fns[fid].blocks.push(Vec::new());
+        let bid = self.ir.fns[&fid].blocks.len();
+        self.ir.fns.get_mut(&fid).unwrap().blocks.insert(bid, Vec::new());
 
-        block_id
+        bid
     }
 
     fn set_active_block(&mut self, block_id: BlockId) {
@@ -104,8 +104,8 @@ impl Ctxt {
     }
 
     fn push_st(&mut self, st: ir::Statement) {
-        if let Some(i) = self.fcx().active_block {
-            self.lit_fn_mut().blocks[i].push(st);
+        if let Some(bid) = self.fcx().active_block {
+            self.lit_fn_mut().blocks.get_mut(&bid).unwrap().push(st);
         }
     }
 
@@ -178,13 +178,13 @@ impl Ctxt {
     fn append_to_init_block<T>(&mut self, f: impl FnOnce(&mut Ctxt) -> T) -> T {
         let old_active = self.fcx_mut().active_block.clone();
         let init_bid = self.fcx().init_block;
-        assert!(matches!(self.lit_fn().blocks[init_bid].last(), Some(ir::Statement::If(_, _, _))));
+        assert!(matches!(self.lit_fn().blocks[&init_bid].last(), Some(ir::Statement::If(_, _, _))));
 
-        let final_if = self.lit_fn_mut().blocks[init_bid].pop().unwrap();
+        let final_if = self.lit_fn_mut().blocks.get_mut(&init_bid).unwrap().pop().unwrap();
 
         let t = f(self);
 
-        self.lit_fn_mut().blocks[init_bid].push(final_if);
+        self.lit_fn_mut().blocks.get_mut(&init_bid).unwrap().push(final_if);
         self.fcx_mut().active_block = old_active;
 
         t

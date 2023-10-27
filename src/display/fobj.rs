@@ -35,7 +35,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
             }
         }
 
-        for bid in 0..self.ir.fns[fid].blocks.len() {
+        for bid in 0..self.ir.fns[&fid].blocks.len() {
             self.display_block(fid, bid, f)?;
         }
 
@@ -45,13 +45,13 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
     }
 
     fn display_block(&mut self, fid: FnId, bid: BlockId, f: &mut Formatter<'_>) -> fmt::Result {
-        if bid == self.ir.fns[fid].start_block {
+        if bid == self.ir.fns[&fid].start_block {
             write!(f, "  start block b{bid}:\n")?;
         } else {
             write!(f, "  block b{bid}:\n")?;
         }
 
-        let statements = &self.ir.fns[fid].blocks[bid];
+        let statements = &self.ir.fns[&fid].blocks[&bid];
         for sid in 0..statements.len() {
             self.display_statement((fid, bid, sid), f)?;
         }
@@ -62,7 +62,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
     fn display_statement(&mut self, (fid, bid, sid): Stmt, f: &mut Formatter<'_>) -> fmt::Result {
         use Statement::*;
 
-        let st = &self.ir.fns[fid].blocks[bid][sid];
+        let st = &self.ir.fns[&fid].blocks[&bid][sid];
 
         if let Some(inf) = self.inf {
             self.display_local_state(&inf.local_state[&(fid, bid, sid)], f)?;

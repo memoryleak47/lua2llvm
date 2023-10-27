@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 pub mod parser;
 
 // Note that even though, lower.rs only returns tables from functions, and Arg is always a table too.
@@ -68,13 +70,13 @@ pub type BlockId = usize;
 
 #[derive(Debug, Clone)]
 pub struct LitFunction {
-    pub blocks: Vec<Block>,
+    pub blocks: HashMap<BlockId, Block>,
     pub start_block: BlockId,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct IR {
-    pub fns: Vec<LitFunction>,
+    pub fns: HashMap<FnId, LitFunction>,
     pub main_fn: FnId,
 }
 

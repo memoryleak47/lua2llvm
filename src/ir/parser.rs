@@ -1,10 +1,11 @@
+use std::collections::HashMap;
 use crate::ir::*;
 
 pub fn parse_ir(s: &str) -> IR {
     let tokens = tokenize(s);
 
     let mut ir = IR {
-        fns: Vec::new(),
+        fns: HashMap::new(),
         main_fn: FnId::MAX,
     };
 
@@ -30,19 +31,18 @@ fn parse_fn<'tok, 'tokv>(mut tokens: &'tokv [Token<'tok>], ir: &mut IR) -> &'tok
     let [Token::Word("function"), Token::Word(fname), Token::Sign('('), Token::Sign(')'), Token::Sign(':'), ..] = tokens else { panic!(); };
     tokens = &tokens[5..];
 
-    let fid = ir.fns.len();
-    let correct_fname = format!("f{}", fid);
-    assert!(fname == &correct_fname);
+    let fid = extract_id(fname, 'f');
 
     if is_main {
         ir.main_fn = fid;
     }
 
     let litf = LitFunction {
-        blocks: Vec::new(),
+        blocks: HashMap::new(),
         start_block: BlockId::MAX,
     };
-    ir.fns.push(litf);
+    assert!(!ir.fns.contains_key(&fid));
+    ir.fns.insert(fid, litf);
 
     let mut nxt_block_start = false;
     loop {
@@ -52,14 +52,13 @@ fn parse_fn<'tok, 'tokv>(mut tokens: &'tokv [Token<'tok>], ir: &mut IR) -> &'tok
                 tokens = &tokens[1..];
             },
             [Token::Word("block"), Token::Word(bname), Token::Sign(':'), ..] => {
-                let bid = ir.fns[fid].blocks.len();
-                let correct_bname = format!("b{}", bid);
-                assert!(bname == &correct_bname);
+                let bid = extract_id(bname, 'b');
                 if nxt_block_start {
-                    ir.fns[fid].start_block = bid;
+                    ir.fns.get_mut(&fid).unwrap().start_block = bid;
                     nxt_block_start = false;
                 }
-                ir.fns[fid].blocks.push(Vec::new());
+                assert!(!ir.fns[&fid].blocks.contains_key(&bid));
+                ir.fns.get_mut(&fid).unwrap().blocks.insert(bid, Vec::new());
                 tokens = &tokens[3..];
             },
             [Token::Word("end"), ..] => {
@@ -68,8 +67,8 @@ fn parse_fn<'tok, 'tokv>(mut tokens: &'tokv [Token<'tok>], ir: &mut IR) -> &'tok
             },
             _ /*some stmt*/ => {
                 let (newtok, stmt) = parse_stmt(tokens);
-                let bid = ir.fns[fid].blocks.len() - 1;
-                ir.fns[fid].blocks[bid].push(stmt);
+                let bid = ir.fns[&fid].blocks.len() - 1;
+                ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid).unwrap().push(stmt);
 
                 assert!(newtok[0] == Token::Sign(';'));
                 tokens = &newtok[1..];
@@ -77,7 +76,7 @@ fn parse_fn<'tok, 'tokv>(mut tokens: &'tokv [Token<'tok>], ir: &mut IR) -> &'tok
         }
     }
 
-    if ir.fns[fid].start_block == BlockId::MAX { panic!(); }
+    if ir.fns[&fid].start_block == BlockId::MAX { panic!(); }
 
     tokens
 }

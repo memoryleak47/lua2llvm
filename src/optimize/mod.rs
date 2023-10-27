@@ -67,7 +67,7 @@ fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
             extract_from_set(&val.bools).map(Expr::Bool),
         ];
         let new_expr: Expr = l.into_iter().map(|x| x.into_iter()).flatten().next().unwrap().clone();
-        ir.fns[fid].blocks[bid][sid] = Statement::Compute(node, new_expr);
+        ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid).unwrap()[sid] = Statement::Compute(node, new_expr);
         return Changed::Yes;
     }
 

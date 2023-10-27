@@ -13,7 +13,7 @@ pub fn stmts(ir: &IR) -> Vec<Stmt> {
 
 pub fn stmts_in_fid(fid: FnId, ir: &IR) -> Vec<Stmt> {
     let mut out = Vec::new();
-    for (bid, statements) in ir.fns[fid].blocks.iter().enumerate() {
+    for (&bid, statements) in ir.fns[&fid].blocks.iter() {
         for sid in 0..statements.len() {
             out.push((fid, bid, sid));
         }
@@ -24,7 +24,7 @@ pub fn stmts_in_fid(fid: FnId, ir: &IR) -> Vec<Stmt> {
 
 pub fn rm_stmt((fid, bid, sid): Stmt, ir: &mut IR, inf: &mut Infer) {
     *inf = inf.erase_stmt((fid, bid, sid), ir);
-    ir.fns[fid].blocks[bid].remove(sid);
+    ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid).unwrap().remove(sid);
     // how do I remove every relevant thing for a stmt?
     // - written nodes
     // - classes allocated in this stmt
@@ -52,7 +52,7 @@ pub fn rm_stmts(mut stmts: Vec<Stmt>, ir: &mut IR, inf: &mut Infer) {
 }
 
 pub fn deref_stmt((fid, bid, sid): Stmt, ir: &IR) -> Statement {
-    ir.fns[fid].blocks[bid][sid].clone()
+    ir.fns[&fid].blocks[&bid][sid].clone()
 }
 
 impl Statement {

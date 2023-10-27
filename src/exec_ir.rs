@@ -208,7 +208,7 @@ fn call_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) {
         nodes: Default::default(),
         arg,
         fn_id: f,
-        block_id: ctxt.ir.fns[f].start_block,
+        block_id: ctxt.ir.fns[&f].start_block,
         statement_idx: 0,
     };
     ctxt.stack.push(fcx);
@@ -279,6 +279,6 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
 
 fn step(ctxt: &mut Ctxt) {
     let l: &FnCtxt = ctxt.stack.last().unwrap();
-    let stmt = ctxt.ir.fns[l.fn_id].blocks[l.block_id].get(l.statement_idx).unwrap();
+    let stmt = ctxt.ir.fns[&l.fn_id].blocks[&l.block_id].get(l.statement_idx).unwrap();
     step_stmt(stmt, ctxt);
 }

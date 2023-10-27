@@ -248,7 +248,7 @@ fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) -> bool {
 }
 
 fn to_fn(fid: FnId, call_site: Stmt, class_states: &ClassStates, argval: &Value, ir: &IR, inf: &mut Infer) {
-    let bid = ir.fns[fid].start_block;
+    let bid = ir.fns[&fid].start_block;
 
     // set the LocalState accordingly.
     let mut loc = LocalState::default();

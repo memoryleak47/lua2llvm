@@ -1,7 +1,7 @@
 use super::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMBasicBlockRef>, ctxt: &mut Ctxt) {
+unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMBasicBlockRef>, ctxt: &mut Ctxt) -> /*next blocks*/ Vec<BlockId> {
     for st in block {
         match st {
             Statement::Compute(n, e) => {
@@ -22,7 +22,7 @@ unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMB
                 let elsebb = bb_mapping[else_bid];
                 LLVMBuildCondBr(ctxt.builder, cond, thenbb, elsebb);
 
-                return;
+                return vec![*then_bid, *else_bid];
             },
             Statement::FnCall(f, arg) => {
                 let f = ctxt.nodes[f];
@@ -36,6 +36,8 @@ unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMB
             },
         }
     }
+
+    return Vec::new();
 }
 
 unsafe fn compile_command(cmd: &Command, ctxt: &mut Ctxt) {
@@ -84,21 +86,38 @@ unsafe fn extract_bool(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValu
 
 pub unsafe fn compile_fn(val_f: LLVMValueRef, fn_id: FnId, ir: &IR, ctxt: &mut Ctxt) {
     ctxt.current_fid = fn_id;
-    let f = &ir.fns[fn_id];
+    let f = &ir.fns[&fn_id];
 
     let alloca_bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, b"entry\0".as_ptr() as *const _);
 
     let mut bb_mapping: HashMap<BlockId, LLVMBasicBlockRef> = HashMap::new();
-    for (i, _) in f.blocks.iter().enumerate() {
+    for (bid, _) in f.blocks.iter() {
         let new_blk = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, EMPTY);
-        bb_mapping.insert(i, new_blk);
+        bb_mapping.insert(*bid, new_blk);
     }
 
     LLVMPositionBuilderAtEnd(ctxt.builder, alloca_bb);
     ctxt.alloca_br_instr = Some(LLVMBuildBr(ctxt.builder, bb_mapping[&f.start_block]));
 
-    for (i, x) in f.blocks.iter().enumerate() {
-        LLVMPositionBuilderAtEnd(ctxt.builder, bb_mapping[&i]);
-        compile_block(&x, &bb_mapping, ctxt);
+    let mut open_blocks = HashSet::new();
+    open_blocks.insert(f.start_block);
+    let mut done_blocks = HashSet::new();
+
+    // TODO this "pick earliest" is a hack it shouldn't matter.
+    // It currently matter sometimes because there are paths through the CFG
+    // that don't initialize a node even though its used.
+    // This isn't a "real" problem though, as these paths through the CFG
+    // go through some "never-executed" blocks as detected by the Infer.
+    while let Some(bid) = open_blocks.iter().min().copied() {
+        open_blocks.remove(&bid);
+        done_blocks.insert(bid);
+
+        LLVMPositionBuilderAtEnd(ctxt.builder, bb_mapping[&bid]);
+        let blk = &f.blocks[&bid];
+        for new_bid in compile_block(blk, &bb_mapping, ctxt) {
+            if !done_blocks.contains(&new_bid) {
+                open_blocks.insert(new_bid);
+            }
+        }
     }
 }
