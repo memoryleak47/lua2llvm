@@ -4,7 +4,7 @@ use crate::infer::*;
 pub fn stmts(ir: &IR) -> Vec<Stmt> {
     let mut out = Vec::new();
 
-    for fid in 0..ir.fns.len() {
+    for &fid in ir.fns.keys() {
         out.extend(stmts_in_fid(fid, ir));
     }
 
@@ -94,5 +94,23 @@ pub fn get_node_from_stmt(stmt: Stmt, ir: &IR) -> Option<Node> {
     match deref_stmt(stmt, ir) {
         Statement::Compute(n, _) => Some(n),
         _ => None,
+    }
+}
+
+// Should only be called for functions that never get called, and in particular whose Expr::LitFunction is never constructed.
+pub fn rm_fn(fid: FnId, ir: &mut IR, inf: &mut Infer) {
+    inf.local_state.retain(|(fid_, _, _), _| *fid_ != fid);
+    inf.fn_state.retain(|fid_, _| *fid_ != fid);
+    ir.fns.remove(&fid);
+
+    inf.map_stmt(&|(fid_, _, _)| {
+        assert!(fid_ != fid);
+        (0, 0, 0)
+    });
+}
+
+pub fn rm_fns(fids: Vec<FnId>, ir: &mut IR, inf: &mut Infer) {
+    for fid in fids {
+        rm_fn(fid, ir, inf);
     }
 }

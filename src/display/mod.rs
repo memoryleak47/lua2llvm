@@ -20,7 +20,7 @@ pub fn ir_to_string(ir: &IR, inf: Option<&Infer>) -> String {
 }
 
 fn fmt_ir(ir: &IR, inf: Option<&Infer>, f: &mut Formatter<'_>) -> fmt::Result {
-    for fid in 0..ir.fns.len() {
+    for (&fid, _) in &ir.fns {
         let mut fobj = FnDisplayObj::new(ir, inf);
         fobj.display_fn(fid, f)?;
     }

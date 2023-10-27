@@ -35,7 +35,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
             }
         }
 
-        for bid in 0..self.ir.fns[&fid].blocks.len() {
+        for (&bid, _) in &self.ir.fns[&fid].blocks {
             self.display_block(fid, bid, f)?;
         }
 

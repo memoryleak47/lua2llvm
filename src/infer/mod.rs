@@ -46,9 +46,9 @@ pub fn infer(ir: &IR) -> Infer {
     };
 
     // initialize everything, so we can index without care later on.
-    for fid in 0..ir.fns.len() {
+    for &fid in ir.fns.keys() {
         inf.fn_state.insert(fid, FnState::new());
-        for bid in 0..ir.fns[&fid].blocks.len() {
+        for &bid in ir.fns[&fid].blocks.keys() {
             for sid in 0..ir.fns[&fid].blocks[&bid].len() {
                 inf.local_state.insert((fid, bid, sid), LocalState::default());
             }

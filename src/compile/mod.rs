@@ -61,7 +61,7 @@ pub fn compile(ir: &IR) {
         declare_extra_fn("throw_", ctxt.void_t(), &[ctxt.str_t()], &mut ctxt);
 
         // declare lit fns
-        for fid in 0..ir.fns.len() {
+        for &fid in ir.fns.keys() {
             let name = format!("f{}\0", fid);
             let function = LLVMAddFunction(ctxt.module, name.as_bytes().as_ptr() as *const _, ctxt.v2void_t());
             ctxt.lit_fns.insert(fid, function);
@@ -70,7 +70,7 @@ pub fn compile(ir: &IR) {
         compile_start_fn(ir.main_fn, &mut ctxt);
 
         // compile lit fns
-        for fid in 0..ir.fns.len() {
+        for &fid in ir.fns.keys() {
             compile_fn(ctxt.lit_fns[&fid], fid, ir, &mut ctxt);
         }
 

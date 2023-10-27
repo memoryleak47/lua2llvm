@@ -9,7 +9,7 @@ use util::*;
 enum Changed { Yes, No }
 type Optimization = fn(&mut IR, &mut Infer) -> Changed;
 
-static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store];
+static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns];
 
 pub fn optimize(ir: &mut IR, inf: &mut Infer) {
     loop {
@@ -117,5 +117,33 @@ fn rm_unread_store(ir: &mut IR, inf: &mut Infer) -> Changed {
     } else {
         rm_stmts(unread_stores.iter().copied().collect(), ir, inf);
         Changed::Yes
+    }
+}
+
+fn rm_unused_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
+    let mut open: Set<FnId> = Set::new();
+    open.insert(ir.main_fn);
+
+    loop {
+        let len1 = open.len();
+        for &fid in open.clone().iter() {
+            for stmt in stmts_in_fid(fid, ir) {
+                if let Statement::Compute(_, Expr::LitFunction(fid_)) = deref_stmt(stmt, ir) {
+                    open.insert(fid_);
+                }
+            }
+        }
+
+        let len2 = open.len();
+        if len1 == len2 { break; }
+    }
+
+    let unused: Vec<FnId> = ir.fns.keys().copied().filter(|fid| !open.contains(fid)).collect();
+
+    if !unused.is_empty() {
+        rm_fns(unused, ir, inf);
+        Changed::Yes
+    } else {
+        Changed::No
     }
 }
