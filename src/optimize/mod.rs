@@ -74,6 +74,10 @@ fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
     Changed::No
 }
 
+// Three reasons why a store might not be optimized out:
+// - someone indexes into the table
+// - someone uses next on the table
+// - someone accesses the length of the table
 fn rm_unread_store(ir: &mut IR, inf: &mut Infer) -> Changed {
     let mut unread_stores: Set<Stmt> = Set::new();
     for stmt in stmts(ir) {
@@ -91,6 +95,20 @@ fn rm_unread_store(ir: &mut IR, inf: &mut Infer) -> Changed {
         let entry = loc.class_states.get_entry(t, k);
         for x in &entry.sources {
             unread_stores.remove(x);
+        }
+    }
+
+    for stmt in stmts(ir) {
+        let Statement::Compute(_, Expr::Intrinsic(Intrinsic::Next(t, _)) | Expr::Len(t)) = deref_stmt(stmt, ir) else { continue; };
+        let loc: &LocalState = &inf.local_state[&stmt];
+        if !loc.executed { continue; }
+        let t = &loc.nodes[&t];
+        for cl in &t.classes {
+            for (_, entry) in &loc.class_states.0[cl].0 {
+                for x in &entry.sources {
+                    unread_stores.remove(x);
+                }
+            }
         }
     }
 
