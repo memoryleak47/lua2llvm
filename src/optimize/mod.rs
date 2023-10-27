@@ -6,10 +6,10 @@ pub mod util;
 use util::*;
 
 #[derive(PartialEq, Eq)]
-enum Changed { Yes, No }
+pub enum Changed { Yes, No }
 type Optimization = fn(&mut IR, &mut Infer) -> Changed;
 
-static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns];
+static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks];
 
 pub fn optimize(ir: &mut IR, inf: &mut Infer) {
     loop {
@@ -25,18 +25,19 @@ pub fn optimize(ir: &mut IR, inf: &mut Infer) {
 }
 
 fn rm_unused_node(ir: &mut IR, inf: &mut Infer) -> Changed {
+    let mut s = Vec::new();
     for (fid, bid, sid) in stmts(ir) {
         let Statement::Compute(node, _) = deref_stmt((fid, bid, sid), ir) else { continue; };
         if stmts_in_fid(fid, ir).iter().all(|stmt2| !deref_stmt(*stmt2, ir).uses_node(node)) {
-            rm_stmt((fid, bid, sid), ir, inf);
-            return Changed::Yes;
+            s.push((fid, bid, sid));
         }
     }
 
-    return Changed::No;
+    return rm_stmts(s, ir, inf);
 }
 
 fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
+    let mut changed = Changed::No;
     for (fid, bid, sid) in stmts(ir) {
         if !inf.local_state[&(fid, bid, sid)].executed { continue; };
 
@@ -68,10 +69,10 @@ fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
         ];
         let new_expr: Expr = l.into_iter().map(|x| x.into_iter()).flatten().next().unwrap().clone();
         ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid).unwrap()[sid] = Statement::Compute(node, new_expr);
-        return Changed::Yes;
+        changed = Changed::Yes;
     }
 
-    Changed::No
+    changed
 }
 
 // Three reasons why a store might not be optimized out:
@@ -145,5 +146,78 @@ fn rm_unused_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
         Changed::Yes
     } else {
         Changed::No
+    }
+}
+
+// converts const ifs `if cond n1 n2` to `if cond n1 n1` or `if cond n2 n2` if possible.
+fn resolve_const_ifs(ir: &mut IR, inf: &mut Infer) -> Changed {
+    let mut changed = Changed::No;
+    for (fid, bid, sid) in stmts(ir) {
+        if !inf.local_state[&(fid, bid, sid)].executed { continue; };
+        let Statement::If(cond, n1, n2) = deref_stmt((fid, bid, sid), ir) else { continue; };
+        if n1 == n2 { continue; }
+
+        let val = inf.local_state[&(fid, bid, sid)].nodes[&cond].clone();
+        if val.bools.len() == 1 {
+            let b = *val.bools.iter().next().unwrap();
+            let n = if b { n1 } else { n2 };
+            let st = Statement::If(cond, n, n);
+            ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid).unwrap()[sid] = st;
+
+            changed = Changed::Yes;
+        }
+    }
+
+    changed
+}
+
+// replaces the contents of a fn with throw("unreachable!");
+fn hollow_fn(fid: FnId, ir: &mut IR, inf: &mut Infer) {
+    // remove all blocks.
+    let blks = ir.fns[&fid].blocks.keys().map(|&bid| (fid, bid)).collect();
+    rm_blocks(blks, ir, inf);
+
+    let f = ir.fns.get_mut(&fid).unwrap();
+    f.start_block = 0;
+    f.blocks.insert(0, vec![Statement::Command(Command::Throw(String::from("unreachable!")))]);
+    inf.local_state.insert((fid, 0, 0), LocalState::default());
+}
+
+fn hollow_uncalled_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
+    let mut changed = Changed::No;
+    let fids: Vec<_> = ir.fns.keys().copied().collect();
+    for fid in fids {
+        let start_bid = ir.fns[&fid].start_block;
+        if inf.local_state[&(fid, start_bid, 0)].executed { continue; }
+        // don't repeat, if already hollowed.
+        if let Statement::Command(Command::Throw(_)) = deref_stmt((fid, start_bid, 0), ir) { continue; }
+
+        changed = Changed::Yes;
+        hollow_fn(fid, ir, inf);
+    }
+
+    changed
+}
+
+fn rm_unused_blocks(ir: &mut IR, inf: &mut Infer) -> Changed {
+    let mut blocks = Vec::new();
+
+    for &fid in ir.fns.keys() {
+        for &bid in ir.fns[&fid].blocks.keys() {
+            // We don't want to remove start blocks, it might make things inconsistent.
+            // These things are resolved by hollow_uncalled_fns.
+            if bid == ir.fns[&fid].start_block { continue; }
+
+            if !inf.local_state[&(fid, bid, 0)].executed {
+                blocks.push((fid, bid));
+            }
+        }
+    }
+
+    if blocks.is_empty() {
+        Changed::No
+    } else {
+        rm_blocks(blocks, ir, inf);
+        Changed::Yes
     }
 }
