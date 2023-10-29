@@ -9,7 +9,7 @@ use util::*;
 pub enum Changed { Yes, No }
 type Optimization = fn(&mut IR, &mut Infer) -> Changed;
 
-static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks];
+static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks, merge_blocks];
 
 pub fn optimize(ir: &mut IR, inf: &mut Infer) {
     loop {
@@ -220,4 +220,59 @@ fn rm_unused_blocks(ir: &mut IR, inf: &mut Infer) -> Changed {
         rm_blocks(blocks, ir, inf);
         Changed::Yes
     }
+}
+
+fn out_blocks(fid: FnId, bid: BlockId, ir: &IR) -> Vec<BlockId> {
+    if let Some(Statement::If(_, then_bid, else_bid)) = ir.fns[&fid].blocks[&bid].last() {
+        // filter duplicates!
+        if then_bid == else_bid { vec![*then_bid] }
+        else { vec![*then_bid, *else_bid] }
+    } else { vec![] }
+}
+
+
+fn find_mergeable_blocks(ir: &IR) -> Option<(FnId, (BlockId, BlockId))> {
+    for &fid in ir.fns.keys() {
+        let mut ptrs: Vec<(BlockId, Vec<BlockId>)> = Vec::new();
+        for &bid1 in ir.fns[&fid].blocks.keys() {
+            let outs = out_blocks(fid, bid1, ir);
+            ptrs.push((bid1, outs));
+        }
+
+        for &bid2 in ir.fns[&fid].blocks.keys() {
+            if ir.fns[&fid].start_block == bid2 { continue; }
+
+            // subset of `ptrs` which points to `bid2`.
+            let ptrs_to_bid2: Vec<_> = ptrs.iter().filter(|&(_, targets)| targets.contains(&bid2)).cloned().collect();
+
+            // we require exactly *one* block to point to `bid2`.
+            let &[(bid1, ref targets)] = &ptrs_to_bid2[..] else { continue; };
+
+            // we require it to *only* point to `bid2`.
+            if targets == &vec![bid2] {
+                return Some((fid, (bid1, bid2)));
+            }
+        }
+    }
+    None
+}
+
+fn merge_blocks(ir: &mut IR, inf: &mut Infer) -> Changed {
+    if let Some((fid, (bid1, bid2))) = find_mergeable_blocks(ir) {
+        // remove bid1 -> bid2 jump.
+        let orig_if_sid = ir.fns[&fid].blocks[&bid1].len() - 1;
+        rm_stmt((fid, bid1, orig_if_sid), ir, inf);
+
+        // move over stmts from bid2 to bid1.
+        let blks: Vec<Statement> = ir.fns.get_mut(&fid).unwrap().blocks.remove(&bid2).unwrap();
+        ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid1).unwrap().extend(blks);
+
+        let f = |(fid_, bid_, sid_)| {
+            if (fid_, bid_) == (fid, bid2) {
+                (fid, bid1, orig_if_sid +  sid_)
+            } else { (fid_, bid_, sid_) }
+        };
+        *inf = inf.map_stmt(&f);
+        Changed::Yes
+    } else { Changed::No }
 }
