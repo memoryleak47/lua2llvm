@@ -22,11 +22,11 @@ pub type StatementIndex = usize;
 pub type Stmt = (FnId, BlockId, StatementIndex);
 
 // an alloc location
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 pub struct Location(pub Stmt);
 
 // A conceptual set of table objects.
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 pub enum Class {
     Concrete(Location),
     Summary(Location),

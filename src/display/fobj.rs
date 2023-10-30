@@ -35,7 +35,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
             }
         }
 
-        for (&bid, _) in ordered_map_iter(&self.ir.fns[&fid].blocks) {
+        for (&bid, _) in ordered_map_iter(self.ir.fns[&fid].blocks.iter()) {
             self.display_block(fid, bid, f)?;
         }
 

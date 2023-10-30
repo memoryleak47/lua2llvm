@@ -42,7 +42,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
         write!(f, "------------------------------------\n")?;
         self.display_class_states(&local_state.class_states, f)?;
 
-        for (node, value) in &local_state.nodes {
+        for (node, value) in ordered_map_iter(local_state.nodes.iter()) {
             write!(f, "    {} = {},\n", self.node_string(*node), self.value_string(value))?;
         }
         write!(f, "\n")?;
@@ -56,7 +56,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
     }
 
     pub fn display_class_states(&self, class_states: &ClassStates, f: &mut Formatter<'_>) -> fmt::Result {
-        for (class, class_state) in class_states.0.iter() {
+        for (class, class_state) in ordered_map_iter(class_states.0.iter()) {
             write!(f, "    - {}: ", self.class_string(class))?;
             self.display_class_state(class_state, f)?;
             write!(f, "\n")?;
