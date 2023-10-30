@@ -42,7 +42,7 @@ pub enum Expr {
 
     Arg,
     NewTable, // equivalent to {}
-    LitFunction(FnId),
+    Function(FnId),
     BinOp(BinOpKind, Node, Node),
     Len(Node),
     Next(Node, Node),
@@ -59,14 +59,14 @@ pub type Block = Vec<Statement>;
 pub type BlockId = usize;
 
 #[derive(Debug, Clone)]
-pub struct LitFunction {
+pub struct Function {
     pub blocks: HashMap<BlockId, Block>,
     pub start_block: BlockId,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct IR {
-    pub fns: HashMap<FnId, LitFunction>,
+    pub fns: HashMap<FnId, Function>,
     pub main_fn: FnId,
 }
 

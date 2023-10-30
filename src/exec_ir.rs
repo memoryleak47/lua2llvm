@@ -65,7 +65,7 @@ enum Value {
     Bool(bool),
     TablePtr(TablePtr),
     Str(String),
-    LitFn(FnId),
+    Function(FnId),
     Num(f64),
 }
 
@@ -110,7 +110,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
         },
         Expr::Arg => ctxt.fcx().arg.clone(),
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
-        Expr::LitFunction(fnid) => Value::LitFn(*fnid),
+        Expr::Function(fnid) => Value::Function(*fnid),
         Expr::BinOp(kind, l, r) => {
             let l = ctxt.fcx().nodes[l].clone();
             let r = ctxt.fcx().nodes[r].clone();
@@ -141,7 +141,7 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
                 Value::Nil => "nil",
                 Value::Bool(_) => "boolean",
                 Value::Str(_) => "string",
-                Value::LitFn(..) => "function",
+                Value::Function(..) => "function",
                 Value::Num(_) => "number",
                 Value::TablePtr(_) => "table"
             };
@@ -241,7 +241,7 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
             let arg = ctxt.fcx().nodes[arg].clone();
 
             match f {
-                Value::LitFn(f_id) => call_fn(f_id, arg, ctxt),
+                Value::Function(f_id) => call_fn(f_id, arg, ctxt),
                 v => panic!("trying to execute non-function value! {:?}", v),
             };
         },
@@ -252,7 +252,7 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
                 Value::Bool(b) => println!("{}", b),
                 Value::Str(s) => println!("{}", s),
                 Value::TablePtr(ptr) => println!("table: {}", ptr),
-                Value::LitFn(fid) => println!("function: {}", fid),
+                Value::Function(fid) => println!("function: {}", fid),
                 Value::Num(x) => println!("{}", x),
             }
         }

@@ -25,7 +25,7 @@ pub unsafe fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
 
             load_val(var, ctxt)
         }
-        Expr::LitFunction(fid) => {
+        Expr::Function(fid) => {
             mk_fn(ctxt.lit_fns[fid], ctxt)
         },
         Expr::Index(t, i) => {

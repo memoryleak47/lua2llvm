@@ -16,7 +16,7 @@ pub(in crate::lower) fn add_native_fns(ctxt: &mut Ctxt) {
         let upvalues = mk_table(ctxt);
         ctxt.push_store(fun, ctxt.upvalues_str(), upvalues);
 
-        let call = ctxt.push_compute(ir::Expr::LitFunction(fn_id));
+        let call = ctxt.push_compute(ir::Expr::Function(fn_id));
         ctxt.push_store(fun, ctxt.call_str(), call);
 
         // this table is required, as it's still a variable!
@@ -114,7 +114,7 @@ fn pairs_native_fn(ctxt: &mut Ctxt, native_impls: &NativeImpls) {
     let tmp = mk_table(ctxt);
     ctxt.push_store(next_table, ctxt.upvalues_str(), tmp);
 
-    let next_fn = ctxt.push_compute(ir::Expr::LitFunction(native_impls["next"]));
+    let next_fn = ctxt.push_compute(ir::Expr::Function(native_impls["next"]));
     ctxt.push_store(next_table, ctxt.call_str(), next_fn);
 
     let ret = mk_table(ctxt);

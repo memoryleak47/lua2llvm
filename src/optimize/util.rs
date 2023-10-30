@@ -80,7 +80,7 @@ impl Expr {
             Expr::Index(table, idx) => [table, idx].contains(&&node),
             Expr::Arg => false,
             Expr::NewTable => false,
-            Expr::LitFunction(_) => false,
+            Expr::Function(_) => false,
             Expr::BinOp(_, l, r) => [l, r].contains(&&node),
             Expr::Len(n) => *n == node,
             Expr::Next(t, i) => [t, i].contains(&&node),
@@ -101,7 +101,7 @@ pub fn get_node_from_stmt(stmt: Stmt, ir: &IR) -> Option<Node> {
     }
 }
 
-// Should only be called for functions that never get called, and in particular whose Expr::LitFunction is never constructed.
+// Should only be called for functions that never get called, and in particular whose Expr::Function is never constructed.
 pub fn rm_fn(fid: FnId, ir: &mut IR, inf: &mut Infer) {
     inf.local_state.retain(|(fid_, _, _), _| *fid_ != fid);
     inf.fn_state.retain(|fid_, _| *fid_ != fid);

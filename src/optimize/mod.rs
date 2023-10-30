@@ -42,7 +42,7 @@ fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
         if !inf.local_state[&(fid, bid, sid)].executed { continue; };
 
         let Statement::Compute(node, expr) = deref_stmt((fid, bid, sid), ir) else { continue; };
-        if matches!(expr, Expr::LitFunction(_) | Expr::Num(_) | Expr::Bool(_) | Expr::Nil | Expr::Str(_)) { continue; };
+        if matches!(expr, Expr::Function(_) | Expr::Num(_) | Expr::Bool(_) | Expr::Nil | Expr::Str(_)) { continue; };
 
         let val = inf.local_state[&(fid, bid, sid+1)].nodes[&node].clone();
         if !val.is_concrete() { continue; }
@@ -62,7 +62,7 @@ fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
         // exactly one of these exprs should be Some.
         let l: [Option<Expr>; 5] = [
             extract_from_lattice(&val.strings).map(Expr::Str),
-            extract_from_set(&val.fns).map(Expr::LitFunction),
+            extract_from_set(&val.fns).map(Expr::Function),
             extract_from_lattice(&val.nums).map(|x| x.into()).map(Expr::Num),
             extract_from_set(&val.nils).map(|_| Expr::Nil),
             extract_from_set(&val.bools).map(Expr::Bool),
@@ -129,7 +129,7 @@ fn rm_unused_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
         let len1 = open.len();
         for &fid in open.clone().iter() {
             for stmt in stmts_in_fid(fid, ir) {
-                if let Statement::Compute(_, Expr::LitFunction(fid_)) = deref_stmt(stmt, ir) {
+                if let Statement::Compute(_, Expr::Function(fid_)) = deref_stmt(stmt, ir) {
                     open.insert(fid_);
                 }
             }

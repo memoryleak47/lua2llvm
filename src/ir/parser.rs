@@ -37,7 +37,7 @@ fn parse_fn<'tok, 'tokv>(mut tokens: &'tokv [Token<'tok>], ir: &mut IR) -> &'tok
         ir.main_fn = fid;
     }
 
-    let litf = LitFunction {
+    let litf = Function {
         blocks: HashMap::new(),
         start_block: BlockId::MAX,
     };
@@ -185,7 +185,7 @@ fn parse_expr<'tok, 'tokv>(tokens: &'tokv [Token<'tok>]) -> (&'tokv [Token<'tok>
 
         [Token::Word(f), ..] if f.starts_with("f") => {
             let f = extract_id(f, 'f');
-            let expr = Expr::LitFunction(f);
+            let expr = Expr::Function(f);
             return (&tokens[1..], expr);
         },
 

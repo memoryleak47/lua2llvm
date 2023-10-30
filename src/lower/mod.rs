@@ -16,7 +16,7 @@ use body::*;
 pub(self) use std::collections::HashMap;
 
 pub(self) use crate::ast::*;
-pub(self) use crate::ir::{self, FnId, IR, LitFunction, Node, BlockId};
+pub(self) use crate::ir::{self, FnId, IR, Function, Node, BlockId};
 
 struct FnCtxt {
     fn_id: FnId,
@@ -70,11 +70,11 @@ impl Ctxt {
         self.fn_stack.last_mut().unwrap()
     }
 
-    fn lit_fn(&self) -> &LitFunction {
+    fn lit_fn(&self) -> &Function {
         &self.ir.fns[&self.fcx().fn_id]
     }
 
-    fn lit_fn_mut(&mut self) -> &mut LitFunction {
+    fn lit_fn_mut(&mut self) -> &mut Function {
         let fid = self.fcx().fn_id;
         self.ir.fns.get_mut(&fid).unwrap()
     }

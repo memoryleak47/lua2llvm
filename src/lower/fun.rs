@@ -89,7 +89,7 @@ pub(in crate::lower) fn lower_fn(args: &[String], variadic: &Variadic, statement
 pub(in crate::lower) fn add_fn<T>(is_main: bool, callback: impl FnOnce(&mut Ctxt) -> T, ctxt: &mut Ctxt) -> (FnId, T) {
     let fid = ctxt.ir.fns.len();
 
-    let mut lit_fn = LitFunction {
+    let mut lit_fn = Function {
         blocks: HashMap::new(),
         start_block: 0,
     };

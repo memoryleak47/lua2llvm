@@ -94,7 +94,7 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
             v.classes.insert(cl);
             state.class_states.0.insert(cl, ClassState::default());
         },
-        Expr::LitFunction(fid) => {
+        Expr::Function(fid) => {
             v.fns = vec![*fid].into_iter().collect();
         },
         Expr::BinOp(kind, l, r) => {

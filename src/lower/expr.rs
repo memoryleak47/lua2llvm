@@ -29,7 +29,7 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
 
             let n = mk_table(ctxt);
 
-            let call = ctxt.push_compute(ir::Expr::LitFunction(fid));
+            let call = ctxt.push_compute(ir::Expr::Function(fid));
             ctxt.push_store(n, ctxt.call_str(), call);
 
             let upvalues = mk_table(ctxt);
