@@ -100,7 +100,7 @@ fn rm_unread_store(ir: &mut IR, inf: &mut Infer) -> Changed {
     }
 
     for stmt in stmts(ir) {
-        let Statement::Compute(_, Expr::Intrinsic(Intrinsic::Next(t, _)) | Expr::Len(t)) = deref_stmt(stmt, ir) else { continue; };
+        let Statement::Compute(_, Expr::Next(t, _) | Expr::Len(t)) = deref_stmt(stmt, ir) else { continue; };
         let loc: &LocalState = &inf.local_state[&stmt];
         if !loc.executed { continue; }
         let t = &loc.nodes[&t];
@@ -179,7 +179,7 @@ fn hollow_fn(fid: FnId, ir: &mut IR, inf: &mut Infer) {
 
     let f = ir.fns.get_mut(&fid).unwrap();
     f.start_block = 0;
-    f.blocks.insert(0, vec![Statement::Command(Command::Throw(String::from("unreachable!")))]);
+    f.blocks.insert(0, vec![Statement::Throw(String::from("unreachable!"))]);
     inf.local_state.insert((fid, 0, 0), LocalState::default());
 }
 
@@ -190,7 +190,7 @@ fn hollow_uncalled_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
         let start_bid = ir.fns[&fid].start_block;
         if inf.local_state[&(fid, start_bid, 0)].executed { continue; }
         // don't repeat, if already hollowed.
-        if let Statement::Command(Command::Throw(_)) = deref_stmt((fid, start_bid, 0), ir) { continue; }
+        if let Statement::Throw(_) = deref_stmt((fid, start_bid, 0), ir) { continue; }
 
         changed = Changed::Yes;
         hollow_fn(fid, ir, inf);

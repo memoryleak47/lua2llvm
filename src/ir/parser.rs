@@ -104,12 +104,12 @@ fn parse_stmt<'tok, 'tokv>(tokens: &'tokv [Token<'tok>]) -> (&'tokv [Token<'tok>
             return (&tokens[6..], st);
         },
         [Token::Word("throw"), Token::Sign('('), Token::Str(msg), Token::Sign(')'), ..] => {
-            let st = Statement::Command(Command::Throw(msg.to_string()));
+            let st = Statement::Throw(msg.to_string());
             return (&tokens[4..], st);
         },
         [Token::Word("print"), Token::Sign('('), Token::Word(n), Token::Sign(')'), ..] => {
             let n = extract_id(n, 'n');
-            let st = Statement::Command(Command::Print(n));
+            let st = Statement::Print(n);
             return (&tokens[4..], st);
         },
         [Token::Word(f), Token::Sign('('), Token::Word(arg), Token::Sign(')'), ..] => {
@@ -151,14 +151,14 @@ fn parse_expr<'tok, 'tokv>(tokens: &'tokv [Token<'tok>]) -> (&'tokv [Token<'tok>
 
         [Token::Word("type"), Token::Sign('('), Token::Word(n), Token::Sign(')'), ..] => {
             let n = extract_id(n, 'n');
-            let expr = Expr::Intrinsic(Intrinsic::Type(n));
+            let expr = Expr::Type(n);
             return (&tokens[4..], expr);
         },
 
         [Token::Word("next"), Token::Sign('('), Token::Word(l), Token::Sign(','), Token::Word(r), Token::Sign(')'), ..] => {
             let l = extract_id(l, 'n');
             let r = extract_id(r, 'n');
-            let expr = Expr::Intrinsic(Intrinsic::Next(l, r));
+            let expr = Expr::Next(l, r);
             return (&tokens[6..], expr);
         },
 

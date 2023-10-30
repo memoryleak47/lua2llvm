@@ -43,16 +43,12 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
             }
         },
 
-        Statement::Command(cmd) => {
-            match cmd {
-                Command::Print(_) => {
-                    let current_state = inf.local_state[&(fid, bid, sid)].clone();
-                    to_stmt((fid, bid, sid+1), current_state, inf);
-                }
-                Command::Throw(_) => {
-                    // nothing to do after this, nothing gets "dirty".
-                },
-            }
+        Statement::Print(_) => {
+            let current_state = inf.local_state[&(fid, bid, sid)].clone();
+            to_stmt((fid, bid, sid+1), current_state, inf);
+        },
+        Statement::Throw(_) => {
+            // nothing to do after this, nothing gets "dirty".
         },
 
         Statement::Return => {
@@ -109,7 +105,7 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
         Expr::Len(_) => {
             v.nums = Lattice::Top;
         },
-        Expr::Intrinsic(Intrinsic::Next(t, _)) => {
+        Expr::Next(t, _) => {
             // `nil` is always an option for next.
             v.nils = vec![()].into_iter().collect();
 
@@ -120,7 +116,7 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
                 }
             }
         },
-        Expr::Intrinsic(Intrinsic::Type(o)) => {
+        Expr::Type(o) => {
             let o = &state.nodes[o];
             let mut outputs = Vec::new();
             if !o.strings.is_empty() { outputs.push("string"); }

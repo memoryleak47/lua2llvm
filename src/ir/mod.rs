@@ -31,14 +31,9 @@ pub enum Statement {
     Store(/*table: */ Node, /*index: */ Node, Node), // store the value from the Node in the table `table` at index `index`.
     If(Node, /*then*/ BlockId, /*else*/ BlockId),
     FnCall(/*func: */ Node, /* arg: */ Node),
-    Command(Command),
-    Return,
-}
-
-#[derive(Debug, Clone)]
-pub enum Command {
     Print(Node),
     Throw(String),
+    Return,
 }
 
 #[derive(Debug, Clone)]
@@ -50,19 +45,14 @@ pub enum Expr {
     LitFunction(FnId),
     BinOp(BinOpKind, Node, Node),
     Len(Node),
-    Intrinsic(Intrinsic),
+    Next(Node, Node),
+    Type(Node),
 
     // literals
     Num(f64),
     Bool(bool),
     Nil,
     Str(String),
-}
-
-#[derive(Debug, Clone)]
-pub enum Intrinsic {
-    Next(Node, Node),
-    Type(Node),
 }
 
 pub type Block = Vec<Statement>;

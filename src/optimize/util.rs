@@ -67,8 +67,8 @@ impl Statement {
             Statement::Store(t, i, v) => [t, i, v].contains(&&node),
             Statement::If(c, _, _) => *c == node,
             Statement::FnCall(f, arg) => [f, arg].contains(&&node),
-            Statement::Command(Command::Print(n)) => *n == node,
-            Statement::Command(Command::Throw(_)) => false,
+            Statement::Print(n) => *n == node,
+            Statement::Throw(_) => false,
             Statement::Return => false,
         }
     }
@@ -83,8 +83,8 @@ impl Expr {
             Expr::LitFunction(_) => false,
             Expr::BinOp(_, l, r) => [l, r].contains(&&node),
             Expr::Len(n) => *n == node,
-            Expr::Intrinsic(Intrinsic::Next(t, i)) => [t, i].contains(&&node),
-            Expr::Intrinsic(Intrinsic::Type(t)) => *t == node,
+            Expr::Next(t, i) => [t, i].contains(&&node),
+            Expr::Type(t) => *t == node,
             Expr::Num(_) => false,
             Expr::Bool(_) => false,
             Expr::Nil => false,

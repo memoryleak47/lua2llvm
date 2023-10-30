@@ -1,25 +1,5 @@
 use super::*;
 
-unsafe fn compile_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> LLVMValueRef {
-    match intrinsic {
-        Intrinsic::Type(v) => {
-            let v = alloc_val(ctxt.nodes[v], ctxt);
-            let t = alloc(ctxt);
-            call_extra_fn("type", &[v, t], ctxt);
-
-            load_val(t, ctxt)
-        },
-        Intrinsic::Next(v1, v2) => {
-            let v1 = alloc_val(ctxt.nodes[v1], ctxt);
-            let v2 = alloc_val(ctxt.nodes[v2], ctxt);
-            let t = alloc(ctxt);
-            call_extra_fn("next", &[v1, v2, t], ctxt);
-
-            load_val(t, ctxt)
-        },
-    }
-}
-
 pub unsafe fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     match e {
         Expr::Nil => mk_nil(ctxt),
@@ -69,7 +49,21 @@ pub unsafe fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
             call_extra_fn("len", &[n, out], ctxt);
             load_val(out, ctxt)
         },
-        Expr::Intrinsic(intrinsic) => compile_intrinsic(intrinsic, ctxt),
+        Expr::Type(v) => {
+            let v = alloc_val(ctxt.nodes[v], ctxt);
+            let t = alloc(ctxt);
+            call_extra_fn("type", &[v, t], ctxt);
+
+            load_val(t, ctxt)
+        },
+        Expr::Next(v1, v2) => {
+            let v1 = alloc_val(ctxt.nodes[v1], ctxt);
+            let v2 = alloc_val(ctxt.nodes[v2], ctxt);
+            let t = alloc(ctxt);
+            call_extra_fn("next", &[v1, v2, t], ctxt);
+
+            load_val(t, ctxt)
+        },
     }
 }
 

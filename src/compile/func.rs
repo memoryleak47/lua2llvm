@@ -30,7 +30,16 @@ unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMB
 
                 fn_call(f, arg, ctxt);
             }
-            Statement::Command(cmd) => compile_command(cmd, ctxt),
+            Statement::Print(var) => {
+                let t = alloc_val(ctxt.nodes[var], ctxt);
+                call_extra_fn("print", &[t], ctxt);
+            },
+            Statement::Throw(s) => {
+                let s = format!("{}\0", s);
+                let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
+                call_extra_fn("throw_", &[s], ctxt);
+                LLVMBuildRetVoid(ctxt.builder); // required, even though this function will never return due to the above throw_.
+            },
             Statement::Return => {
                 LLVMBuildRetVoid(ctxt.builder);
             },
@@ -38,21 +47,6 @@ unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMB
     }
 
     return Vec::new();
-}
-
-unsafe fn compile_command(cmd: &Command, ctxt: &mut Ctxt) {
-    match cmd {
-        Command::Print(var) => {
-            let t = alloc_val(ctxt.nodes[var], ctxt);
-            call_extra_fn("print", &[t], ctxt);
-        },
-        Command::Throw(s) => {
-            let s = format!("{}\0", s);
-            let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
-            call_extra_fn("throw_", &[s], ctxt);
-            LLVMBuildRetVoid(ctxt.builder); // required, even though this function will never return due to the above throw_.
-        },
-    }
 }
 
 unsafe fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef /* Value */, ctxt: &mut Ctxt) {

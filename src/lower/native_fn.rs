@@ -39,11 +39,11 @@ fn print_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     ctxt.push_if(is_fn, then_bid, else_bid);
 
     ctxt.set_active_block(then_bid);
-    ctxt.push_command(ir::Command::Print(call_node));
+    ctxt.push_st(ir::Statement::Print(call_node));
     ctxt.push_goto(post_bid);
 
     ctxt.set_active_block(else_bid);
-    ctxt.push_command(ir::Command::Print(arg1));
+    ctxt.push_st(ir::Statement::Print(arg1));
     ctxt.push_goto(post_bid);
 
     ctxt.set_active_block(post_bid);
@@ -57,7 +57,7 @@ fn type_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let arg = ctxt.push_compute(ir::Expr::Arg);
     let args = ctxt.push_compute(ir::Expr::Index(arg, ctxt.args_str()));
     let arg1 = ctxt.push_compute(ir::Expr::Index(args, ctxt.one()));
-    let val = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg1)));
+    let val = ctxt.push_compute(ir::Expr::Type(arg1));
     let (is_fn, _) = mk_fn_check(arg1, ctxt);
 
     let ret = mk_table(ctxt);
@@ -90,7 +90,7 @@ fn next_native_fn(ctxt: &mut Ctxt, _native_impls: &NativeImpls) {
     let arg1 = ctxt.push_compute(ir::Expr::Index(args, ctxt.one()));
     mk_assert(mk_proper_table_check(arg1, ctxt), "Argument to next is not a table!", ctxt);
     let arg2 = ctxt.push_compute(ir::Expr::Index(args, two));
-    let new_index = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Next(arg1, arg2)));
+    let new_index = ctxt.push_compute(ir::Expr::Next(arg1, arg2));
     let new_val = ctxt.push_compute(ir::Expr::Index(arg1, new_index));
 
     let ret = mk_table(ctxt);

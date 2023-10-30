@@ -116,10 +116,6 @@ impl Ctxt {
         node
     }
 
-    fn push_command(&mut self, cmd: ir::Command) {
-        self.push_st(ir::Statement::Command(cmd));
-    }
-
     fn push_store(&mut self, table: Node, index: Node, val: Node) {
         self.push_st(ir::Statement::Store(table, index, val));
     }
@@ -231,11 +227,11 @@ pub fn lower(ast: &Ast) -> IR {
 
 // checks whether `arg` is a function, returns this in a new node as bool value.
 fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/ Node) {
-    // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) != "function"
+    // return Expr::Type(arg) == "table" && Expr::Type(arg["call"]) != "function"
 
     let t = mk_table_with(ctxt.push_compute(ir::Expr::Bool(false)), ctxt);
 
-    let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
+    let ty = ctxt.push_compute(ir::Expr::Type(arg));
     let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, ctxt.table_str()));
 
     let then_body = ctxt.alloc_block();
@@ -245,7 +241,7 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
 
     ctxt.set_active_block(then_body);
     let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.call_str()));  // arg["call"]
-    let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
+    let ty_call = ctxt.push_compute(ir::Expr::Type(arg_call));  // type(arg["call"])
     let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, ctxt.function_str())); // type(arg["call"]) == "function"
     ctxt.push_store(t, ctxt.inner_str(), ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
     ctxt.push_goto(post_body);
@@ -259,10 +255,10 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
 
 // check whether arg is a table, and not a function table!
 fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
-    // return intrinsic::type(arg) == "table" && intrinsic::type(arg["call"]) != "function"
+    // return Expr::Type(arg) == "table" && Expr::Type(arg["call"]) != "function"
     let t = mk_table_with(ctxt.push_compute(ir::Expr::Bool(false)), ctxt);
 
-    let ty = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg)));
+    let ty = ctxt.push_compute(ir::Expr::Type(arg));
     let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, ctxt.table_str()));
 
     let then_body = ctxt.alloc_block();
@@ -272,7 +268,7 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
 
     ctxt.set_active_block(then_body);
     let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.call_str()));  // arg["call"]
-    let ty_call = ctxt.push_compute(ir::Expr::Intrinsic(ir::Intrinsic::Type(arg_call)));  // type(arg["call"])
+    let ty_call = ctxt.push_compute(ir::Expr::Type(arg_call));  // type(arg["call"])
     let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, ctxt.function_str())); // type(arg["call"]) == "function"
     ctxt.push_store(t, ctxt.inner_str(), ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
     ctxt.push_goto(post_body);
@@ -291,7 +287,7 @@ fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
     ctxt.push_if(n, post_body, else_body);
 
     ctxt.set_active_block(else_body);
-    ctxt.push_command(ir::Command::Throw(s.to_string()));
+    ctxt.push_st(ir::Statement::Throw(s.to_string()));
 
     ctxt.set_active_block(post_body);
 }

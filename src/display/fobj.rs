@@ -1,4 +1,4 @@
-use crate::ir::{self, IR, FnId, Statement, Expr, BinOpKind, Node, BlockId, Command};
+use crate::ir::{IR, FnId, Statement, Expr, BinOpKind, Node, BlockId};
 use crate::infer::Infer;
 use crate::display::*;
 
@@ -96,18 +96,12 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
                 write!(f, "if {cond} then {then} else {else_}", )?;
             },
             FnCall(n, t) => write!(f, "{}({})", self.node_string(*n), self.node_string(*t))?,
-            Command(cmd) => self.display_command(cmd, f)?,
+            Print(v) => write!(f, "print({})", self.node_string(*v))?,
+            Throw(s) => write!(f, "throw('{s}')")?,
             Return => write!(f, "return")?,
         }
 
         write!(f, ";\n")
-    }
-
-    fn display_command(&self, cmd: &Command, f: &mut Formatter<'_>) -> fmt::Result {
-        match cmd {
-            ir::Command::Print(v) => write!(f, "print({})", self.node_string(*v)),
-            ir::Command::Throw(s) => write!(f, "throw('{s}')"),
-        }
     }
 
     pub fn node_string(&self, node: Node) -> String {
@@ -124,15 +118,6 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
         }
     }
 
-    fn display_intrinsic(&self, intrinsic: &ir::Intrinsic, f: &mut Formatter<'_>) -> fmt::Result {
-        match intrinsic {
-            ir::Intrinsic::Type(v) => write!(f, "type({})", self.node_string(*v))?,
-            ir::Intrinsic::Next(v1, v2) => write!(f, "next({}, {})", self.node_string(*v1), self.node_string(*v2))?,
-        }
-
-        Ok(())
-    }
-
     fn display_expr(&self, expr: &Expr, f: &mut Formatter<'_>) -> fmt::Result {
         use Expr::*;
         match expr {
@@ -140,7 +125,8 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
             Arg => write!(f, "arg")?,
             NewTable => write!(f, "{{}}")?,
             LitFunction(fid) => write!(f, "f{}", fid)?,
-            Intrinsic(intrinsic) => self.display_intrinsic(intrinsic, f)?,
+            Type(v) => write!(f, "type({})", self.node_string(*v))?,
+            Next(v1, v2) => write!(f, "next({}, {})", self.node_string(*v1), self.node_string(*v2))?,
             BinOp(kind, l, r) => write!(f, "{} {} {}", self.node_string(*l), self.binop_string(kind), self.node_string(*r))?,
             Len(r) => write!(f, "#{}", self.node_string(*r))?,
             Num(x) => write!(f, "{}", x)?,
@@ -183,7 +169,8 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
             Expr::LitFunction(_) => true,
             Expr::BinOp(_, _, _) => true,
             Expr::Len(_) => false,
-            Expr::Intrinsic(_) => false,
+            Expr::Type(_) => false,
+            Expr::Next(_, _) => false,
             Expr::Num(_) => true,
             Expr::Bool(_) => true,
             Expr::Nil => true,

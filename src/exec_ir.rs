@@ -1,4 +1,4 @@
-use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, Intrinsic, BlockId, Node, Command};
+use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, BlockId, Node};
 
 use std::collections::HashMap;
 
@@ -99,53 +99,6 @@ struct TableData {
     length: usize,
 }
 
-fn exec_command(cmd: &Command, ctxt: &mut Ctxt) {
-    match cmd {
-        Command::Print(n) => {
-            let val = &ctxt.fcx().nodes[n];
-            match val {
-                Value::Nil => println!("nil"),
-                Value::Bool(b) => println!("{}", b),
-                Value::Str(s) => println!("{}", s),
-                Value::TablePtr(ptr) => println!("table: {}", ptr),
-                Value::LitFn(fid) => println!("function: {}", fid),
-                Value::Num(x) => println!("{}", x),
-            }
-        }
-        Command::Throw(s) => {
-            // TODO only terminate this execution, not our whole Rust program.
-            println!("ERROR: {}", s);
-            std::process::exit(0);
-        }
-    }
-}
-
-fn exec_intrinsic(intrinsic: &Intrinsic, ctxt: &mut Ctxt) -> Value {
-    match intrinsic {
-        Intrinsic::Next(v1, v2) => {
-            let v1 = &ctxt.fcx().nodes[v1];
-            let Value::TablePtr(v1_) = v1 else { panic!("calling next onto non-table!") };
-
-            let v2 = ctxt.fcx().nodes[v2].clone();
-
-            table_next(*v1_, v2, ctxt)
-        }
-        Intrinsic::Type(n) => {
-            let val = &ctxt.fcx().nodes[n];
-            let s = match val {
-                Value::Nil => "nil",
-                Value::Bool(_) => "boolean",
-                Value::Str(_) => "string",
-                Value::LitFn(..) => "function",
-                Value::Num(_) => "number",
-                Value::TablePtr(_) => "table"
-            };
-
-            Value::Str(s.to_string())
-        }
-    }
-}
-
 fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
     match expr {
         Expr::Index(t, idx) => {
@@ -156,7 +109,6 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             table_get(t, idx, ctxt)
         },
         Expr::Arg => ctxt.fcx().arg.clone(),
-        Expr::Intrinsic(intrinsic) => exec_intrinsic(intrinsic, ctxt),
         Expr::NewTable => Value::TablePtr(alloc_table(ctxt)),
         Expr::LitFunction(fnid) => Value::LitFn(*fnid),
         Expr::BinOp(kind, l, r) => {
@@ -174,10 +126,33 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
                 _ => panic!("executing len on invalid type!"),
             }
         },
+
+        Expr::Next(v1, v2) => {
+            let v1 = &ctxt.fcx().nodes[v1];
+            let Value::TablePtr(v1_) = v1 else { panic!("calling next onto non-table!") };
+
+            let v2 = ctxt.fcx().nodes[v2].clone();
+
+            table_next(*v1_, v2, ctxt)
+        },
+        Expr::Type(n) => {
+            let val = &ctxt.fcx().nodes[n];
+            let s = match val {
+                Value::Nil => "nil",
+                Value::Bool(_) => "boolean",
+                Value::Str(_) => "string",
+                Value::LitFn(..) => "function",
+                Value::Num(_) => "number",
+                Value::TablePtr(_) => "table"
+            };
+
+            Value::Str(s.to_string())
+        }
         Expr::Num(x) => Value::Num(*x),
         Expr::Bool(b) => Value::Bool(*b),
         Expr::Nil => Value::Nil,
         Expr::Str(s) => Value::Str(s.clone()),
+
     }
 }
 
@@ -270,7 +245,22 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
                 v => panic!("trying to execute non-function value! {:?}", v),
             };
         },
-        Command(cmd) => exec_command(cmd, ctxt),
+        Print(n) => {
+            let val = &ctxt.fcx().nodes[n];
+            match val {
+                Value::Nil => println!("nil"),
+                Value::Bool(b) => println!("{}", b),
+                Value::Str(s) => println!("{}", s),
+                Value::TablePtr(ptr) => println!("table: {}", ptr),
+                Value::LitFn(fid) => println!("function: {}", fid),
+                Value::Num(x) => println!("{}", x),
+            }
+        }
+        Throw(s) => {
+            // TODO only terminate this execution, not our whole Rust program.
+            println!("ERROR: {}", s);
+            std::process::exit(0);
+        }
         Return => {
             ctxt.stack.pop();
         },
