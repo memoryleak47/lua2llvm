@@ -1,49 +1,79 @@
 use crate::infer::*;
 use crate::display::*;
-use std::fmt::{self, Formatter};
+use std::fmt::{self, Formatter, Display};
 
-impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
-    pub fn value_string(&self, v: &Value) -> String {
+impl Display for Location {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let Location((fid, bid, sid)) = self;
+        write!(f, "({}, {}, {})", fid, bid, sid)
+    }
+}
+
+impl Display for Class {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Class::Concrete(x) => write!(f, "@{}", x),
+            Class::Summary(x) => write!(f, "*{}", x),
+        }
+    }
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut parts: Vec<String> = Vec::new();
 
-        match &v.strings {
+        match &self.strings {
             Lattice::Top => parts.push("string".to_string()),
             Lattice::Set(s) => parts.extend(s.iter().map(|x| String::from("\"") + x + "\"")), // we should escape " here.
         }
 
-        parts.extend(v.fns.iter().map(|x| format!("f{}", x)));
+        parts.extend(self.fns.iter().map(|x| format!("f{}", x)));
 
-        match &v.nums {
+        match &self.nums {
             Lattice::Top => parts.push("number".to_string()),
             Lattice::Set(s) => parts.extend(s.iter().map(|x| format!("{}", x))),
         }
 
-        if !v.nils.is_empty() { parts.push(String::from("nil")); }
+        if !self.nils.is_empty() { parts.push(String::from("nil")); }
 
-        parts.extend(v.bools.iter().map(|x| format!("{}", x)));
+        parts.extend(self.bools.iter().map(|x| format!("{}", x)));
 
-        parts.extend(v.classes.iter().map(|x| self.class_string(x)));
+        parts.extend(self.classes.iter().map(|x| x.to_string()));
 
-        parts.join("|")
+        write!(f, "{}", parts.join("|"))
     }
+}
 
-    pub fn location_string(&self, Location((fid, bid, sid)): Location) -> String {
-        format!("({fid}, {bid}, {sid})")
-    }
-
-    pub fn class_string(&self, class: &Class) -> String {
-        match class {
-            Class::Concrete(x) => format!("@{}", self.location_string(*x)),
-            Class::Summary(x) => format!("*{}", self.location_string(*x)),
+impl Display for ClassState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut parts = Vec::new();
+        for (k, v) in self.0.iter() {
+            parts.push(format!("{}: {}", k, v.value));
         }
+        write!(f, "[{}],", parts.join(", "))
     }
+}
 
+impl Display for ClassStates {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        for (class, class_state) in ordered_map_iter(self.0.iter()) {
+            write!(f, "    - {}: ", class)?;
+            write!(f, "{}", class_state)?;
+            write!(f, "\n")?;
+        }
+        write!(f, "\n")?;
+
+        Ok(())
+    }
+}
+
+impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
     pub fn display_local_state(&self, local_state: &LocalState, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "------------------------------------\n")?;
-        self.display_class_states(&local_state.class_states, f)?;
+        write!(f, "{}", local_state.class_states)?;
 
         for (node, value) in ordered_map_iter(local_state.nodes.iter()) {
-            write!(f, "    {} = {},\n", self.node_string(*node), self.value_string(value))?;
+            write!(f, "    {} = {},\n", self.node_string(*node), value)?;
         }
         write!(f, "\n")?;
 
@@ -53,24 +83,5 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
 
         write!(f, "------------------------------------\n")?;
         Ok(())
-    }
-
-    pub fn display_class_states(&self, class_states: &ClassStates, f: &mut Formatter<'_>) -> fmt::Result {
-        for (class, class_state) in ordered_map_iter(class_states.0.iter()) {
-            write!(f, "    - {}: ", self.class_string(class))?;
-            self.display_class_state(class_state, f)?;
-            write!(f, "\n")?;
-        }
-        write!(f, "\n")?;
-
-        Ok(())
-    }
-
-    pub fn display_class_state(&self, class_state: &ClassState, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut parts = Vec::new();
-        for (k, v) in class_state.0.iter() {
-            parts.push(format!("{}: {}", self.value_string(k), self.value_string(&v.value)));
-        }
-        write!(f, "[{}],", parts.join(", "))
     }
 }

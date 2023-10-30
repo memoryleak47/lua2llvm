@@ -22,7 +22,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
         
         
         let argval = if let Some(inf) = self.inf {
-            self.value_string(&inf.fn_state[&fid].argval)
+            inf.fn_state[&fid].argval.to_string()
         } else { String::new() };
 
 
@@ -30,7 +30,7 @@ impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
         if let Some(inf) = self.inf {
             write!(f, "  out state:\n")?;
             match &inf.fn_state[&fid].out_state {
-                Some(out_state) => self.display_class_states(out_state, f)?,
+                Some(out_state) => write!(f, "{}", out_state)?,
                 None => write!(f, "!")?,
             }
         }
