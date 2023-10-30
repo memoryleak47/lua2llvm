@@ -9,7 +9,7 @@ use util::*;
 pub enum Changed { Yes, No }
 type Optimization = fn(&mut IR, &mut Infer) -> Changed;
 
-static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks, merge_blocks];
+static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks, merge_blocks, inline_return_fns];
 
 pub fn optimize(ir: &mut IR, inf: &mut Infer) {
     loop {
@@ -275,4 +275,22 @@ fn merge_blocks(ir: &mut IR, inf: &mut Infer) -> Changed {
         *inf = inf.map_stmt(&f);
         Changed::Yes
     } else { Changed::No }
+}
+
+fn is_return_fn(fid: FnId, ir: &IR) -> bool {
+    let bid = ir.fns[&fid].start_block;
+    ir.fns[&fid].blocks[&bid] == vec![Statement::Return]
+}
+
+fn inline_return_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
+    let mut s = Vec::new();
+    for stmt in stmts(ir) {
+        if !inf.local_state[&stmt].executed { continue; };
+        let Statement::FnCall(f, _) = deref_stmt(stmt, ir) else { continue; };
+
+        if inf.local_state[&stmt].nodes[&f].fns.iter().all(|&x| is_return_fn(x, ir)) {
+            s.push(stmt);
+        }
+    }
+    rm_stmts(s, ir, inf)
 }

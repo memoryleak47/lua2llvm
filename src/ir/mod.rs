@@ -7,7 +7,7 @@ pub mod parser;
 // Further, upvalues might not be tables, but can be any Value (which will be closured per value).
 
 // the same as ast::BinOpKind but without And & Or.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinOpKind {
     Plus, Minus, Mul, Div, Mod,
     Lt, Le, Gt, Ge,
@@ -25,7 +25,7 @@ pub type Node = usize;
 // used to index into IR::fns.
 pub type FnId = usize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Compute(Node, Expr), // create a new node with the value returned from the Expr.
     Store(/*table: */ Node, /*index: */ Node, Node), // store the value from the Node in the table `table` at index `index`.
@@ -36,7 +36,7 @@ pub enum Statement {
     Return,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Index(/*table: */ Node, /*index: */ Node),
 
