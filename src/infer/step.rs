@@ -159,7 +159,7 @@ fn infer_binop(kind: &BinOpKind, l: &Value, r: &Value) -> Value {
             }
         }
 
-        if set.len() > 50 {
+        if set.len() > 3 {
             out.nums = Lattice::Top;
         } else {
             out.nums = Lattice::Set(set);
