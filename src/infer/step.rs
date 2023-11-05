@@ -1,26 +1,28 @@
 use crate::infer::*;
 
-pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &mut Infer, ir: &IR) {
-    inf.local_state.get_mut(&(fid, bid, sid)).unwrap().executed = true;
+pub(in crate::infer) fn infer_step(rt_stack: RtStack, inf: &mut Infer, ir: &IR) {
+    inf.local_state.get_mut(&rt_stack).unwrap().executed = true;
+    let (fid, bid, sid) = rt_stack.last().cloned().unwrap();
+    let st = &ir.fns[&fid].blocks[&bid][sid];
 
-    let mut state: LocalState = inf.local_state[&(fid, bid, sid)].clone();
+    let mut state: LocalState = inf.local_state[&rt_stack].clone();
     match st {
         Statement::Compute(n, expr) => {
-            infer_step_compute(*n, expr, (fid, bid, sid), inf);
+            infer_step_compute(*n, expr, rt_stack, inf);
         },
         Statement::Store(t, i, v) => {
             let t: Value = state.nodes[&t].clone();
             let i: Value = state.nodes[&i].clone();
             let v: Value = state.nodes[&v].clone();
             state.class_states.set(&t, &i, &v, (fid, bid, sid));
-            to_stmt((fid, bid, sid+1), state, inf);
+            jump_to_stmt((bid, sid+1), &rt_stack, state, inf);
         },
 
         Statement::If(cond, then, else_) => {
             let cond: Value = state.nodes[&cond].clone();
             for (b, jump_bid) in [(true, *then), (false, *else_)] {
                 if cond.bools.contains(&b) {
-                    to_stmt((fid, jump_bid, 0), state.clone(), inf);
+                    jump_to_stmt((jump_bid, 0), &rt_stack, state.clone(), inf);
                 }
             }
         },
@@ -32,27 +34,29 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
             let arg: Value = summ_state.nodes[&arg].clone();
 
             for &child_fid in &f.fns {
-                to_fn(child_fid, (fid, bid, sid), &summ_state.class_states, &arg, ir, inf);
+                let new_spec = jump_to_fn(child_fid, rt_stack.clone(), &summ_state.class_states, &arg, ir, inf);
 
                 // take the current output state of that function as well.
-                if let Some(ret_class_states) = &inf.fn_state[&child_fid].out_state {
+                // TODO this dirty order doesn't seem correct. The dirty.last() should be evaluating the child fn, not proceeding the current fn.
+                if let Some(ret_class_states) = &inf.fn_state[&new_spec].out_state {
                     let mut new_state = summ_state.clone();
                     new_state.class_states = new_state.class_states.merge(ret_class_states);
-                    to_stmt((fid, bid, sid+1), new_state, inf);
+                    jump_to_stmt((bid, sid+1), &rt_stack, new_state, inf);
                 }
             }
         },
 
         Statement::Print(_) => {
-            let current_state = inf.local_state[&(fid, bid, sid)].clone();
-            to_stmt((fid, bid, sid+1), current_state, inf);
+            let current_state = inf.local_state[&rt_stack].clone();
+            jump_to_stmt((bid, sid+1), &rt_stack, current_state, inf);
         },
         Statement::Throw(_) => {
             // nothing to do after this, nothing gets "dirty".
         },
 
         Statement::Return => {
-            let st: &mut FnState = inf.fn_state.get_mut(&fid).unwrap();
+            let current = current_spec(rt_stack.clone());
+            let st: &mut FnState = inf.fn_state.get_mut(&current).unwrap();
             let new_out: ClassStates = state.class_states.map_classes(&summarize_all);
             let new_out: ClassStates = match &st.out_state {
                 Some(x) => x.merge(&new_out),
@@ -61,18 +65,20 @@ pub(in crate::infer) fn infer_step(st: &Statement, (fid, bid, sid): Stmt, inf: &
             st.out_state = Some(new_out.clone());
             let call_sites = st.call_sites.clone();
 
-            for &(fid_, bid_, sid_) in &call_sites {
-                let mut new_state = inf.local_state[&(fid_, bid_, sid_)].map_classes(&summarize_all);
+            for site in &call_sites {
+                let (_, bid_, sid_) = site.last().cloned().unwrap();
+                let mut new_state = inf.local_state[site].map_classes(&summarize_all);
                 new_state.class_states = new_state.class_states.merge(&new_out);
 
-                to_stmt((fid_, bid_, sid_+1), new_state, inf);
+                jump_to_stmt((bid_, sid_+1), &site, new_state, inf);
             }
         },
     }
 }
 
-fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Infer) {
-    let mut state: LocalState = inf.local_state[&(fid, bid, sid)].clone();
+fn infer_step_compute(n: Node, expr: &Expr, rt_stack: RtStack, inf: &mut Infer) {
+    let mut state: LocalState = inf.local_state[&rt_stack].clone();
+    let (fid, bid, sid) = rt_stack.last().cloned().unwrap();
 
     let mut v = Value::bot();
     match expr {
@@ -82,7 +88,14 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
             v = state.class_states.get(t, i);
         },
         Expr::Arg => {
-            v = inf.fn_state[&fid].argval.clone();
+            let mut s = rt_stack.clone();
+            s.pop();
+
+            let spec = FnSpec {
+                rt_stack: s,
+                fid,
+            };
+            v = inf.fn_state[&spec].argval.clone();
         },
         Expr::NewTable => {
             let loc = Location((fid, bid, sid));
@@ -94,8 +107,8 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
             v.classes.insert(cl);
             state.class_states.0.insert(cl, ClassState::default());
         },
-        Expr::Function(fid) => {
-            v.fns = vec![*fid].into_iter().collect();
+        Expr::Function(fid_) => {
+            v.fns = vec![*fid_].into_iter().collect();
         },
         Expr::BinOp(kind, l, r) => {
             let l = &state.nodes[&l];
@@ -142,7 +155,7 @@ fn infer_step_compute(n: Node, expr: &Expr, (fid, bid, sid): Stmt, inf: &mut Inf
         },
     }
     state.nodes.insert(n, v);
-    to_stmt((fid, bid, sid+1), state, inf);
+    jump_to_stmt((bid, sid+1), &rt_stack, state, inf);
 }
 
 fn infer_binop(kind: &BinOpKind, l: &Value, r: &Value) -> Value {
@@ -232,27 +245,42 @@ fn infer_binop(kind: &BinOpKind, l: &Value, r: &Value) -> Value {
     }
 }
 
-fn to_stmt((fid, bid, sid): Stmt, state: LocalState, inf: &mut Infer) -> bool {
-    let old_state = &inf.local_state[&(fid, bid, sid)];
+fn jump_to_stmt((bid, sid): (BlockId, StatementIndex), prev_rt_stack: &RtStack, state: LocalState, inf: &mut Infer) -> bool {
+    let mut rt_stack = prev_rt_stack.clone();
+    rt_stack.last_mut().unwrap().1 = bid;
+    rt_stack.last_mut().unwrap().2 = sid;
+
+    jump_to(rt_stack, state, inf)
+}
+
+fn jump_to(rt_stack: RtStack, state: LocalState, inf: &mut Infer) -> bool {
+    let old_state = &inf.local_state[&rt_stack];
     let result_state = state.merge(old_state);
     if &result_state != old_state {
-        inf.local_state.insert((fid, bid, sid), result_state);
-        inf.dirty.push((fid, bid, sid));
+        inf.local_state.insert(rt_stack.clone(), result_state);
+        inf.dirty.push(rt_stack);
 
         true
     } else { false }
 }
 
-fn to_fn(fid: FnId, call_site: Stmt, class_states: &ClassStates, argval: &Value, ir: &IR, inf: &mut Infer) {
+// called when we are at `call_site` and we call the function `fid`.
+fn jump_to_fn(fid: FnId, call_site: RtStack, class_states: &ClassStates, argval: &Value, ir: &IR, inf: &mut Infer) -> FnSpec {
     let bid = ir.fns[&fid].start_block;
+    let new_spec = mk_spec(call_site.clone(), fid);
+
+    let mut start_rt_stack = new_spec.rt_stack.clone();
+    start_rt_stack.push((fid, bid, 0));
+
+    inf.init_spec(&new_spec, &ir);
 
     // set the LocalState accordingly.
     let mut loc = LocalState::default();
     loc.class_states = class_states.clone();
-    let set_to_dirty = to_stmt((fid, bid, 0), loc, inf);
+    let set_to_dirty = jump_to(start_rt_stack.clone(), loc, inf);
 
     // set the FnState accordingly.
-    let fn_state: &mut FnState = inf.fn_state.get_mut(&fid).unwrap();
+    let fn_state: &mut FnState = inf.fn_state.get_mut(&new_spec).unwrap();
     let new_argval = fn_state.argval.merge(argval);
     let needs_update = /*old argval*/ fn_state.argval != new_argval;
 
@@ -260,8 +288,24 @@ fn to_fn(fid: FnId, call_site: Stmt, class_states: &ClassStates, argval: &Value,
     fn_state.call_sites.insert(call_site);
 
     if needs_update && !set_to_dirty {
-        inf.dirty.push((fid, bid, 0));
+        inf.dirty.push(start_rt_stack);
     }
+
+    new_spec
+}
+
+fn mk_spec(mut rt_stack: RtStack, fid: FnId) -> FnSpec {
+    let pos = rt_stack.iter().position(|&(fid_, _, _)| fid_ == fid);
+    if let Some(i) = pos {
+        rt_stack.truncate(i);
+    }
+
+    FnSpec { rt_stack, fid }
+}
+
+fn current_spec(mut rt_stack: RtStack) -> FnSpec {
+    let (fid, _bid, _sid) = rt_stack.pop().unwrap();
+    FnSpec { rt_stack, fid }
 }
 
 fn summarize_all(c: Class) -> Class {

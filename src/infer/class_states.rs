@@ -74,14 +74,6 @@ impl ClassStates {
         }
         out
     }
-
-    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
-        Self(self.0.iter().map(|(k, v)| (k.map_stmt(f), v.map_stmt(f))).collect())
-    }
-
-    pub fn erase_stmt(&self, stmt: Stmt) -> Self {
-        Self(self.0.iter().filter(|(cl, _)| !cl.allocated_at(stmt)).map(|(cl, cstate)| (*cl, cstate.erase_stmt(stmt))).collect())
-    }
 }
 
 impl ClassState {
@@ -166,14 +158,6 @@ impl ClassState {
 
         out
     }
-
-    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
-        Self(self.0.iter().map(|(k, v)| (k.map_stmt(f), v.map_stmt(f))).collect())
-    }
-
-    pub fn erase_stmt(&self, stmt: Stmt) -> Self {
-        Self(self.0.iter().map(|(k, v)| (k.erase_stmt(stmt), v.erase_stmt(stmt))).filter(|(k, v)| *k != Value::bot() && *v != Entry::bot()).collect())
-    }
 }
 
 impl Entry {
@@ -181,20 +165,6 @@ impl Entry {
         Self {
             value: self.value.map_classes(f),
             sources: self.sources.clone(),
-        }
-    }
-
-    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
-        Self {
-            value: self.value.map_stmt(f),
-            sources: self.sources.iter().copied().map(f).collect(),
-        }
-    }
-
-    pub fn erase_stmt(&self, stmt: Stmt) -> Self {
-        Self {
-            value: self.value.erase_stmt(stmt),
-            sources: self.sources.iter().copied().filter(|x| *x != stmt).collect(),
         }
     }
 

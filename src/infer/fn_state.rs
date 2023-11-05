@@ -1,6 +1,7 @@
 use crate::infer::*;
 
 #[derive(Clone, PartialEq, Eq)]
+// TODO rename to FnSpecState or something.
 pub struct FnState {
     pub argval: Value,
 
@@ -9,7 +10,7 @@ pub struct FnState {
 
     // Stores where this function was called.
     // This is relevant for propagating the return output to all call sites.
-    pub call_sites: Set<Stmt>,
+    pub call_sites: Set<RtStack>,
 }
 
 impl FnState {
@@ -20,20 +21,23 @@ impl FnState {
             call_sites: Set::new(),
         }
     }
+}
 
-    pub(in crate::infer) fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
-        Self {
-            argval: self.argval.map_stmt(f),
-            out_state: self.out_state.as_ref().map(|x| x.map_stmt(f)),
-            call_sites: self.call_sites.iter().copied().map(f).collect(),
+impl Infer {
+    pub fn init_spec(&mut self, spec: &FnSpec, ir: &IR) {
+        if self.fn_state.contains_key(&spec) {
+            return;
         }
-    }
 
-    pub(in crate::infer) fn erase_stmt(&self, stmt: Stmt) -> Self {
-        Self {
-            argval: self.argval.erase_stmt(stmt),
-            out_state: self.out_state.as_ref().map(|x| x.erase_stmt(stmt)),
-            call_sites: self.call_sites.iter().copied().filter(|x| *x != stmt).collect(),
+        self.fn_state.insert(spec.clone(), FnState::new());
+
+        let FnSpec { rt_stack, fid } = spec;
+        for &bid in ir.fns[&fid].blocks.keys() {
+            for sid in 0..ir.fns[&fid].blocks[&bid].len() {
+                let mut stack2 = rt_stack.clone();
+                stack2.push((*fid, bid, sid));
+                self.local_state.insert(stack2, LocalState::default());
+            }
         }
     }
 }

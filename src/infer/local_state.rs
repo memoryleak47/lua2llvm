@@ -37,24 +37,5 @@ impl LocalState {
             executed: self.executed,
         }
     }
-
-    pub fn map_stmt(&self, f: &impl Fn(Stmt) -> Stmt) -> Self {
-        LocalState {
-            nodes: self.nodes.into_iter().map(|(k, v)| (*k, v.map_stmt(f))).collect(),
-            class_states: self.class_states.map_stmt(f),
-            executed: self.executed,
-        }
-    }
-
-    pub fn erase_stmt(&self, f: FnId, stmt: Stmt, ir: &IR) -> Self {
-        let mut opt_node = crate::optimize::util::get_node_from_stmt(stmt, ir);
-        // if the node belongs to another function than this localstate, then we don't care about it.
-        if f != stmt.0 { opt_node = None; }
-        LocalState {
-            nodes: self.nodes.iter().filter(|(x, _)| Some(**x) != opt_node).map(|(k, v)| (*k, v.erase_stmt(stmt))).collect(),
-            class_states: self.class_states.erase_stmt(stmt),
-            executed: self.executed,
-        }
-    }
 }
 

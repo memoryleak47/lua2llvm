@@ -10,8 +10,8 @@ mod parse;
 mod visit;
 
 mod ir;
-mod display;
-use display::ir_to_string;
+// mod display;
+// use display::ir_to_string;
 
 mod prepare;
 use prepare::prepare;
@@ -26,8 +26,8 @@ mod exec_ir;
 
 mod compile;
 
-mod optimize;
-use optimize::optimize;
+// mod optimize;
+// use optimize::optimize;
 
 fn main() {
     let args: Vec<String> = std::env::args()
@@ -51,12 +51,12 @@ fn main() {
 
     let mut inf = infer(&ir);
 
-    optimize(&mut ir, &mut inf);
+    // optimize(&mut ir, &mut inf);
 
     if arg("--dump-ir") {
-        eprintln!("{}", ir_to_string(&ir, None));
+        // eprintln!("{}", ir_to_string(&ir, None));
     } else if arg("--dump-infer") {
-        eprintln!("{}", ir_to_string(&ir, Some(&inf)));
+        // eprintln!("{}", ir_to_string(&ir, Some(&inf)));
     } else if arg("--compile") {
         compile::compile(&ir);
     } else {
