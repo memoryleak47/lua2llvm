@@ -189,12 +189,3 @@ impl Entry {
         }
     }
 }
-
-impl Class {
-    pub fn allocated_at(&self, stmt: Stmt) -> bool {
-        match self {
-            Class::Concrete(Location(stmt2)) => stmt2 == &stmt,
-            Class::Summary(Location(stmt2)) => stmt2 == &stmt,
-        }
-    }
-}

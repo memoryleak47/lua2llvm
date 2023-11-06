@@ -42,7 +42,7 @@ fn merge_lattice<T: Eq + Hash + Clone>(a: &Lattice<T>, b: &Lattice<T>) -> Lattic
 }
 
 impl Value {
-    pub(in crate::infer) fn merge(&self, other: &Value) -> Value {
+    pub fn merge(&self, other: &Value) -> Value {
         Value {
             strings: merge_lattice(&self.strings, &other.strings),
             fns: merge_set(&self.fns, &other.fns),
@@ -64,13 +64,13 @@ impl Value {
         }
     }
 
-    pub(in crate::infer) fn nil() -> Value {
+    pub fn nil() -> Value {
         let mut v = Value::bot();
         v.nils.insert(());
         v
     }
 
-    pub(in crate::infer) fn compare(&self, other: &Value) -> Comparison {
+    pub fn compare(&self, other: &Value) -> Comparison {
         let cmp1 = [
             compare_lattice(&self.strings, &other.strings),
             compare_set(&self.fns, &other.fns),

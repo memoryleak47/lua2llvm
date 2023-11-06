@@ -7,15 +7,16 @@ use util::*;
 
 #[derive(PartialEq, Eq)]
 pub enum Changed { Yes, No }
-type Optimization = fn(&mut IR, &mut Infer) -> Changed;
+type Optimization = fn(&mut IR, &Infer) -> Changed;
 
-static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks, merge_blocks, inline_return_fns];
+static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks, merge_blocks];
 
 pub fn optimize(ir: &mut IR, inf: &mut Infer) {
     loop {
         let mut changed = Changed::No;
         for o in OPTIMIZATIONS {
             if o(ir, inf) == Changed::Yes {
+                *inf = infer(&ir);
                 changed = Changed::Yes;
             }
         }
@@ -24,7 +25,7 @@ pub fn optimize(ir: &mut IR, inf: &mut Infer) {
     }
 }
 
-fn rm_unused_node(ir: &mut IR, inf: &mut Infer) -> Changed {
+fn rm_unused_node(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
     let mut s = Vec::new();
     for (fid, bid, sid) in stmts(ir) {
         let Statement::Compute(node, _) = deref_stmt((fid, bid, sid), ir) else { continue; };
@@ -33,18 +34,26 @@ fn rm_unused_node(ir: &mut IR, inf: &mut Infer) -> Changed {
         }
     }
 
-    return rm_stmts(s, ir, inf);
+    return rm_stmts(s, ir);
 }
 
-fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
+fn resolve_const_compute(ir: &mut IR, inf: &Infer) -> Changed {
     let mut changed = Changed::No;
     for (fid, bid, sid) in stmts(ir) {
-        if !inf.local_state[&(fid, bid, sid)].executed { continue; };
-
         let Statement::Compute(node, expr) = deref_stmt((fid, bid, sid), ir) else { continue; };
         if matches!(expr, Expr::Function(_) | Expr::Num(_) | Expr::Bool(_) | Expr::Nil | Expr::Str(_)) { continue; };
 
-        let val = inf.local_state[&(fid, bid, sid+1)].nodes[&node].clone();
+        let val = specs_of_stmt((fid, bid, sid), inf).iter().map(|(_, rt_stack)| {
+            let mut follow_up_rt_stack: RtStack = rt_stack.clone();
+            follow_up_rt_stack.last_mut().unwrap().2 += 1;
+            let loc = &inf.local_state[&follow_up_rt_stack];
+            if loc.executed {
+                loc.nodes[&node].clone()
+            } else {
+                Value::bot()
+            }
+        }).fold(Value::bot(), |x, y| Value::merge(&x, &y));
+
         if !val.is_concrete() { continue; }
         if !val.classes.is_empty() { continue; }
         if val == Value::bot() { continue; }
@@ -79,7 +88,7 @@ fn resolve_const_compute(ir: &mut IR, inf: &mut Infer) -> Changed {
 // - someone indexes into the table
 // - someone uses next on the table
 // - someone accesses the length of the table
-fn rm_unread_store(ir: &mut IR, inf: &mut Infer) -> Changed {
+fn rm_unread_store(ir: &mut IR, inf: &Infer) -> Changed {
     let mut unread_stores: Set<Stmt> = Set::new();
     for stmt in stmts(ir) {
         if let Statement::Store(_, _, _) = deref_stmt(stmt, ir) {
@@ -88,27 +97,33 @@ fn rm_unread_store(ir: &mut IR, inf: &mut Infer) -> Changed {
     }
 
     for stmt in stmts(ir) {
-        let Statement::Compute(_, Expr::Index(t, k)) = deref_stmt(stmt, ir) else { continue; };
-        let loc: &LocalState = &inf.local_state[&stmt];
-        if !loc.executed { continue; }
-        let t = &loc.nodes[&t];
-        let k = &loc.nodes[&k];
-        let entry = loc.class_states.get_entry(t, k);
-        for x in &entry.sources {
-            unread_stores.remove(x);
-        }
-    }
+        let Statement::Compute(_, expr) = deref_stmt(stmt, ir) else { continue; };
+        for (_, rt_stack) in specs_of_stmt(stmt, inf) {
+            let loc = &inf.local_state[&rt_stack];
+            if !loc.executed { continue; }
 
-    for stmt in stmts(ir) {
-        let Statement::Compute(_, Expr::Next(t, _) | Expr::Len(t)) = deref_stmt(stmt, ir) else { continue; };
-        let loc: &LocalState = &inf.local_state[&stmt];
-        if !loc.executed { continue; }
-        let t = &loc.nodes[&t];
-        for cl in &t.classes {
-            for (_, entry) in &loc.class_states.0[cl].0 {
+            let mut handle_read_entry = |entry: &Entry| {
                 for x in &entry.sources {
                     unread_stores.remove(x);
                 }
+            };
+
+            match expr {
+                Expr::Index(t, k) => {
+                    let t = &loc.nodes[&t];
+                    let k = &loc.nodes[&k];
+                    let entry = loc.class_states.get_entry(t, k);
+                    handle_read_entry(&entry);
+                },
+                Expr::Next(t, _) | Expr::Len(t) => {
+                    let t = &loc.nodes[&t];
+                    for cl in &t.classes {
+                        for (_, entry) in &loc.class_states.0[cl].0 {
+                            handle_read_entry(&entry);
+                        }
+                    }
+                },
+                _ => {},
             }
         }
     }
@@ -116,12 +131,12 @@ fn rm_unread_store(ir: &mut IR, inf: &mut Infer) -> Changed {
     if unread_stores.is_empty() {
         Changed::No
     } else {
-        rm_stmts(unread_stores.iter().copied().collect(), ir, inf);
+        rm_stmts(unread_stores.iter().copied().collect(), ir);
         Changed::Yes
     }
 }
 
-fn rm_unused_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
+fn rm_unused_fns(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
     let mut open: Set<FnId> = Set::new();
     open.insert(ir.main_fn);
 
@@ -142,22 +157,28 @@ fn rm_unused_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
     let unused: Vec<FnId> = ir.fns.keys().copied().filter(|fid| !open.contains(fid)).collect();
 
     if !unused.is_empty() {
-        rm_fns(unused, ir, inf);
+        rm_fns(unused, ir);
         Changed::Yes
     } else {
         Changed::No
     }
 }
-
 // converts const ifs `if cond n1 n2` to `if cond n1 n1` or `if cond n2 n2` if possible.
-fn resolve_const_ifs(ir: &mut IR, inf: &mut Infer) -> Changed {
+fn resolve_const_ifs(ir: &mut IR, inf: &Infer) -> Changed {
     let mut changed = Changed::No;
     for (fid, bid, sid) in stmts(ir) {
-        if !inf.local_state[&(fid, bid, sid)].executed { continue; };
         let Statement::If(cond, n1, n2) = deref_stmt((fid, bid, sid), ir) else { continue; };
         if n1 == n2 { continue; }
 
-        let val = inf.local_state[&(fid, bid, sid)].nodes[&cond].clone();
+        let val = specs_of_stmt((fid, bid, sid), inf).iter().map(|(_, rt_stack)| {
+            let loc = &inf.local_state[rt_stack];
+            if loc.executed {
+                loc.nodes[&cond].clone()
+            } else {
+                Value::bot()
+            }
+        }).fold(Value::bot(), |x, y| Value::merge(&x, &y));
+
         if val.bools.len() == 1 {
             let b = *val.bools.iter().next().unwrap();
             let n = if b { n1 } else { n2 };
@@ -172,34 +193,35 @@ fn resolve_const_ifs(ir: &mut IR, inf: &mut Infer) -> Changed {
 }
 
 // replaces the contents of a fn with throw("unreachable!");
-fn hollow_fn(fid: FnId, ir: &mut IR, inf: &mut Infer) {
+fn hollow_fn(fid: FnId, ir: &mut IR) {
     // remove all blocks.
     let blks = ir.fns[&fid].blocks.keys().map(|&bid| (fid, bid)).collect();
-    rm_blocks(blks, ir, inf);
+    rm_blocks(blks, ir);
 
     let f = ir.fns.get_mut(&fid).unwrap();
     f.start_block = 0;
     f.blocks.insert(0, vec![Statement::Throw(String::from("unreachable!"))]);
-    inf.local_state.insert((fid, 0, 0), LocalState::default());
 }
 
-fn hollow_uncalled_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
+fn hollow_uncalled_fns(ir: &mut IR, inf: &Infer) -> Changed {
     let mut changed = Changed::No;
     let fids: Vec<_> = ir.fns.keys().copied().collect();
     for fid in fids {
-        let start_bid = ir.fns[&fid].start_block;
-        if inf.local_state[&(fid, start_bid, 0)].executed { continue; }
-        // don't repeat, if already hollowed.
-        if let Statement::Throw(_) = deref_stmt((fid, start_bid, 0), ir) { continue; }
+        let bid = ir.fns[&fid].start_block;
 
-        changed = Changed::Yes;
-        hollow_fn(fid, ir, inf);
+        // don't repeat, if already hollowed.
+        if let Statement::Throw(_) = deref_stmt((fid, bid, 0), ir) { continue; }
+
+        if !stmt_executed((fid, bid, 0), inf) {
+            changed = Changed::Yes;
+            hollow_fn(fid, ir);
+        }
     }
 
     changed
 }
 
-fn rm_unused_blocks(ir: &mut IR, inf: &mut Infer) -> Changed {
+fn rm_unused_blocks(ir: &mut IR, inf: &Infer) -> Changed {
     let mut blocks = Vec::new();
 
     for &fid in ir.fns.keys() {
@@ -208,7 +230,7 @@ fn rm_unused_blocks(ir: &mut IR, inf: &mut Infer) -> Changed {
             // These things are resolved by hollow_uncalled_fns.
             if bid == ir.fns[&fid].start_block { continue; }
 
-            if !inf.local_state[&(fid, bid, 0)].executed {
+            if !stmt_executed((fid, bid, 0), inf) {
                 blocks.push((fid, bid));
             }
         }
@@ -217,7 +239,7 @@ fn rm_unused_blocks(ir: &mut IR, inf: &mut Infer) -> Changed {
     if blocks.is_empty() {
         Changed::No
     } else {
-        rm_blocks(blocks, ir, inf);
+        rm_blocks(blocks, ir);
         Changed::Yes
     }
 }
@@ -257,40 +279,16 @@ fn find_mergeable_blocks(ir: &IR) -> Option<(FnId, (BlockId, BlockId))> {
     None
 }
 
-fn merge_blocks(ir: &mut IR, inf: &mut Infer) -> Changed {
+fn merge_blocks(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
     if let Some((fid, (bid1, bid2))) = find_mergeable_blocks(ir) {
         // remove bid1 -> bid2 jump.
         let orig_if_sid = ir.fns[&fid].blocks[&bid1].len() - 1;
-        rm_stmt((fid, bid1, orig_if_sid), ir, inf);
+        rm_stmt((fid, bid1, orig_if_sid), ir);
 
         // move over stmts from bid2 to bid1.
         let blks: Vec<Statement> = ir.fns.get_mut(&fid).unwrap().blocks.remove(&bid2).unwrap();
         ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid1).unwrap().extend(blks);
 
-        let f = |(fid_, bid_, sid_)| {
-            if (fid_, bid_) == (fid, bid2) {
-                (fid, bid1, orig_if_sid +  sid_)
-            } else { (fid_, bid_, sid_) }
-        };
-        *inf = inf.map_stmt(&f);
         Changed::Yes
     } else { Changed::No }
-}
-
-fn is_return_fn(fid: FnId, ir: &IR) -> bool {
-    let bid = ir.fns[&fid].start_block;
-    ir.fns[&fid].blocks[&bid] == vec![Statement::Return]
-}
-
-fn inline_return_fns(ir: &mut IR, inf: &mut Infer) -> Changed {
-    let mut s = Vec::new();
-    for stmt in stmts(ir) {
-        if !inf.local_state[&stmt].executed { continue; };
-        let Statement::FnCall(f, _) = deref_stmt(stmt, ir) else { continue; };
-
-        if inf.local_state[&stmt].nodes[&f].fns.iter().all(|&x| is_return_fn(x, ir)) {
-            s.push(stmt);
-        }
-    }
-    rm_stmts(s, ir, inf)
 }

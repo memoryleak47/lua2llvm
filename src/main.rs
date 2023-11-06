@@ -27,8 +27,8 @@ mod exec_ir;
 
 mod compile;
 
-// mod optimize;
-// use optimize::optimize;
+mod optimize;
+use optimize::optimize;
 
 fn main() {
     let args: Vec<String> = std::env::args()
@@ -52,7 +52,7 @@ fn main() {
 
     let mut inf = infer(&ir);
 
-    // optimize(&mut ir, &mut inf);
+    optimize(&mut ir, &mut inf);
 
     if arg("--dump-ir") {
         eprintln!("{}", ir_to_string(&ir));
