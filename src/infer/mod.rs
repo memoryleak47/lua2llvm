@@ -33,12 +33,12 @@ pub enum Class {
 }
 
 // all except for the last statements have to refer to a fn-call.
-type RtStack = Vec<Stmt>;
+pub type RtStack = Vec<Stmt>;
 
 #[derive(PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
-struct FnSpec {
-    rt_stack: RtStack,
-    fid: FnId,
+pub struct FnSpec {
+    pub rt_stack: RtStack,
+    pub fid: FnId,
 }
 
 pub struct Infer {

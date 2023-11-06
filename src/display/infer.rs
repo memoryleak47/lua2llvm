@@ -67,21 +67,36 @@ impl Display for ClassStates {
     }
 }
 
-impl<'ir, 'inf> FnDisplayObj<'ir, 'inf> {
-    pub fn display_local_state(&self, local_state: &LocalState, f: &mut Formatter<'_>) -> fmt::Result {
+impl Display for LocalState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "------------------------------------\n")?;
-        write!(f, "{}", local_state.class_states)?;
+        write!(f, "{}", self.class_states)?;
 
-        for (node, value) in ordered_map_iter(local_state.nodes.iter()) {
-            write!(f, "    {} = {},\n", self.node_string(*node), value)?;
+        for (node, value) in ordered_map_iter(self.nodes.iter()) {
+            write!(f, "    {} = {},\n", node_string(*node), value)?;
         }
         write!(f, "\n")?;
 
-        if !local_state.executed {
+        if !self.executed {
             write!(f, "    never executed.\n")?;
         }
 
         write!(f, "------------------------------------\n")?;
         Ok(())
+    }
+}
+
+
+pub fn display_rt_stack(rt_stack: &RtStack, f: &mut Formatter<'_>) -> fmt::Result {
+    for (fid, bid, sid) in rt_stack {
+        write!(f, "/({fid}, {bid}, {sid})")?;
+    }
+    Ok(())
+}
+
+impl Display for FnSpec {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        display_rt_stack(&self.rt_stack, f)?;
+        write!(f, "/{}", self.fid)
     }
 }
