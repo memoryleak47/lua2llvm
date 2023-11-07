@@ -88,7 +88,7 @@ fn bourdoncle_impl(mut vertices: HashSet<BlockId>, ins: &EdgeSet, outs: &EdgeSet
 // - A and B are both non-empty
 // - there are no edges from B to A.
 fn find_cut(vertices: &HashSet<BlockId>, ins: &EdgeSet, outs: &EdgeSet) -> Option<(HashSet<BlockId>, HashSet<BlockId>)> {
-    let v = *vertices.iter().next().unwrap();
+    let v = *vertices.iter().min().unwrap(); // we use min() to make it deterministic.
 
     // a = set of vertices that reach v.
     let a = recurse(v, vertices, ins);
@@ -141,12 +141,13 @@ fn merge_orders(mut a: BlockOrder, b: BlockOrder) -> BlockOrder {
 
 fn choose_h(vertices: &HashSet<BlockId>, ins: &EdgeSet, #[allow(unused)] outs: &EdgeSet) -> BlockId {
     // we look for some vertex with an ingoing edge from the outside of vertices.
-    if let Some(v) = vertices.iter().find(|x| !ins[&x].is_subset(vertices)) {
+    // we use min to make it deterministic.
+    if let Some(v) = vertices.iter().filter(|x| !ins[&x].is_subset(vertices)).min() {
         return *v;
     }
 
     // fallback:
-    *vertices.iter().next().unwrap()
+    *vertices.iter().min().unwrap()
 }
 
 fn edges(fid: FnId, ir: &IR) -> Vec<(BlockId, BlockId)> {
