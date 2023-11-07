@@ -3,10 +3,7 @@ use std::collections::HashMap;
 
 use crate::infer::*;
 
-mod bourdoncle;
-use bourdoncle::*;
-
-type BlockOrder = HashMap<BlockId, usize>;
+use crate::normalize::bourdoncle::*;
 
 pub struct Dirty {
     vec: Vec<RtStack>,

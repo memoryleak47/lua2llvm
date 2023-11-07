@@ -30,6 +30,9 @@ mod compile;
 mod optimize;
 use optimize::optimize;
 
+mod normalize;
+use normalize::normalize;
+
 fn main() {
     let args: Vec<String> = std::env::args()
                                 .skip(1)
@@ -51,6 +54,7 @@ fn main() {
     };
 
     optimize(&mut ir);
+    normalize(&mut ir);
 
     if arg("--dump-ir") {
         eprintln!("{}", &ir);
