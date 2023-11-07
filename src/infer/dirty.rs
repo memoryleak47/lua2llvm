@@ -13,13 +13,16 @@ impl Dirty {
     }
 
     pub fn push(&mut self, x: RtStack) {
-        // We reverse this, so that "small" / "early" RtStacks are at a high index and are popped first.
-        match self.vec.binary_search_by(|y| self.cmp_rt_stacks(&x, y).reverse()) {
+        // We want "small" / "early" RtStacks to be at a high index, so that they are popped first.
+        match self.vec.binary_search_by(|y| self.cmp_rt_stacks(&x, y)) {
             Ok(_) => {/* it's already in the vector! */},
             Err(i) => {
                 self.vec.insert(i, x);
             }
         }
+
+        // If you want to ensure that order is correct, simply do the following:
+        // dbg!(&self.vec);
     }
 
     pub fn pop(&mut self) -> Option<RtStack> {
