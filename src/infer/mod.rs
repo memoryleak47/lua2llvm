@@ -6,6 +6,9 @@ use std::hash::Hash;
 mod value;
 pub use value::*;
 
+mod dirty;
+pub use dirty::*;
+
 mod step;
 use step::*;
 
@@ -44,13 +47,13 @@ pub struct FnSpec {
 pub struct Infer {
     pub fn_state: Map<FnSpec, FnState>,
     pub local_state: Map<RtStack, LocalState>,
-    dirty: Vec<RtStack>,
+    dirty: Dirty,
 }
 
 pub fn infer(ir: &IR) -> Infer {
     let mut inf = Infer {
         fn_state: Map::default(),
-        dirty: Vec::new(),
+        dirty: Dirty::init(ir),
         local_state: Map::default(),
     };
 
