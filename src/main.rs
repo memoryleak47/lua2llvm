@@ -12,7 +12,7 @@ mod visit;
 
 mod ir;
 mod display;
-use display::{ir_to_string, infer_to_string};
+use display::*;
 
 mod prepare;
 use prepare::prepare;
@@ -53,7 +53,7 @@ fn main() {
     optimize(&mut ir);
 
     if arg("--dump-ir") {
-        eprintln!("{}", ir_to_string(&ir));
+        eprintln!("{}", &ir);
     } else if arg("--dump-infer") {
         let inf = infer(&mut ir);
         eprintln!("{}", infer_to_string(&ir, &inf));

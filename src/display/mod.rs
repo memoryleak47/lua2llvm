@@ -6,27 +6,23 @@ mod infer;
 use crate::ir::*;
 use crate::infer::*;
 
-use std::fmt::{self, Formatter};
+use std::fmt::{self, Display, Formatter};
 
-pub fn ir_to_string(ir: &IR) -> String {
-    let mut out = String::new();
-    let f = &mut Formatter::new(&mut out);
-
-    let res: fmt::Result = try {
-        for (&fid, _) in ordered_map_iter(ir.fns.iter()) {
-            display_fn_header(fid, ir, f)?;
-            for (&bid, _) in ordered_map_iter(ir.fns[&fid].blocks.iter()) {
-                display_block_header(fid, bid, ir, f)?;
-                for st in &ir.fns[&fid].blocks[&bid] {
+impl Display for IR {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        for (&fid, _) in ordered_map_iter(self.fns.iter()) {
+            display_fn_header(fid, self, f)?;
+            for (&bid, _) in ordered_map_iter(self.fns[&fid].blocks.iter()) {
+                display_block_header(fid, bid, self, f)?;
+                for st in &self.fns[&fid].blocks[&bid] {
                     write!(f, "{}", st)?;
                 }
             }
             display_fn_footer(f)?;
         }
-    };
-    res.unwrap();
 
-    out
+        Ok(())
+    }
 }
 
 pub fn infer_to_string(ir: &IR, inf: &Infer) -> String {
