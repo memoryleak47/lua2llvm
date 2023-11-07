@@ -7,16 +7,19 @@ use util::*;
 
 #[derive(PartialEq, Eq)]
 pub enum Changed { Yes, No }
+type PreOptimization = fn(&mut IR);
 type Optimization = fn(&mut IR, &Infer) -> Changed;
 
-static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, resolve_const_compute, rm_unread_store, rm_unused_fns, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks, merge_blocks];
+static PRE_OPTIMIZATIONS: &'static [PreOptimization] = &[rm_unused_node, rm_unused_fns, merge_blocks];
+static OPTIMIZATIONS: &'static [Optimization] = &[resolve_const_compute, rm_unread_store, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks];
 
-pub fn optimize(ir: &mut IR, inf: &mut Infer) {
+pub fn optimize(ir: &mut IR) {
+    let mut inf = reinfer(ir);
     loop {
         let mut changed = Changed::No;
         for o in OPTIMIZATIONS {
-            if o(ir, inf) == Changed::Yes {
-                *inf = infer(&ir);
+            if o(ir, &inf) == Changed::Yes {
+                inf = reinfer(ir);
                 changed = Changed::Yes;
             }
         }
@@ -25,7 +28,17 @@ pub fn optimize(ir: &mut IR, inf: &mut Infer) {
     }
 }
 
-fn rm_unused_node(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
+fn reinfer(ir: &mut IR) -> Infer {
+    for o in PRE_OPTIMIZATIONS {
+        o(ir);
+    }
+
+    infer(&ir)
+}
+
+// pre opts:
+
+fn rm_unused_node(ir: &mut IR) {
     let mut s = Vec::new();
     for (fid, bid, sid) in stmts(ir) {
         let Statement::Compute(node, _) = deref_stmt((fid, bid, sid), ir) else { continue; };
@@ -34,8 +47,45 @@ fn rm_unused_node(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
         }
     }
 
-    return rm_stmts(s, ir);
+    rm_stmts(s, ir);
 }
+
+fn rm_unused_fns(ir: &mut IR) {
+    let mut open: Set<FnId> = Set::new();
+    open.insert(ir.main_fn);
+
+    loop {
+        let len1 = open.len();
+        for &fid in open.clone().iter() {
+            for stmt in stmts_in_fid(fid, ir) {
+                if let Statement::Compute(_, Expr::Function(fid_)) = deref_stmt(stmt, ir) {
+                    open.insert(fid_);
+                }
+            }
+        }
+
+        let len2 = open.len();
+        if len1 == len2 { break; }
+    }
+
+    let unused: Vec<FnId> = ir.fns.keys().copied().filter(|fid| !open.contains(fid)).collect();
+
+    rm_fns(unused, ir);
+}
+
+fn merge_blocks(ir: &mut IR) {
+    if let Some((fid, (bid1, bid2))) = find_mergeable_blocks(ir) {
+        // remove bid1 -> bid2 jump.
+        let orig_if_sid = ir.fns[&fid].blocks[&bid1].len() - 1;
+        rm_stmt((fid, bid1, orig_if_sid), ir);
+
+        // move over stmts from bid2 to bid1.
+        let blks: Vec<Statement> = ir.fns.get_mut(&fid).unwrap().blocks.remove(&bid2).unwrap();
+        ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid1).unwrap().extend(blks);
+    }
+}
+
+// opts:
 
 fn resolve_const_compute(ir: &mut IR, inf: &Infer) -> Changed {
     let mut changed = Changed::No;
@@ -136,33 +186,6 @@ fn rm_unread_store(ir: &mut IR, inf: &Infer) -> Changed {
     }
 }
 
-fn rm_unused_fns(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
-    let mut open: Set<FnId> = Set::new();
-    open.insert(ir.main_fn);
-
-    loop {
-        let len1 = open.len();
-        for &fid in open.clone().iter() {
-            for stmt in stmts_in_fid(fid, ir) {
-                if let Statement::Compute(_, Expr::Function(fid_)) = deref_stmt(stmt, ir) {
-                    open.insert(fid_);
-                }
-            }
-        }
-
-        let len2 = open.len();
-        if len1 == len2 { break; }
-    }
-
-    let unused: Vec<FnId> = ir.fns.keys().copied().filter(|fid| !open.contains(fid)).collect();
-
-    if !unused.is_empty() {
-        rm_fns(unused, ir);
-        Changed::Yes
-    } else {
-        Changed::No
-    }
-}
 // converts const ifs `if cond n1 n2` to `if cond n1 n1` or `if cond n2 n2` if possible.
 fn resolve_const_ifs(ir: &mut IR, inf: &Infer) -> Changed {
     let mut changed = Changed::No;
@@ -221,6 +244,9 @@ fn hollow_uncalled_fns(ir: &mut IR, inf: &Infer) -> Changed {
     changed
 }
 
+// This could also be implemented as a pre-optimization with similar quality.
+// We could check which Blocks are reachable from the starting block, and remove all others.
+// In combination with resolve_const_ifs this should have the same result, no?
 fn rm_unused_blocks(ir: &mut IR, inf: &Infer) -> Changed {
     let mut blocks = Vec::new();
 
@@ -277,18 +303,4 @@ fn find_mergeable_blocks(ir: &IR) -> Option<(FnId, (BlockId, BlockId))> {
         }
     }
     None
-}
-
-fn merge_blocks(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
-    if let Some((fid, (bid1, bid2))) = find_mergeable_blocks(ir) {
-        // remove bid1 -> bid2 jump.
-        let orig_if_sid = ir.fns[&fid].blocks[&bid1].len() - 1;
-        rm_stmt((fid, bid1, orig_if_sid), ir);
-
-        // move over stmts from bid2 to bid1.
-        let blks: Vec<Statement> = ir.fns.get_mut(&fid).unwrap().blocks.remove(&bid2).unwrap();
-        ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid1).unwrap().extend(blks);
-
-        Changed::Yes
-    } else { Changed::No }
 }

@@ -50,13 +50,13 @@ fn main() {
         lower(&ast)
     };
 
-    let mut inf = infer(&ir);
 
-    optimize(&mut ir, &mut inf);
+    optimize(&mut ir);
 
     if arg("--dump-ir") {
         eprintln!("{}", ir_to_string(&ir));
     } else if arg("--dump-infer") {
+        let inf = infer(&ir);
         eprintln!("{}", infer_to_string(&ir, &inf));
     } else if arg("--compile") {
         compile::compile(&ir);
