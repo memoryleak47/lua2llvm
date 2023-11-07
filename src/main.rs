@@ -53,8 +53,12 @@ fn main() {
         lower(&ast)
     };
 
-    optimize(&mut ir);
-    normalize(&mut ir);
+    if !arg("--no-optimize") {
+        optimize(&mut ir);
+    }
+    if !arg("--no-normalize") {
+        normalize(&mut ir);
+    }
 
     if arg("--dump-ir") {
         eprintln!("{}", &ir);
