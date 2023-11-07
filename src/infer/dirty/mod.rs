@@ -1,14 +1,28 @@
-use crate::infer::*;
 use std::cmp::Ordering;
+use std::collections::HashMap;
+
+use crate::infer::*;
+
+mod bourdoncle;
+use bourdoncle::*;
+
+type BlockOrder = HashMap<BlockId, usize>;
 
 pub struct Dirty {
     vec: Vec<RtStack>,
+    block_orders: HashMap<FnId, BlockOrder>,
 }
 
 impl Dirty {
-    pub fn new() -> Self {
+    pub fn init(ir: &IR) -> Self {
+        let mut block_orders = HashMap::new();
+        for &fid in ir.fns.keys() {
+            block_orders.insert(fid, bourdoncle(fid, ir));
+        }
+
         Self {
             vec: Vec::new(),
+            block_orders,
         }
     }
 
@@ -36,9 +50,12 @@ impl Dirty {
         if fid < fid_ { return Ordering::Less; }
         if fid > fid_ { return Ordering::Greater; }
 
-        // This is a meaningful comparison as we use a bourdoncle block ordering as a pre-optimization.
-        if bid < bid_ { return Ordering::Less; }
-        if bid > bid_ { return Ordering::Greater ; }
+        let order = &self.block_orders[&fid];
+        let ord_bid = order[&bid];
+        let ord_bid_ = order[&bid_];
+
+        if ord_bid < ord_bid_ { return Ordering::Less; }
+        if ord_bid > ord_bid_ { return Ordering::Greater ; }
 
         if sid < sid_ { return Ordering::Less; }
         if sid > sid_ { return Ordering::Greater ; }

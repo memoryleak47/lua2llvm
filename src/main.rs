@@ -55,7 +55,7 @@ fn main() {
     if arg("--dump-ir") {
         eprintln!("{}", &ir);
     } else if arg("--dump-infer") {
-        let inf = infer(&mut ir);
+        let inf = infer(&ir);
         eprintln!("{}", infer_to_string(&ir, &inf));
     } else if arg("--compile") {
         compile::compile(&ir);
