@@ -3,6 +3,9 @@ pub use hashable::{HashableHashSet as Set, HashableHashMap as Map};
 use noisy_float::prelude::{R64, Float};
 use std::hash::Hash;
 
+mod bourdoncle;
+use bourdoncle::*;
+
 mod value;
 pub use value::*;
 
@@ -50,7 +53,9 @@ pub struct Infer {
     dirty: Dirty,
 }
 
-pub fn infer(ir: &IR) -> Infer {
+pub fn infer(ir: &mut IR) -> Infer {
+    bourdoncle_blocks(ir);
+
     let mut inf = Infer {
         fn_state: Map::default(),
         dirty: Dirty::new(),
