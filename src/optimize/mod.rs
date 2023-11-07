@@ -5,12 +5,17 @@ use std::hash::Hash;
 pub mod util;
 use util::*;
 
+mod bourdoncle;
+use bourdoncle::*;
+
 #[derive(PartialEq, Eq)]
 pub enum Changed { Yes, No }
+
+// TODO re-add Changed argument to check convergence.
 type PreOptimization = fn(&mut IR);
 type Optimization = fn(&mut IR, &Infer) -> Changed;
 
-static PRE_OPTIMIZATIONS: &'static [PreOptimization] = &[rm_unused_node, rm_unused_fns, merge_blocks];
+static PRE_OPTIMIZATIONS: &'static [PreOptimization] = &[rm_unused_node, rm_unused_fns, merge_blocks, bourdoncle_blocks];
 static OPTIMIZATIONS: &'static [Optimization] = &[resolve_const_compute, rm_unread_store, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks];
 
 pub fn optimize(ir: &mut IR) {
@@ -32,6 +37,7 @@ fn reinfer(ir: &mut IR) -> Infer {
     for o in PRE_OPTIMIZATIONS {
         o(ir);
     }
+    println!("{}", crate::ir_to_string(ir));
 
     infer(&ir)
 }
@@ -82,6 +88,37 @@ fn merge_blocks(ir: &mut IR) {
         // move over stmts from bid2 to bid1.
         let blks: Vec<Statement> = ir.fns.get_mut(&fid).unwrap().blocks.remove(&bid2).unwrap();
         ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid1).unwrap().extend(blks);
+    }
+}
+
+fn bourdoncle_blocks(ir: &mut IR) {
+    fn reorder_fn(f: &Function, order: &BlockOrder) -> Function {
+        Function {
+            blocks: f.blocks.iter().map(|(bid, blk)| (order[&bid], reorder_block(blk, order))).collect(),
+            start_block: order[&f.start_block],
+        }
+    }
+
+    fn reorder_block(blk: &[Statement], order: &BlockOrder) -> Vec<Statement> {
+        let mut out = Vec::new();
+        for s in blk {
+            if let Statement::If(cond, b1, b2) = s {
+                let b1 = order[&b1];
+                let b2 = order[&b2];
+                out.push(Statement::If(*cond, b1, b2));
+            } else {
+                out.push(s.clone());
+            }
+        }
+        out
+    }
+
+    let keys: Vec<FnId> = ir.fns.keys().cloned().collect();
+    for fid in keys {
+        let order = bourdoncle(fid, ir);
+        let old_f = &ir.fns[&fid];
+        let new_f = reorder_fn(old_f, &order);
+        ir.fns.insert(fid, new_f);
     }
 }
 

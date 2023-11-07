@@ -53,7 +53,7 @@ pub struct Infer {
 pub fn infer(ir: &IR) -> Infer {
     let mut inf = Infer {
         fn_state: Map::default(),
-        dirty: Dirty::init(ir),
+        dirty: Dirty::new(),
         local_state: Map::default(),
     };
 
