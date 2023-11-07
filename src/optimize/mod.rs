@@ -7,20 +7,17 @@ use util::*;
 
 #[derive(PartialEq, Eq)]
 pub enum Changed { Yes, No }
-
-type PreOptimization = fn(&mut IR) -> Changed;
 type Optimization = fn(&mut IR, &Infer) -> Changed;
 
-static PRE_OPTIMIZATIONS: &'static [PreOptimization] = &[rm_unused_node, rm_unused_fns, merge_blocks];
-static OPTIMIZATIONS: &'static [Optimization] = &[resolve_const_compute, rm_unread_store, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks];
+static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, rm_unused_fns, resolve_const_compute, rm_unread_store, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks, merge_blocks];
 
 pub fn optimize(ir: &mut IR) {
-    let mut inf = reinfer(ir);
+    let mut inf = infer(ir);
     loop {
         let mut changed = Changed::No;
         for o in OPTIMIZATIONS {
             if o(ir, &inf) == Changed::Yes {
-                inf = reinfer(ir);
+                inf = infer(ir);
                 changed = Changed::Yes;
             }
         }
@@ -29,17 +26,9 @@ pub fn optimize(ir: &mut IR) {
     }
 }
 
-fn reinfer(ir: &mut IR) -> Infer {
-    for o in PRE_OPTIMIZATIONS {
-        o(ir);
-    }
+// infer-independent opts:
 
-    infer(ir)
-}
-
-// pre opts:
-
-fn rm_unused_node(ir: &mut IR) -> Changed {
+fn rm_unused_node(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
     let mut s = Vec::new();
     for (fid, bid, sid) in stmts(ir) {
         let Statement::Compute(node, _) = deref_stmt((fid, bid, sid), ir) else { continue; };
@@ -51,7 +40,7 @@ fn rm_unused_node(ir: &mut IR) -> Changed {
     rm_stmts(s, ir)
 }
 
-fn rm_unused_fns(ir: &mut IR) -> Changed {
+fn rm_unused_fns(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
     let mut open: Set<FnId> = Set::new();
     open.insert(ir.main_fn);
 
@@ -74,7 +63,7 @@ fn rm_unused_fns(ir: &mut IR) -> Changed {
     rm_fns(unused, ir)
 }
 
-fn merge_blocks(ir: &mut IR) -> Changed {
+fn merge_blocks(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
     if let Some((fid, (bid1, bid2))) = find_mergeable_blocks(ir) {
         // remove bid1 -> bid2 jump.
         let orig_if_sid = ir.fns[&fid].blocks[&bid1].len() - 1;
@@ -90,7 +79,7 @@ fn merge_blocks(ir: &mut IR) -> Changed {
     }
 }
 
-// opts:
+// infer-dependent opts:
 
 fn resolve_const_compute(ir: &mut IR, inf: &Infer) -> Changed {
     let mut changed = Changed::No;
