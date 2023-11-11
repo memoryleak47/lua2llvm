@@ -163,7 +163,7 @@ fn parse_expr<'tok, 'tokv>(tokens: &'tokv [Token<'tok>]) -> (&'tokv [Token<'tok>
         },
 
         [Token::Number(num), ..] => {
-            let expr = Expr::Num(*num);
+            let expr = Expr::Num(<R64>::new(*num));
             return (&tokens[1..], expr);
         },
         [Token::Word("true"), ..] => {

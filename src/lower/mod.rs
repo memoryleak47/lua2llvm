@@ -14,6 +14,7 @@ mod body;
 use body::*;
 
 pub(self) use std::collections::HashMap;
+pub(self) use noisy_float::prelude::R64;
 
 pub(self) use crate::ast::*;
 pub(self) use crate::ir::{self, FnId, IR, Function, Node, BlockId};
@@ -189,7 +190,7 @@ impl Ctxt {
 
 
 fn mk_num(x: impl Into<f64>, ctxt: &mut Ctxt) -> Node {
-    let expr = ir::Expr::Num(x.into());
+    let expr = ir::Expr::Num(R64::new(x.into()));
     ctxt.push_compute(expr)
 }
 

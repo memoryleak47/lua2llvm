@@ -44,22 +44,6 @@ pub fn stmts_in_fid(fid: FnId, ir: &IR) -> Vec<Stmt> {
     out
 }
 
-pub fn rm_stmt((fid, bid, sid): Stmt, ir: &mut IR) {
-    ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid).unwrap().remove(sid);
-}
-
-pub fn rm_stmts(mut stmts: Vec<Stmt>, ir: &mut IR) -> Changed {
-    // Later stmts should be removed earlier so that the indices don't get messed up.
-    stmts.sort_by_key(|(_fid, _bid, sid)| *sid);
-    stmts.reverse();
-    let mut changed = Changed::No;
-    for stmt in stmts {
-        changed = Changed::Yes;
-        rm_stmt(stmt, ir);
-    }
-    changed
-}
-
 pub fn deref_stmt((fid, bid, sid): Stmt, ir: &IR) -> Statement {
     ir.fns[&fid].blocks[&bid][sid].clone()
 }
@@ -96,32 +80,4 @@ impl Expr {
             Expr::Str(_) => false,
         }
     }
-}
-
-// Should only be called for functions that never get called, and in particular whose Expr::Function is never constructed.
-pub fn rm_fn(fid: FnId, ir: &mut IR) {
-    ir.fns.remove(&fid);
-}
-
-pub fn rm_fns(fids: Vec<FnId>, ir: &mut IR) -> Changed {
-    let mut changed = Changed::No;
-    for fid in fids {
-        rm_fn(fid, ir);
-        changed = Changed::Yes;
-    }
-    changed
-}
-
-// only allowed to be called, if this these blocks where never executed.
-pub fn rm_block(fid: FnId, bid: BlockId, ir: &mut IR) {
-    ir.fns.get_mut(&fid).unwrap().blocks.remove(&bid);
-}
-
-pub fn rm_blocks(blocks: Vec<(FnId, BlockId)>, ir: &mut IR) -> Changed {
-    let mut changed = Changed::No;
-    for (fid, bid) in blocks {
-        changed = Changed::Yes;
-        rm_block(fid, bid, ir);
-    }
-    changed
 }

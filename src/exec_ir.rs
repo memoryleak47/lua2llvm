@@ -1,4 +1,4 @@
-use crate::ir::{FnId, IR, Statement, Expr, BinOpKind, BlockId, Node};
+use crate::ir::*;
 
 use std::collections::HashMap;
 
@@ -19,10 +19,10 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
     let data: &mut TableData = ctxt.heap.get_mut(ptr).expect("table_set got dangling pointer!");
     data.entries.retain(|(x, _)| *x != idx);
     if val == Value::Nil { // Value::Nil means it's not there, so just don't add it!
-        if idx == Value::Num((data.length) as f64) {
+        if idx == Value::Num(R64::new((data.length) as f64)) {
             // recalculate length (lua does it the same way)
             for i in 1.. {
-                if data.entries.iter().any(|(x, _)| x == &Value::Num(i as f64)) {
+                if data.entries.iter().any(|(x, _)| x == &Value::Num(R64::new(i as f64))) {
                     data.length = i;
                 } else { break; }
             }
@@ -30,10 +30,10 @@ fn table_set(ptr: TablePtr, idx: Value, val: Value, ctxt: &mut Ctxt) {
     } else {
         data.entries.push((idx.clone(), val));
 
-        if idx == Value::Num((data.length+1) as f64) {
+        if idx == Value::Num(R64::new((data.length+1) as f64)) {
             // recalculate length
             for i in (data.length+1).. {
-                if data.entries.iter().any(|(x, _)| x == &Value::Num(i as f64)) {
+                if data.entries.iter().any(|(x, _)| x == &Value::Num(R64::new(i as f64))) {
                     data.length = i;
                 } else { break; }
             }
@@ -66,7 +66,7 @@ enum Value {
     TablePtr(TablePtr),
     Str(String),
     Function(FnId),
-    Num(f64),
+    Num(R64),
 }
 
 struct FnCtxt {
@@ -121,8 +121,8 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
             let r = ctxt.fcx().nodes[r].clone();
 
             match r {
-                Value::Str(s) => Value::Num(s.len() as f64),
-                Value::TablePtr(t) => Value::Num(ctxt.heap[t].length as f64),
+                Value::Str(s) => Value::Num(R64::new(s.len() as f64)),
+                Value::TablePtr(t) => Value::Num(R64::new(ctxt.heap[t].length as f64)),
                 _ => panic!("executing len on invalid type!"),
             }
         },
@@ -152,7 +152,6 @@ fn exec_expr(expr: &Expr, ctxt: &mut Ctxt) -> Value {
         Expr::Bool(b) => Value::Bool(*b),
         Expr::Nil => Value::Nil,
         Expr::Str(s) => Value::Str(s.clone()),
-
     }
 }
 

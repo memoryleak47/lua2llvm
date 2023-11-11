@@ -9,7 +9,7 @@ pub unsafe fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
             mk_bool(b, ctxt)
         }
         Expr::Num(x) => {
-            let x = LLVMConstReal(ctxt.f64_t(), *x);
+            let x = LLVMConstReal(ctxt.f64_t(), (*x).into());
 
             mk_num(x, ctxt)
         },

@@ -5,42 +5,39 @@ use std::hash::Hash;
 pub mod util;
 use util::*;
 
-#[derive(PartialEq, Eq)]
-pub enum Changed { Yes, No }
-type Optimization = fn(&mut IR, &Infer) -> Changed;
+mod changes;
+use changes::*;
 
-static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, rm_unused_fns, resolve_const_compute, rm_unread_store, resolve_const_ifs, hollow_uncalled_fns, rm_unused_blocks, merge_blocks];
+type Optimization = fn(&IR, &Infer, &mut Changes);
+
+static OPTIMIZATIONS: &'static [Optimization] = &[rm_unused_node, rm_unused_fns, rm_unused_blocks, resolve_const_compute, rm_unread_store, resolve_const_ifs, hollow_uncalled_fns, merge_blocks];
 
 pub fn optimize(ir: &mut IR) {
-    let mut inf = infer(ir);
     loop {
-        let mut changed = Changed::No;
-        for o in OPTIMIZATIONS {
-            if o(ir, &inf) == Changed::Yes {
-                inf = infer(ir);
-                changed = Changed::Yes;
-            }
-        }
+        let inf = infer(ir);
 
-        if changed == Changed::No { break; }
+        let mut changes = Changes::default();
+        for o in OPTIMIZATIONS {
+            o(ir, &inf, &mut changes);
+        }
+        if changes.is_empty() { break; }
+
+        changes.apply(ir);
     }
 }
 
 // infer-independent opts:
 
-fn rm_unused_node(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
-    let mut s = Vec::new();
+fn rm_unused_node(ir: &IR, #[allow(unused)] inf: &Infer, changes: &mut Changes) {
     for (fid, bid, sid) in stmts(ir) {
         let Statement::Compute(node, _) = deref_stmt((fid, bid, sid), ir) else { continue; };
         if stmts_in_fid(fid, ir).iter().all(|stmt2| !deref_stmt(*stmt2, ir).uses_node(node)) {
-            s.push((fid, bid, sid));
+            changes.rm_stmts.insert((fid, bid, sid));
         }
     }
-
-    rm_stmts(s, ir)
 }
 
-fn rm_unused_fns(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
+fn rm_unused_fns(ir: &IR, #[allow(unused)] inf: &Infer, changes: &mut Changes) {
     let mut open: Set<FnId> = Set::new();
     open.insert(ir.main_fn);
 
@@ -58,31 +55,46 @@ fn rm_unused_fns(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
         if len1 == len2 { break; }
     }
 
-    let unused: Vec<FnId> = ir.fns.keys().copied().filter(|fid| !open.contains(fid)).collect();
-
-    rm_fns(unused, ir)
+    changes.rm_fns.extend(ir.fns.keys().copied().filter(|fid| !open.contains(fid)));
 }
 
-fn merge_blocks(ir: &mut IR, #[allow(unused)] inf: &Infer) -> Changed {
-    if let Some((fid, (bid1, bid2))) = find_mergeable_blocks(ir) {
-        // remove bid1 -> bid2 jump.
-        let orig_if_sid = ir.fns[&fid].blocks[&bid1].len() - 1;
-        rm_stmt((fid, bid1, orig_if_sid), ir);
+// TODO we could use the infer to find even more merge opportunities. Some branches are never taken, see resolve_const_ifs.
+fn merge_blocks(ir: &IR, #[allow(unused)] inf: &Infer, changes: &mut Changes) {
+    fn out_blocks(fid: FnId, bid: BlockId, ir: &IR) -> Vec<BlockId> {
+        if let Some(Statement::If(_, then_bid, else_bid)) = ir.fns[&fid].blocks[&bid].last() {
+            // filter duplicates!
+            if then_bid == else_bid { vec![*then_bid] }
+            else { vec![*then_bid, *else_bid] }
+        } else { vec![] }
+    }
 
-        // move over stmts from bid2 to bid1.
-        let blks: Vec<Statement> = ir.fns.get_mut(&fid).unwrap().blocks.remove(&bid2).unwrap();
-        ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid1).unwrap().extend(blks);
+    for &fid in ir.fns.keys() {
+        let mut ptrs: Vec<(BlockId, Vec<BlockId>)> = Vec::new();
+        for &bid1 in ir.fns[&fid].blocks.keys() {
+            let outs = out_blocks(fid, bid1, ir);
+            ptrs.push((bid1, outs));
+        }
 
-        Changed::Yes
-    } else {
-        Changed::No
+        for &bid2 in ir.fns[&fid].blocks.keys() {
+            if ir.fns[&fid].start_block == bid2 { continue; }
+
+            // subset of `ptrs` which points to `bid2`.
+            let ptrs_to_bid2: Vec<_> = ptrs.iter().filter(|&(_, targets)| targets.contains(&bid2)).cloned().collect();
+
+            // we require exactly *one* block to point to `bid2`.
+            let &[(bid1, ref targets)] = &ptrs_to_bid2[..] else { continue; };
+
+            // we require it to *only* point to `bid2`.
+            if targets == &vec![bid2] {
+                changes.merge_blocks.insert((fid, bid1, bid2));
+            }
+        }
     }
 }
 
 // infer-dependent opts:
 
-fn resolve_const_compute(ir: &mut IR, inf: &Infer) -> Changed {
-    let mut changed = Changed::No;
+fn resolve_const_compute(ir: &IR, inf: &Infer, changes: &mut Changes) {
     for (fid, bid, sid) in stmts(ir) {
         let Statement::Compute(node, expr) = deref_stmt((fid, bid, sid), ir) else { continue; };
         if matches!(expr, Expr::Function(_) | Expr::Num(_) | Expr::Bool(_) | Expr::Nil | Expr::Str(_)) { continue; };
@@ -121,18 +133,16 @@ fn resolve_const_compute(ir: &mut IR, inf: &Infer) -> Changed {
             extract_from_set(&val.bools).map(Expr::Bool),
         ];
         let new_expr: Expr = l.into_iter().map(|x| x.into_iter()).flatten().next().unwrap().clone();
-        ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid).unwrap()[sid] = Statement::Compute(node, new_expr);
-        changed = Changed::Yes;
+        changes.change_stmts.insert(((fid, bid, sid), Statement::Compute(node, new_expr)));
     }
 
-    changed
 }
 
 // Three reasons why a store might not be optimized out:
 // - someone indexes into the table
 // - someone uses next on the table
 // - someone accesses the length of the table
-fn rm_unread_store(ir: &mut IR, inf: &Infer) -> Changed {
+fn rm_unread_store(ir: &IR, inf: &Infer, changes: &mut Changes) {
     let mut unread_stores: Set<Stmt> = Set::new();
     for stmt in stmts(ir) {
         if let Statement::Store(_, _, _) = deref_stmt(stmt, ir) {
@@ -172,17 +182,11 @@ fn rm_unread_store(ir: &mut IR, inf: &Infer) -> Changed {
         }
     }
 
-    if unread_stores.is_empty() {
-        Changed::No
-    } else {
-        rm_stmts(unread_stores.iter().copied().collect(), ir);
-        Changed::Yes
-    }
+    changes.rm_stmts.extend(unread_stores.iter().copied());
 }
 
 // converts const ifs `if cond n1 n2` to `if cond n1 n1` or `if cond n2 n2` if possible.
-fn resolve_const_ifs(ir: &mut IR, inf: &Infer) -> Changed {
-    let mut changed = Changed::No;
+fn resolve_const_ifs(ir: &IR, inf: &Infer, changes: &mut Changes) {
     for (fid, bid, sid) in stmts(ir) {
         let Statement::If(cond, n1, n2) = deref_stmt((fid, bid, sid), ir) else { continue; };
         if n1 == n2 { continue; }
@@ -200,28 +204,12 @@ fn resolve_const_ifs(ir: &mut IR, inf: &Infer) -> Changed {
             let b = *val.bools.iter().next().unwrap();
             let n = if b { n1 } else { n2 };
             let st = Statement::If(cond, n, n);
-            ir.fns.get_mut(&fid).unwrap().blocks.get_mut(&bid).unwrap()[sid] = st;
-
-            changed = Changed::Yes;
+            changes.change_stmts.insert(((fid, bid, sid), st));
         }
     }
-
-    changed
 }
 
-// replaces the contents of a fn with throw("unreachable!");
-fn hollow_fn(fid: FnId, ir: &mut IR) {
-    // remove all blocks.
-    let blks = ir.fns[&fid].blocks.keys().map(|&bid| (fid, bid)).collect();
-    rm_blocks(blks, ir);
-
-    let f = ir.fns.get_mut(&fid).unwrap();
-    f.start_block = 0;
-    f.blocks.insert(0, vec![Statement::Throw(String::from("unreachable!"))]);
-}
-
-fn hollow_uncalled_fns(ir: &mut IR, inf: &Infer) -> Changed {
-    let mut changed = Changed::No;
+fn hollow_uncalled_fns(ir: &IR, inf: &Infer, changes: &mut Changes) {
     let fids: Vec<_> = ir.fns.keys().copied().collect();
     for fid in fids {
         let bid = ir.fns[&fid].start_block;
@@ -230,20 +218,12 @@ fn hollow_uncalled_fns(ir: &mut IR, inf: &Infer) -> Changed {
         if let Statement::Throw(_) = deref_stmt((fid, bid, 0), ir) { continue; }
 
         if !stmt_executed((fid, bid, 0), inf) {
-            changed = Changed::Yes;
-            hollow_fn(fid, ir);
+            changes.hollow_fns.insert(fid);
         }
     }
-
-    changed
 }
 
-// This could also be implemented as a pre-optimization with similar quality.
-// We could check which Blocks are reachable from the starting block, and remove all others.
-// In combination with resolve_const_ifs this should have the same result, no?
-fn rm_unused_blocks(ir: &mut IR, inf: &Infer) -> Changed {
-    let mut blocks = Vec::new();
-
+fn rm_unused_blocks(ir: &IR, inf: &Infer, changes: &mut Changes)  {
     for &fid in ir.fns.keys() {
         for &bid in ir.fns[&fid].blocks.keys() {
             // We don't want to remove start blocks, it might make things inconsistent.
@@ -251,50 +231,8 @@ fn rm_unused_blocks(ir: &mut IR, inf: &Infer) -> Changed {
             if bid == ir.fns[&fid].start_block { continue; }
 
             if !stmt_executed((fid, bid, 0), inf) {
-                blocks.push((fid, bid));
+                changes.rm_blocks.insert((fid, bid));
             }
         }
     }
-
-    if blocks.is_empty() {
-        Changed::No
-    } else {
-        rm_blocks(blocks, ir);
-        Changed::Yes
-    }
-}
-
-fn out_blocks(fid: FnId, bid: BlockId, ir: &IR) -> Vec<BlockId> {
-    if let Some(Statement::If(_, then_bid, else_bid)) = ir.fns[&fid].blocks[&bid].last() {
-        // filter duplicates!
-        if then_bid == else_bid { vec![*then_bid] }
-        else { vec![*then_bid, *else_bid] }
-    } else { vec![] }
-}
-
-
-fn find_mergeable_blocks(ir: &IR) -> Option<(FnId, (BlockId, BlockId))> {
-    for &fid in ir.fns.keys() {
-        let mut ptrs: Vec<(BlockId, Vec<BlockId>)> = Vec::new();
-        for &bid1 in ir.fns[&fid].blocks.keys() {
-            let outs = out_blocks(fid, bid1, ir);
-            ptrs.push((bid1, outs));
-        }
-
-        for &bid2 in ir.fns[&fid].blocks.keys() {
-            if ir.fns[&fid].start_block == bid2 { continue; }
-
-            // subset of `ptrs` which points to `bid2`.
-            let ptrs_to_bid2: Vec<_> = ptrs.iter().filter(|&(_, targets)| targets.contains(&bid2)).cloned().collect();
-
-            // we require exactly *one* block to point to `bid2`.
-            let &[(bid1, ref targets)] = &ptrs_to_bid2[..] else { continue; };
-
-            // we require it to *only* point to `bid2`.
-            if targets == &vec![bid2] {
-                return Some((fid, (bid1, bid2)));
-            }
-        }
-    }
-    None
 }
