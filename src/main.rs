@@ -33,11 +33,28 @@ use optimize::optimize;
 mod normalize;
 use normalize::normalize;
 
+fn print_help() {
+    println!("lua2llvm [OPTION]... [FILE]");
+    println!("FILE should be a Lua file. Without any further arguments, lua2llvm will parse the lua file, lower it to IR, optimize it, and run it using the IR-interpreter.\n");
+    println!("--ir: the FILE contains IR code, instead of Lua");
+    println!("--no-optimize: apply no optimizations");
+    println!("--no-normalize: apply no normalizations");
+    println!("--dump-ir: Instead of running the program, we will emit IR code");
+    println!("--dump-infer: Instead of running the program, run inference and print the output");
+    println!("--compile: Instead of running the program, we will emit LLVM IR code");
+    println!("--help: shows this");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args()
                                 .skip(1)
                                 .collect();
     let arg = |s| args.iter().find(|x| **x == s).is_some();
+
+    if arg("--help") {
+        print_help();
+        return;
+    }
 
     let filename = args.iter().find(|x| !x.starts_with("--")).expect("no input file given!");
     let code = std::fs::read_to_string(filename).unwrap();
