@@ -177,6 +177,7 @@ impl Ctxt {
         let init_bid = self.fcx().init_block;
         assert!(matches!(self.lit_fn().blocks[&init_bid].last(), Some(ir::Statement::If(_, _, _))));
 
+        self.fcx_mut().active_block = Some(init_bid);
         let final_if = self.lit_fn_mut().blocks.get_mut(&init_bid).unwrap().pop().unwrap();
 
         let t = f(self);
