@@ -51,7 +51,7 @@ struct FnCtxt {
     inner_str: Node,
 
     // typically block 0, used to initialize zero & one, and other things.
-    init_block: Node,
+    init_block: BlockId,
 
     active_block: Option<BlockId>,
 }
