@@ -25,6 +25,7 @@ use infer::infer;
 
 mod exec_ir;
 
+mod layout;
 mod compile;
 
 mod optimize;
@@ -83,7 +84,9 @@ fn main() {
         let inf = infer(&ir);
         eprintln!("{}", infer_to_string(&ir, &inf));
     } else if arg("--compile") {
-        compile::compile(&ir);
+        let inf = infer(&ir);
+        let ly = layout::layout(&ir, &inf);
+        compile::compile(&ir, &inf, &ly);
     } else {
         exec_ir::exec(&ir);
     }

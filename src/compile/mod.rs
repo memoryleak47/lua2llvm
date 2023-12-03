@@ -1,4 +1,6 @@
 use crate::ir::*;
+use crate::infer::*;
+use crate::layout::*;
 
 mod ctxt;
 use ctxt::*;
@@ -35,7 +37,8 @@ pub enum Tag {
     BOOL = 5,
 }
 
-pub fn compile(ir: &IR) {
+// TODO use the layout.
+pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
     unsafe {
         let mut ctxt = Ctxt::new();
 
