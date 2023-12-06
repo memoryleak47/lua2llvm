@@ -69,3 +69,12 @@ pub fn infer(ir: &IR) -> Infer {
 
     inf
 }
+
+impl Class {
+    pub fn location(&self) -> Location {
+        match self {
+            Class::Concrete(l) => *l,
+            Class::Summary(l) => *l,
+        }
+    }
+}
