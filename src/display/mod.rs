@@ -2,6 +2,7 @@ mod ir;
 use ir::*;
 
 mod infer;
+mod layout;
 
 use crate::ir::*;
 use crate::infer::*;

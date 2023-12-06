@@ -87,6 +87,12 @@ fn main() {
         let inf = infer(&ir);
         let ly = layout::layout(&ir, &inf);
         compile::compile(&ir, &inf, &ly);
+    } else if arg("--dump-layout") {
+        let inf = infer(&ir);
+        let ly = layout::layout(&ir, &inf);
+        eprintln!("{}", &ir);
+
+        eprintln!("{}", ly);
     } else {
         exec_ir::exec(&ir);
     }
