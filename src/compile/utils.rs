@@ -32,11 +32,12 @@ pub unsafe fn tag_err(v: LLVMValueRef, tag: Tag, ctxt: &mut Ctxt) -> LLVMValueRe
 }
 
 pub unsafe fn mk_nil(ctxt: &mut Ctxt) -> LLVMValueRef {
-    let mut vals = [
-        LLVMConstInt(ctxt.i64_t(), Tag::NIL as _, 0),
-        LLVMGetUndef(ctxt.i64_t())
-    ];
-    LLVMConstStructInContext(ctxt.llctxt, vals.as_mut_ptr(), vals.len() as _, 0)
+    let tag = LLVMConstInt(ctxt.i64_t(), Tag::NIL as _, 0);
+
+    let a = LLVMGetPoison(ctxt.value_t());
+    let a = LLVMBuildInsertValue(ctxt.builder, a, tag, 0, EMPTY);
+
+    a
 }
 
 pub unsafe fn mk_num(x: LLVMValueRef /* f64 */, ctxt: &mut Ctxt) -> LLVMValueRef {

@@ -34,6 +34,8 @@ use optimize::optimize;
 mod normalize;
 use normalize::normalize;
 
+mod ll;
+
 fn print_help() {
     println!("lua2llvm [OPTION]... [FILE]");
     println!("FILE should be a Lua file. Without any further arguments, lua2llvm will parse the lua file, lower it to IR, optimize it, and run it using the IR-interpreter.\n");

@@ -100,8 +100,7 @@ unsafe fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> LL
 
         let mut b /* LLVM i1 */ = call_extra_fn("eq", &[l, r], ctxt);
         if matches!(k, IsNotEqual) {
-            let one = LLVMConstInt(ctxt.bool_t(), 1, 0);
-            b = LLVMBuildXor(ctxt.builder, b, one, EMPTY);
+            b = LLVMBuildNot(ctxt.builder, b, EMPTY);
         }
 
         mk_bool(b, ctxt)
