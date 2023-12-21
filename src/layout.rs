@@ -30,6 +30,7 @@ pub fn layout(ir: &IR, inf: &Infer) -> Layout {
 fn handle_spec_stmt(ir: &IR, inf: &Infer, rt_stack: &RtStack, stmt: Stmt, ly: &mut Layout) {
     let st = util::deref_stmt(stmt, ir);
     let state = &inf.local_state[rt_stack];
+    if !state.executed { return; }
 
     // If two different locations are contained in any Value, we disqualify both of them and fall back to HashTable.
     // The reason we do this is that we don't want to have multiple tables in one runtime value with different layouts.
