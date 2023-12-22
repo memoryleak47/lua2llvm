@@ -5,6 +5,7 @@ use crate::infer::*;
 
 use crate::normalize::bourdoncle::*;
 
+#[derive(Clone)]
 pub struct Dirty {
     vec: Vec<RtStack>,
     block_orders: HashMap<FnId, BlockOrder>,

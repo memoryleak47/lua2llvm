@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use llvm_sys::prelude::*;
 use llvm_sys::core::*;
@@ -27,6 +27,7 @@ pub fn dump(m: Module) {
             global_value_map,
             m,
             llvm_mod,
+            strings_done: false,
 
             block_map: Default::default(),
             var_map: Default::default(),
@@ -48,6 +49,8 @@ struct Ctxt {
     m: Module,
     llvm_mod: LLVMModuleRef,
 
+    strings_done: bool, // expresses whether global strings have already been declared.
+
     // function-local state
     block_map: HashMap<BlockId, LLVMBasicBlockRef>,
     var_map: HashMap<VarId, LLVMValueRef>,
@@ -56,8 +59,11 @@ struct Ctxt {
 
 unsafe fn translate(ctxt: &mut Ctxt) {
     unsafe {
-        // declare all functions. String globals are declared on demand.
-        for (gid, d) in ctxt.m.global_defs.clone() {
+        let mut gdefs: Vec<_> = ctxt.m.global_defs.iter().map(|x| (x.0.clone(), x.1.clone())).collect();
+        gdefs.sort_by_key(|x| x.0.0);
+
+        // declare all functions. String globals are declared later.
+        for (gid, d) in gdefs.clone() {
             let GlobalDef::Function(name, ty, _imp) = d else { continue; };
             let ty = translate_ty(ty, ctxt);
             let v = with_string(name, |name| LLVMAddFunction(ctxt.llvm_mod, name, ty));
@@ -65,20 +71,58 @@ unsafe fn translate(ctxt: &mut Ctxt) {
         }
 
         // translate the functions.
-        for (gid, d) in ctxt.m.global_defs.clone() {
-            let GlobalDef::Function(name, ty, Some(imp)) = d else { continue; };
+        for (gid, d) in gdefs {
+            let GlobalDef::Function(_, _, Some(imp)) = d else { continue; };
             translate_fn_impl(gid, imp, ctxt);
         }
     }
 }
 
-// TODO needs to be called in some functions context.
-fn declare_str(i: GlobalValueId, ctxt: &mut Ctxt) {
+unsafe fn declare_strings(ctxt: &mut Ctxt) {
     unsafe {
-        let GlobalDef::String(s) = &ctxt.m.global_defs[&i] else { panic!() };
-        let v = with_string(s, |s| LLVMBuildGlobalString(ctxt.builder, s, EMPTY));
-        ctxt.global_value_map.insert(i, v);
+        for (gid, def) in &ctxt.m.global_defs {
+            let GlobalDef::String(s) = def else { continue };
+            let v = with_string(s, |s| LLVMBuildGlobalString(ctxt.builder, s, EMPTY));
+            ctxt.global_value_map.insert(*gid, v);
+        }
     }
+}
+
+// LLVM requires blocks to be calculated in the correct order.
+// The ll module doesn't have this constraint.
+fn llvm_block_order(f: &FnImpl) -> Vec<BlockId> {
+    let mut open = HashSet::new();
+    let mut done = HashSet::new();
+    let mut done_vec = vec![];
+
+    open.insert(f.start_block);
+
+    // the .min() keeps the original order as best as possible.
+    while let Some(&x) = open.iter().min() {
+        open.remove(&x);
+        done.insert(x);
+        done_vec.push(x);
+
+        for e in out_edges(f, x) {
+            if !done.contains(&e) {
+                open.insert(e);
+            }
+        }
+    }
+
+    done_vec
+}
+
+fn out_edges(f: &FnImpl, bid: BlockId) -> Vec<BlockId> {
+    for st in &f.blocks[&bid] {
+        match st {
+            Statement::CondBr(_, x, y) => return vec![*x, *y],
+            Statement::Br(x) => return vec![*x],
+            _ => {},
+        }
+    }
+
+    vec![]
 }
 
 unsafe fn translate_fn_impl(gid: GlobalValueId, f: FnImpl, ctxt: &mut Ctxt) {
@@ -92,8 +136,10 @@ unsafe fn translate_fn_impl(gid: GlobalValueId, f: FnImpl, ctxt: &mut Ctxt) {
         // alloc var block.
         let var_block = LLVMAppendBasicBlock(llvm_f, EMPTY);
 
+        let bids: Vec<BlockId> = llvm_block_order(&f);
+
         // init block map.
-        for (&bid, blk) in &f.blocks {
+        for &bid in &bids {
             let b = LLVMAppendBasicBlock(llvm_f, EMPTY);
             ctxt.block_map.insert(bid, b);
         }
@@ -108,14 +154,22 @@ unsafe fn translate_fn_impl(gid: GlobalValueId, f: FnImpl, ctxt: &mut Ctxt) {
         LLVMBuildBr(ctxt.builder, ctxt.block_map[&f.start_block]);
 
         // translate blocks.
-        for (bid, blk) in f.blocks {
-            translate_block(blk, llvm_f, ctxt);
+        for &bid in &bids {
+            let blk = &f.blocks[&bid];
+            translate_block(bid, blk.clone(), llvm_f, ctxt);
         }
     }
 }
 
-unsafe fn translate_block(block: Block, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) {
+unsafe fn translate_block(bid: BlockId, block: Block, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) {
     unsafe {
+        LLVMPositionBuilderAtEnd(ctxt.builder, ctxt.block_map[&bid]);
+
+        if !ctxt.strings_done {
+            declare_strings(ctxt);
+            ctxt.strings_done = true;
+        }
+
         for st in block {
             match st {
                 Compute(local_vid, expr) => {
@@ -151,12 +205,6 @@ unsafe fn translate_block(block: Block, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) {
                     let bid = ctxt.block_map[&bid];
                     LLVMBuildBr(ctxt.builder, bid);
                 }
-                FnCall(f, args, ty) => {
-                    let ty = translate_ty(ty, ctxt);
-                    let f = translate_value(f, ctxt);
-                    let mut args: Vec<LLVMValueRef> = args.into_iter().map(|x| translate_value(x, ctxt)).collect();
-                    LLVMBuildCall2(ctxt.builder, ty, f, args.as_mut_ptr(), args.len() as u32, EMPTY);
-                }
             }
         }
     }
@@ -165,6 +213,12 @@ unsafe fn translate_block(block: Block, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) {
 unsafe fn translate_expr(expr: Expr, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
     unsafe {
         match expr {
+            FnCall(f, args, ty) => {
+                let ty = translate_ty(ty, ctxt);
+                let f = translate_value(f, ctxt);
+                let mut args: Vec<LLVMValueRef> = args.into_iter().map(|x| translate_value(x, ctxt)).collect();
+                LLVMBuildCall2(ctxt.builder, ty, f, args.as_mut_ptr(), args.len() as u32, EMPTY)
+            }
             NumOp(op_kind, num_kind, v1, v2) => {
                 use NumKind::*;
                 use NumOpKind::*;
@@ -239,6 +293,11 @@ unsafe fn translate_expr(expr: Expr, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) -> L
                 let v = translate_value(v, ctxt);
                 let ty = translate_ty(ty, ctxt);
                 LLVMBuildBitCast(ctxt.builder, v, ty, EMPTY)
+            },
+            ZExt(v, ty) => {
+                let v = translate_value(v, ctxt);
+                let ty = translate_ty(ty, ctxt);
+                LLVMBuildZExt(ctxt.builder, v, ty, EMPTY)
             },
 
             ExtractValue(s, i) => {

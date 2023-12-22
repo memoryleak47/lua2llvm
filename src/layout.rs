@@ -4,10 +4,12 @@ use crate::ir::*;
 use crate::infer::*;
 use crate::optimize::util;
 
+#[derive(Clone)]
 pub struct Layout {
     pub table_layouts: HashMap<Location, TableLayout>
 }
 
+#[derive(Clone)]
 pub enum TableLayout {
     HashTable,
 

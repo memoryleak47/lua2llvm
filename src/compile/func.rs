@@ -1,7 +1,6 @@
 use super::*;
-use std::collections::{HashMap, HashSet};
 
-unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMBasicBlockRef>, ctxt: &mut Ctxt) -> /*next blocks*/ Vec<BlockId> {
+fn compile_block(block: &[Statement], ctxt: &mut Ctxt) {
     for st in block {
         match st {
             Statement::Compute(n, e) => {
@@ -18,11 +17,9 @@ unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMB
                 let cond = ctxt.nodes[cond];
                 let cond = extract_bool(cond, ctxt);
 
-                let thenbb = bb_mapping[then_bid];
-                let elsebb = bb_mapping[else_bid];
-                LLVMBuildCondBr(ctxt.builder, cond, thenbb, elsebb);
-
-                return vec![*then_bid, *else_bid];
+                let thenbb = ctxt.blocks[then_bid];
+                let elsebb = ctxt.blocks[else_bid];
+                ctxt.push_st(ll::Statement::CondBr(cond, thenbb, elsebb));
             },
             Statement::FnCall(f, arg) => {
                 let f = ctxt.nodes[f];
@@ -35,83 +32,66 @@ unsafe fn compile_block(block: &[Statement], bb_mapping: &HashMap<BlockId, LLVMB
                 call_extra_fn("print", &[t], ctxt);
             },
             Statement::Throw(s) => {
-                let s = format!("{}\0", s);
-                let s = LLVMBuildGlobalString(ctxt.builder, s.as_ptr() as *const _, EMPTY);
-                call_extra_fn("throw_", &[s], ctxt);
-                LLVMBuildRetVoid(ctxt.builder); // required, even though this function will never return due to the above throw_.
+                let def = ll::GlobalDef::String(s.to_string());
+                let gid = ctxt.alloc_global(def);
+                let v = ll::ValueId::Global(gid);
+                call_extra_fn("throw_", &[v], ctxt);
+                ctxt.push_st(ll::Statement::Return(None));
             },
             Statement::Return => {
-                LLVMBuildRetVoid(ctxt.builder);
+                ctxt.push_st(ll::Statement::Return(None));
             },
         }
     }
-
-    return Vec::new();
 }
 
-unsafe fn fn_call(f_val: LLVMValueRef /* Value with FN tag */, arg: LLVMValueRef /* Value */, ctxt: &mut Ctxt) {
+fn fn_call(f_val: ll::ValueId /* Value with FN tag */, arg: ll::ValueId, ctxt: &mut Ctxt) {
     // check tag
     let t = tag_err(f_val, Tag::FN, ctxt);
     err_chk(t, "trying to call non-function!", ctxt);
 
     // call fn
-    let f /* i64 */ = LLVMBuildExtractValue(ctxt.builder, f_val, 1, EMPTY);
-    let f /* void (*fn)(Value) */ = LLVMBuildIntToPtr(ctxt.builder, f, ctxt.v2void_ptr_t(), EMPTY);
-
-    let mut fargs = [alloc_val(arg, ctxt)];
-    LLVMBuildCall2(
-        /*builder: */ ctxt.builder,
-        /*type: */ ctxt.v2void_t(),
-        /*Fn: */ f,
-        /*Args: */ fargs.as_mut_ptr(),
-        /*Num Args: */ fargs.len() as u32,
-        /*Name: */ EMPTY,
-    );
+    let f /* i64 */ = ctxt.push_compute(ll::Expr::ExtractValue(f_val, 1));
+    let v2void_ptr_t = ctxt.v2void_ptr_t();
+    let f /* void (*fn)(Value) */ = ctxt.push_compute(ll::Expr::IntToPtr(f, v2void_ptr_t));
+    let args = vec![alloc_val(arg, ctxt)];
+    let ty = ctxt.v2void_t();
+    ctxt.push_compute(ll::Expr::FnCall(f, args, ty));
 }
 
 
-unsafe fn extract_bool(x: LLVMValueRef /* Value */, ctxt: &mut Ctxt) -> LLVMValueRef /* i1 */ {
-    let val = LLVMBuildExtractValue(ctxt.builder, x, 1, EMPTY);
-    let one = LLVMConstInt(ctxt.i64_t(), 1, 0);
-    let ret = LLVMBuildICmp(ctxt.builder, LLVMIntPredicate::LLVMIntEQ, val, one, EMPTY);
+fn extract_bool(x: ll::ValueId /* Value */, ctxt: &mut Ctxt) -> ll::ValueId /* i1 */ {
+    let val = ctxt.push_compute(ll::Expr::ExtractValue(x, 1));
+    let i64_t = ctxt.i64_t();
+    let one = ctxt.push_compute(ll::Expr::ConstInt(i64_t, 1));
+    let ret = ctxt.push_compute(ll::Expr::NumOp(ll::NumOpKind::IsEqual, ll::NumKind::Int, val, one));
 
     ret
 }
 
-pub unsafe fn compile_fn(val_f: LLVMValueRef, fn_id: FnId, ir: &IR, ctxt: &mut Ctxt) {
+pub fn compile_fn(fn_id: FnId, ctxt: &mut Ctxt) {
     ctxt.current_fid = fn_id;
-    let f = &ir.fns[&fn_id];
+    ctxt.blocks = Default::default();
+    ctxt.nodes = Default::default();
+    ctxt.current_ll_fn = ctxt.lit_fns[&fn_id];
+    ctxt.next_local_value_id = ll::LocalValueId(0);
 
-    let alloca_bb = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, b"entry\0".as_ptr() as *const _);
+    let f = ctxt.ir.fns[&fn_id].clone();
 
-    let mut bb_mapping: HashMap<BlockId, LLVMBasicBlockRef> = HashMap::new();
-    for (bid, _) in f.blocks.iter() {
-        let new_blk = LLVMAppendBasicBlockInContext(ctxt.llctxt, val_f, EMPTY);
-        bb_mapping.insert(*bid, new_blk);
+    let mut bids: Vec<BlockId> = f.blocks.keys().cloned().collect();
+    bids.sort();
+
+    for &bid in &bids {
+        let new_blk = ctxt.alloc_block();
+        ctxt.blocks.insert(bid, new_blk);
     }
 
-    LLVMPositionBuilderAtEnd(ctxt.builder, alloca_bb);
-    ctxt.alloca_br_instr = Some(LLVMBuildBr(ctxt.builder, bb_mapping[&f.start_block]));
+    ctxt.current_fn_impl().start_block = ctxt.blocks[&f.start_block];
 
-    let mut open_blocks = HashSet::new();
-    open_blocks.insert(f.start_block);
-    let mut done_blocks = HashSet::new();
-
-    // TODO this "pick earliest" is a hack it shouldn't matter.
-    // It currently matter sometimes because there are paths through the CFG
-    // that don't initialize a node even though its used.
-    // This isn't a "real" problem though, as these paths through the CFG
-    // go through some "never-executed" blocks as detected by the Infer.
-    while let Some(bid) = open_blocks.iter().min().copied() {
-        open_blocks.remove(&bid);
-        done_blocks.insert(bid);
-
-        LLVMPositionBuilderAtEnd(ctxt.builder, bb_mapping[&bid]);
+    for &bid in &bids {
+        ctxt.current_bid = bid;
+        ctxt.current_ll_bid = ctxt.blocks[&bid];
         let blk = &f.blocks[&bid];
-        for new_bid in compile_block(blk, &bb_mapping, ctxt) {
-            if !done_blocks.contains(&new_bid) {
-                open_blocks.insert(new_bid);
-            }
-        }
+        compile_block(blk, ctxt);
     }
 }

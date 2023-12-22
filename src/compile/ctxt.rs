@@ -1,118 +1,149 @@
-use crate::ir::*;
-
-use std::collections::HashMap;
-use llvm::core::*;
-use llvm::prelude::*;
-use llvm::target_machine::LLVMGetDefaultTargetTriple;
-
-
-#[derive(Clone)]
-pub struct ExtraFn {
-    pub f: LLVMValueRef,
-    pub ftype: LLVMTypeRef,
-}
+use super::*;
 
 pub struct Ctxt {
-    pub llctxt: LLVMContextRef,
-    pub module: LLVMModuleRef,
-    pub builder: LLVMBuilderRef,
+    pub m: ll::Module,
 
-    pub nodes: HashMap<Node, LLVMValueRef>,
+    // these are cloned in for now!
+    pub ir: IR,
+    pub inf: Infer,
+    pub layout: Layout, // TODO respect the layouting information
 
-    // functions defined in extra/
-    pub extra_fns: HashMap<String, ExtraFn>,
+    pub lit_fns: HashMap<FnId, ll::GlobalValueId>,
+    pub extra_fns: HashMap<String, ll::GlobalValueId>,
 
-    pub lit_fns: HashMap<FnId, LLVMValueRef>,
+    pub start_fn: ll::GlobalValueId,
 
-    pub start_fn: LLVMValueRef,
-
+    // function-local:
     pub current_fid: FnId,
+    pub current_bid: BlockId,
+    pub blocks: HashMap<BlockId, ll::BlockId>,
+    pub nodes: HashMap<Node, ll::ValueId>,
 
-    // the instruction branching from the alloca-block to the main-block.
-    pub alloca_br_instr: Option<LLVMValueRef>,
+    // information relevant to practically mutate the module m.
+    // TODO extract this into a ll::ModuleWriter.
+    pub current_ll_fn: ll::GlobalValueId,
+    pub current_ll_bid: ll::BlockId,
+    pub next_local_value_id: ll::LocalValueId,
 }
 
 impl Ctxt {
-    pub unsafe fn new() -> Self {
-        let llctxt = LLVMContextCreate();
-        let module = LLVMModuleCreateWithNameInContext(b"luamod\0".as_ptr() as *const _, llctxt);
-        let target = LLVMGetDefaultTargetTriple();
-        LLVMSetTarget(module, target);
-
-        let builder = LLVMCreateBuilderInContext(llctxt);
-
-        let start_fn = {
-            let mut args = [];
-            let start_function_type = LLVMFunctionType(LLVMVoidType(), args.as_mut_ptr(), args.len() as _, 0);
-
-            LLVMAddFunction(module, b"main\0".as_ptr() as *const _, start_function_type)
-        };
-
+    pub fn new(ir: &IR, inf: &Infer, layout: &Layout) -> Self {
         Ctxt {
-            llctxt,
-            module,
-            builder,
-            nodes: Default::default(),
-            extra_fns: Default::default(),
-            start_fn,
+            m: ll::Module::default(),
+
+            ir: ir.clone(),
+            inf: inf.clone(),
+            layout: layout.clone(),
+
             lit_fns: Default::default(),
+            extra_fns: Default::default(),
+
+            // these need to be set later on!
+            start_fn: ll::GlobalValueId(0),
+
             current_fid: 0,
-            alloca_br_instr: None,
+            current_bid: 0,
+            blocks: Default::default(),
+            nodes: Default::default(),
+
+            current_ll_fn: ll::GlobalValueId(0),
+            current_ll_bid: ll::BlockId(0),
+            next_local_value_id: ll::LocalValueId(0),
         }
     }
 
-    pub unsafe fn i32_t(&mut self) -> LLVMTypeRef {
-        LLVMInt32TypeInContext(self.llctxt)
+    pub fn i32_t(&self) -> ll::Type {
+        ll::Type::I32
     }
 
-    pub unsafe fn i64_t(&mut self) -> LLVMTypeRef {
-        LLVMInt64TypeInContext(self.llctxt)
+    pub fn i64_t(&self) -> ll::Type {
+        ll::Type::I64
     }
 
-    pub unsafe fn void_t(&mut self) -> LLVMTypeRef {
-        LLVMVoidType()
+    pub fn void_t(&self) -> ll::Type {
+        ll::Type::Void
     }
 
-    pub unsafe fn f64_t(&mut self) -> LLVMTypeRef {
-        LLVMDoubleTypeInContext(self.llctxt)
+    pub fn f64_t(&self) -> ll::Type {
+        ll::Type::F64
     }
 
-    pub unsafe fn value_t(&mut self) -> LLVMTypeRef {
-        let mut elements = [self.i64_t(), self.i64_t()];
-        LLVMStructTypeInContext(self.llctxt, elements.as_mut_ptr(), elements.len() as u32, 0)
+    pub fn value_t(&self) -> ll::Type {
+        ll::Type::Struct(ll::StructId(0))
     }
 
-    pub unsafe fn value_ptr_t(&mut self) -> LLVMTypeRef {
-        LLVMPointerType(self.value_t(), 0)
+    pub fn value_ptr_t(&self) -> ll::Type {
+        ll::Type::Pointer(Box::new(self.value_t()))
     }
 
-    pub unsafe fn v2void_t(&mut self) -> LLVMTypeRef {
-        let mut args = [self.value_ptr_t()];
-        LLVMFunctionType(self.void_t(), args.as_mut_ptr(), args.len() as _, 0)
+    pub fn v2void_t(&self) -> ll::Type {
+        ll::Type::Function(Box::new(self.void_t()), vec![self.value_ptr_t()])
     }
 
-    pub unsafe fn v2void_ptr_t(&mut self) -> LLVMTypeRef {
-        LLVMPointerType(self.v2void_t(), 0)
+    pub fn v2void_ptr_t(&self) -> ll::Type {
+        ll::Type::Pointer(Box::new(self.v2void_t()))
     }
 
-    pub unsafe fn i8_t(&mut self) -> LLVMTypeRef {
-        LLVMInt8TypeInContext(self.llctxt)
+    pub fn i8_t(&self) -> ll::Type {
+        ll::Type::I8
     }
 
-    pub unsafe fn bool_t(&mut self) -> LLVMTypeRef {
-        LLVMInt1TypeInContext(self.llctxt)
+    pub fn bool_t(&self) -> ll::Type {
+        ll::Type::Bool
     }
 
-    pub unsafe fn str_t(&mut self) -> LLVMTypeRef {
-        LLVMPointerType(self.i8_t(), 0)
+    pub fn str_t(&self) -> ll::Type {
+        ll::Type::Pointer(Box::new(self.i8_t()))
     }
-}
 
-impl Drop for Ctxt {
-    fn drop(&mut self) {
-        unsafe {
-            LLVMDisposeBuilder(self.builder);
-            LLVMContextDispose(self.llctxt);
+    pub fn alloc_block(&mut self) -> ll::BlockId {
+        let f = self.current_fn_impl();
+        let bid = ll::BlockId(f.blocks.len());
+        f.blocks.insert(bid, vec![]);
+        bid
+    }
+
+    pub fn alloc_fn(&mut self, name: String, ty: ll::Type) -> ll::GlobalValueId {
+        let def = ll::GlobalDef::Function(name, ty, None);
+        self.alloc_global(def)
+    }
+
+    pub fn alloc_global(&mut self, def: ll::GlobalDef) -> ll::GlobalValueId {
+        let n = ll::GlobalValueId(self.m.global_defs.len());
+        self.m.global_defs.insert(n, def);
+        n
+    }
+
+    pub fn push_st(&mut self, st: ll::Statement) {
+        let current_ll_bid = self.current_ll_bid;
+        let stmts = self.current_fn_impl().blocks.get_mut(&current_ll_bid).unwrap();
+        stmts.push(st);
+    }
+
+    pub fn push_compute(&mut self, expr: ll::Expr) -> ll::ValueId {
+        let n = self.next_local_value_id;
+        self.next_local_value_id.0 += 1;
+
+        self.push_st(ll::Statement::Compute(n, expr));
+
+        ll::ValueId::Local(n)
+    }
+
+    pub fn current_fn_impl(&mut self) -> &mut ll::FnImpl {
+        let gid = self.current_ll_fn;
+        let Some(ll::GlobalDef::Function(_, _, x)) = self.m.global_defs.get_mut(&gid) else { panic!("no active function?") };
+        let x: &mut Option<_> = x;
+        if x.is_none() {
+            *x = Some(ll::FnImpl {
+                vars: Default::default(),
+                blocks: Default::default(),
+                start_block: ll::BlockId(0),
+            });
+        }
+
+        match x {
+            Some(x) => x,
+            None => unreachable!(),
         }
     }
 }

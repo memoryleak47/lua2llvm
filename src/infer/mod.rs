@@ -44,6 +44,7 @@ pub struct FnSpec {
     pub fid: FnId,
 }
 
+#[derive(Clone)]
 pub struct Infer {
     pub fn_state: Map<FnSpec, FnState>,
     pub local_state: Map<RtStack, LocalState>,

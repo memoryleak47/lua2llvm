@@ -1,4 +1,7 @@
 mod translate;
+pub use translate::dump;
+
+mod display;
 
 use std::collections::HashMap;
 
@@ -8,12 +11,17 @@ use std::collections::HashMap;
 // XXX My first and foremost goal is to use this in lua2llvm.
 // Hence I'll ignore all features that I won't use right away.
 
-pub type StructId = usize;
-pub type BlockId = usize;
-pub type VarId = usize;
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StructId(pub usize);
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BlockId(pub usize);
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct VarId(pub usize);
 
-pub type GlobalValueId = usize;
-pub type LocalValueId = usize;
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GlobalValueId(pub usize);
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LocalValueId(pub usize);
 
 #[derive(Clone, Copy)]
 pub enum ValueId {
@@ -21,7 +29,7 @@ pub enum ValueId {
     Local(LocalValueId), // local to a function. Typically represented by %i
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Module {
     pub structs: HashMap<StructId, Vec<Type>>,
     pub global_defs: HashMap<GlobalValueId, GlobalDef>
@@ -50,8 +58,7 @@ pub enum Statement {
     Return(Option<ValueId>),
     Unreachable,
     CondBr(ValueId, /*then: */ BlockId, /*else: */ BlockId),
-    Br(BlockId),
-    FnCall(/*fn: */ ValueId, /*args: */ Vec<ValueId>, /*ftype: */ Type),
+    #[allow(unused)] Br(BlockId),
 }
 
 #[derive(Clone)]
@@ -66,6 +73,8 @@ pub enum NumKind { Int, Float }
 
 #[derive(Clone)]
 pub enum Expr {
+    FnCall(/*fn: */ ValueId, /*args: */ Vec<ValueId>, /*ftype: */ Type),
+
     NumOp(NumOpKind, NumKind, ValueId, ValueId),
 
     PtrLoad(/*ty: */ Type, /*ptr: */ ValueId),
@@ -81,6 +90,7 @@ pub enum Expr {
     PtrToInt(ValueId, Type),
     IntToPtr(ValueId, Type),
     BitCast(ValueId, Type),
+    ZExt(ValueId, Type),
 
     ExtractValue(/*struct*/ ValueId, usize),
     InsertValue(/*struct*/ ValueId, /*val: */ ValueId, usize),
