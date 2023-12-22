@@ -28,9 +28,6 @@ pub struct Ctxt {
 
     pub current_fid: FnId,
 
-    // if we encounter a `break`, go to this block.
-    pub break_bb: Option<LLVMBasicBlockRef>,
-
     // the instruction branching from the alloca-block to the main-block.
     pub alloca_br_instr: Option<LLVMValueRef>,
 }
@@ -60,7 +57,6 @@ impl Ctxt {
             start_fn,
             lit_fns: Default::default(),
             current_fid: 0,
-            break_bb: None,
             alloca_br_instr: None,
         }
     }
