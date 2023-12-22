@@ -109,17 +109,17 @@ unsafe fn translate_fn_impl(gid: GlobalValueId, f: FnImpl, ctxt: &mut Ctxt) {
 
         // translate blocks.
         for (bid, blk) in f.blocks {
-            translate_block(blk, ctxt);
+            translate_block(blk, llvm_f, ctxt);
         }
     }
 }
 
-unsafe fn translate_block(block: Block, ctxt: &mut Ctxt) {
+unsafe fn translate_block(block: Block, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) {
     unsafe {
         for st in block {
             match st {
                 Compute(local_vid, expr) => {
-                    let v = translate_expr(expr, ctxt);
+                    let v = translate_expr(expr, llvm_f, ctxt);
                     ctxt.local_value_map.insert(local_vid, v);
                 }
                 PtrStore(val, ptr) => {
@@ -162,8 +162,110 @@ unsafe fn translate_block(block: Block, ctxt: &mut Ctxt) {
     }
 }
 
-unsafe fn translate_expr(expr: Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
-    unimplemented!()
+unsafe fn translate_expr(expr: Expr, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) -> LLVMValueRef {
+    unsafe {
+        match expr {
+            NumOp(op_kind, num_kind, v1, v2) => {
+                use NumKind::*;
+                use NumOpKind::*;
+
+                use llvm_sys::LLVMRealPredicate::*;
+                use llvm_sys::LLVMIntPredicate::*;
+
+                let v1 = translate_value(v1, ctxt);
+                let v2 = translate_value(v2, ctxt);
+                match (num_kind, op_kind) {
+                    (Float, Plus) => LLVMBuildFAdd(ctxt.builder, v1, v2, EMPTY),
+                    (Float, Minus) => LLVMBuildFSub(ctxt.builder, v1, v2, EMPTY),
+                    (Float, Mul) => LLVMBuildFMul(ctxt.builder, v1, v2, EMPTY),
+                    (Float, Div) => LLVMBuildFDiv(ctxt.builder, v1, v2, EMPTY),
+                    (Float, Mod) => LLVMBuildFRem(ctxt.builder, v1, v2, EMPTY),
+                    (Float, IsEqual) => LLVMBuildFCmp(ctxt.builder, LLVMRealOEQ, v1, v2, EMPTY),
+                    (Float, IsNotEqual) => LLVMBuildFCmp(ctxt.builder, LLVMRealONE, v1, v2, EMPTY),
+                    (Float, Lt) => LLVMBuildFCmp(ctxt.builder, LLVMRealOLT, v1, v2, EMPTY),
+                    (Float, Gt) => LLVMBuildFCmp(ctxt.builder, LLVMRealOGT, v1, v2, EMPTY),
+                    (Float, Le) => LLVMBuildFCmp(ctxt.builder, LLVMRealOLE, v1, v2, EMPTY),
+                    (Float, Ge) => LLVMBuildFCmp(ctxt.builder, LLVMRealOGE, v1, v2, EMPTY),
+
+                    (Int, Plus) => LLVMBuildAdd(ctxt.builder, v1, v2, EMPTY),
+                    (Int, Minus) => LLVMBuildSub(ctxt.builder, v1, v2, EMPTY),
+                    (Int, Mul) => LLVMBuildMul(ctxt.builder, v1, v2, EMPTY),
+                    (Int, Div) => LLVMBuildSDiv(ctxt.builder, v1, v2, EMPTY),
+                    (Int, Mod) => LLVMBuildSRem(ctxt.builder, v1, v2, EMPTY),
+                    (Int, IsEqual) => LLVMBuildICmp(ctxt.builder, LLVMIntEQ, v1, v2, EMPTY),
+                    (Int, IsNotEqual) => LLVMBuildICmp(ctxt.builder, LLVMIntNE, v1, v2, EMPTY),
+                    (Int, Lt) => LLVMBuildICmp(ctxt.builder, LLVMIntSLT, v1, v2, EMPTY),
+                    (Int, Gt) => LLVMBuildICmp(ctxt.builder, LLVMIntSGT, v1, v2, EMPTY),
+                    (Int, Le) => LLVMBuildICmp(ctxt.builder, LLVMIntSLE, v1, v2, EMPTY),
+                    (Int, Ge) => LLVMBuildICmp(ctxt.builder, LLVMIntSGE, v1, v2, EMPTY),
+                }
+            },
+
+            PtrLoad(ty, ptr) => {
+                let ty = translate_ty(ty, ctxt);
+                let ptr = translate_value(ptr, ctxt);
+                LLVMBuildLoad2(ctxt.builder, ty, ptr, EMPTY)
+            },
+
+            Not(v) => {
+                let v = translate_value(v, ctxt);
+                LLVMBuildNot(ctxt.builder, v, EMPTY)
+            },
+            Or(v1, v2) => {
+                let v1 = translate_value(v1, ctxt);
+                let v2 = translate_value(v2, ctxt);
+                LLVMBuildOr(ctxt.builder, v1, v2, EMPTY)
+            }
+
+            Var(var_id) => {
+                ctxt.var_map[&var_id]
+            },
+            Arg(i) => {
+                LLVMGetParam(llvm_f, i as u32)
+            }
+
+            // casting
+            PtrToInt(v, ty) => {
+                let v = translate_value(v, ctxt);
+                let ty = translate_ty(ty, ctxt);
+                LLVMBuildPtrToInt(ctxt.builder, v, ty, EMPTY)
+            },
+            IntToPtr(v, ty) => {
+                let v = translate_value(v, ctxt);
+                let ty = translate_ty(ty, ctxt);
+                LLVMBuildIntToPtr(ctxt.builder, v, ty, EMPTY)
+            },
+            BitCast(v, ty) => {
+                let v = translate_value(v, ctxt);
+                let ty = translate_ty(ty, ctxt);
+                LLVMBuildBitCast(ctxt.builder, v, ty, EMPTY)
+            },
+
+            ExtractValue(s, i) => {
+                let s = translate_value(s, ctxt);
+                LLVMBuildExtractValue(ctxt.builder, s, i as u32, EMPTY)
+            },
+            InsertValue(s, v, i) => {
+                let s = translate_value(s, ctxt);
+                let v = translate_value(v, ctxt);
+                LLVMBuildInsertValue(ctxt.builder, s, v, i as u32, EMPTY)
+            },
+            Poison(ty) => {
+                let ty = translate_ty(ty, ctxt);
+                LLVMGetPoison(ty)
+            },
+
+            ConstReal(ty, x) => {
+                let ty = translate_ty(ty, ctxt);
+                LLVMConstReal(ty, x)
+            },
+            ConstInt(ty, x) => {
+                let ty = translate_ty(ty, ctxt);
+                LLVMConstInt(ty, x.try_into().unwrap(), 0)
+            },
+        }
+    }
+    
 }
 
 unsafe fn translate_ty(ty: Type, ctxt: &mut Ctxt) -> LLVMTypeRef {
