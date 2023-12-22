@@ -6,6 +6,8 @@ use llvm_sys::target_machine::LLVMGetDefaultTargetTriple;
 
 use crate::ll::*;
 use Statement::*;
+use Type::*;
+use Expr::*;
 
 const EMPTY: *const i8 = b"\0".as_ptr() as *const _;
 
@@ -165,7 +167,30 @@ unsafe fn translate_expr(expr: Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
 }
 
 unsafe fn translate_ty(ty: Type, ctxt: &mut Ctxt) -> LLVMTypeRef {
-    unimplemented!() // TODO
+    unsafe {
+        match ty {
+            Pointer(ty) => {
+                let ty = translate_ty(*ty, ctxt);
+                LLVMPointerType(ty, 0)
+            },
+            Struct(sid) => {
+                let elements: Vec<_> = ctxt.m.structs[&sid].iter().cloned().collect();
+                let mut elements: Vec<_> = elements.into_iter().map(|x| translate_ty(x, ctxt)).collect();
+                LLVMStructType(elements.as_mut_ptr(), elements.len() as u32, 0)
+            },
+            Function(ret, args) => {
+                let ret = translate_ty(*ret, ctxt);
+                let mut args: Vec<_> = args.into_iter().map(|x| translate_ty(x, ctxt)).collect();
+                LLVMFunctionType(ret, args.as_mut_ptr(), args.len() as u32, 0)
+            },
+            Void => LLVMVoidType(),
+            F64 => LLVMDoubleType(),
+            I8 => LLVMInt8Type(),
+            I32 => LLVMInt32Type(),
+            I64 => LLVMInt64Type(),
+            Bool => LLVMInt1Type(),
+        }
+    }
 }
 
 unsafe fn translate_value(vid: ValueId, ctxt: &mut Ctxt) -> LLVMValueRef {
