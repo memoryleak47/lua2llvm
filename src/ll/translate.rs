@@ -5,6 +5,7 @@ use llvm_sys::core::*;
 use llvm_sys::target_machine::LLVMGetDefaultTargetTriple;
 
 use crate::ll::*;
+use Statement::*;
 
 const EMPTY: *const i8 = b"\0".as_ptr() as *const _;
 
@@ -12,7 +13,7 @@ pub fn dump(m: Module) {
     unsafe {
         let llvm_ctxt = LLVMContextCreate();
         let builder = LLVMCreateBuilderInContext(llvm_ctxt);
-        let global_map = Default::default();
+        let global_value_map = Default::default();
 
         let llvm_mod = with_string("luamod", |s| LLVMModuleCreateWithNameInContext(s, llvm_ctxt));
         let target = LLVMGetDefaultTargetTriple();
@@ -21,12 +22,13 @@ pub fn dump(m: Module) {
         let mut ctxt = Ctxt {
             llvm_ctxt,
             builder,
-            global_map,
+            global_value_map,
             m,
             llvm_mod,
 
             block_map: Default::default(),
             var_map: Default::default(),
+            local_value_map: Default::default(),
         };
 
         translate(&mut ctxt);
@@ -40,13 +42,14 @@ pub fn dump(m: Module) {
 struct Ctxt {
     llvm_ctxt: LLVMContextRef,
     builder: LLVMBuilderRef,
-    global_map: HashMap<GlobalValueId, LLVMValueRef>,
+    global_value_map: HashMap<GlobalValueId, LLVMValueRef>,
     m: Module,
     llvm_mod: LLVMModuleRef,
 
     // function-local state
     block_map: HashMap<BlockId, LLVMBasicBlockRef>,
     var_map: HashMap<VarId, LLVMValueRef>,
+    local_value_map: HashMap<LocalValueId, LLVMValueRef>,
 }
 
 unsafe fn translate(ctxt: &mut Ctxt) {
@@ -56,7 +59,7 @@ unsafe fn translate(ctxt: &mut Ctxt) {
             let GlobalDef::Function(name, ty, _imp) = d else { continue; };
             let ty = translate_ty(ty, ctxt);
             let v = with_string(name, |name| LLVMAddFunction(ctxt.llvm_mod, name, ty));
-            ctxt.global_map.insert(gid, v);
+            ctxt.global_value_map.insert(gid, v);
         }
 
         // translate the functions.
@@ -72,16 +75,17 @@ fn declare_str(i: GlobalValueId, ctxt: &mut Ctxt) {
     unsafe {
         let GlobalDef::String(s) = &ctxt.m.global_defs[&i] else { panic!() };
         let v = with_string(s, |s| LLVMBuildGlobalString(ctxt.builder, s, EMPTY));
-        ctxt.global_map.insert(i, v);
+        ctxt.global_value_map.insert(i, v);
     }
 }
 
 unsafe fn translate_fn_impl(gid: GlobalValueId, f: FnImpl, ctxt: &mut Ctxt) {
     ctxt.block_map = Default::default();
     ctxt.var_map = Default::default();
+    ctxt.local_value_map = Default::default();
 
     unsafe {
-        let llvm_f: LLVMValueRef = ctxt.global_map[&gid];
+        let llvm_f: LLVMValueRef = ctxt.global_value_map[&gid];
 
         // alloc var block.
         let var_block = LLVMAppendBasicBlock(llvm_f, EMPTY);
@@ -109,11 +113,66 @@ unsafe fn translate_fn_impl(gid: GlobalValueId, f: FnImpl, ctxt: &mut Ctxt) {
 }
 
 unsafe fn translate_block(block: Block, ctxt: &mut Ctxt) {
+    unsafe {
+        for st in block {
+            match st {
+                Compute(local_vid, expr) => {
+                    let v = translate_expr(expr, ctxt);
+                    ctxt.local_value_map.insert(local_vid, v);
+                }
+                PtrStore(val, ptr) => {
+                    let val = translate_value(val, ctxt);
+                    let ptr = translate_value(ptr, ctxt);
+                    LLVMBuildStore(ctxt.builder, val, ptr);
+                },
+                Return(opt_val) => {
+                    match opt_val {
+                        Some(x) => {
+                            let x = translate_value(x, ctxt);
+                            LLVMBuildRet(ctxt.builder, x);
+                        },
+                        None => {
+                            LLVMBuildRetVoid(ctxt.builder);
+                        },
+                    }
+                }
+                Unreachable => {
+                    LLVMBuildUnreachable(ctxt.builder);
+                },
+                CondBr(cond, then_bid, else_bid) => {
+                    let cond = translate_value(cond, ctxt);
+                    let then_bid = ctxt.block_map[&then_bid];
+                    let else_bid = ctxt.block_map[&else_bid];
+                    LLVMBuildCondBr(ctxt.builder, cond, then_bid, else_bid);
+                }
+                Br(bid) => {
+                    let bid = ctxt.block_map[&bid];
+                    LLVMBuildBr(ctxt.builder, bid);
+                }
+                FnCall(f, args, ty) => {
+                    let ty = translate_ty(ty, ctxt);
+                    let f = translate_value(f, ctxt);
+                    let mut args: Vec<LLVMValueRef> = args.into_iter().map(|x| translate_value(x, ctxt)).collect();
+                    LLVMBuildCall2(ctxt.builder, ty, f, args.as_mut_ptr(), args.len() as u32, EMPTY);
+                }
+            }
+        }
+    }
+}
+
+unsafe fn translate_expr(expr: Expr, ctxt: &mut Ctxt) -> LLVMValueRef {
     unimplemented!()
 }
 
 unsafe fn translate_ty(ty: Type, ctxt: &mut Ctxt) -> LLVMTypeRef {
     unimplemented!() // TODO
+}
+
+unsafe fn translate_value(vid: ValueId, ctxt: &mut Ctxt) -> LLVMValueRef {
+    match vid {
+        ValueId::Local(local) => ctxt.local_value_map[&local],
+        ValueId::Global(global) => ctxt.global_value_map[&global],
+    }
 }
 
 fn with_string<T>(s: impl AsRef<str>, f: impl FnOnce(*const i8) -> T) -> T {

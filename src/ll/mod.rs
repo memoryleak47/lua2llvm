@@ -45,7 +45,7 @@ pub struct FnImpl {
 
 #[derive(Clone)]
 pub enum Statement {
-    Compute(ValueId, Expr),
+    Compute(LocalValueId, Expr),
     PtrStore(/*val: */ ValueId, /*ptr: */ ValueId),
     Return(Option<ValueId>),
     Unreachable,
