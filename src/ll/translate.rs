@@ -24,6 +24,9 @@ pub fn dump(m: Module) {
             global_map,
             m,
             llvm_mod,
+
+            block_map: Default::default(),
+            var_map: Default::default(),
         };
 
         translate(&mut ctxt);
@@ -40,6 +43,10 @@ struct Ctxt {
     global_map: HashMap<GlobalValueId, LLVMValueRef>,
     m: Module,
     llvm_mod: LLVMModuleRef,
+
+    // function-local state
+    block_map: HashMap<BlockId, LLVMBasicBlockRef>,
+    var_map: HashMap<VarId, LLVMValueRef>,
 }
 
 unsafe fn translate(ctxt: &mut Ctxt) {
@@ -70,7 +77,39 @@ fn declare_str(i: GlobalValueId, ctxt: &mut Ctxt) {
 }
 
 unsafe fn translate_fn_impl(gid: GlobalValueId, f: FnImpl, ctxt: &mut Ctxt) {
-    unimplemented!() // TODO
+    ctxt.block_map = Default::default();
+    ctxt.var_map = Default::default();
+
+    unsafe {
+        let llvm_f: LLVMValueRef = ctxt.global_map[&gid];
+
+        // alloc var block.
+        let var_block = LLVMAppendBasicBlock(llvm_f, EMPTY);
+
+        // init block map.
+        for (&bid, blk) in &f.blocks {
+            let b = LLVMAppendBasicBlock(llvm_f, EMPTY);
+            ctxt.block_map.insert(bid, b);
+        }
+
+        // init var block.
+        LLVMPositionBuilderAtEnd(ctxt.builder, var_block);
+        for (&var_id, ty) in &f.vars {
+            let ty = translate_ty(ty.clone(), ctxt);
+            let var_v = LLVMBuildAlloca(ctxt.builder, ty, EMPTY);
+            ctxt.var_map.insert(var_id, var_v);
+        }
+        LLVMBuildBr(ctxt.builder, ctxt.block_map[&f.start_block]);
+
+        // translate blocks.
+        for (bid, blk) in f.blocks {
+            translate_block(blk, ctxt);
+        }
+    }
+}
+
+unsafe fn translate_block(block: Block, ctxt: &mut Ctxt) {
+    unimplemented!()
 }
 
 unsafe fn translate_ty(ty: Type, ctxt: &mut Ctxt) -> LLVMTypeRef {
