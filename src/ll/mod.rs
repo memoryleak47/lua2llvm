@@ -1,3 +1,5 @@
+mod translate;
+
 use std::collections::HashMap;
 
 // My own LLVM front end.
@@ -19,36 +21,29 @@ pub enum ValueId {
     Local(LocalValueId), // local to a function. Typically represented by %i
 }
 
+#[derive(Clone)]
 pub struct Module {
     pub structs: HashMap<StructId, Vec<Type>>,
     pub global_defs: HashMap<GlobalValueId, GlobalDef>
 }
 
+#[derive(Clone)]
 pub enum GlobalDef {
     // functions have no special ids in this model. Just GlobalValueIds.
-    Function(FnSig, FnImpl),
+    Function(/*fname:*/ String, /*ftype:*/ Type, Option<FnImpl>),
     String(String),
-}
-
-pub enum FnSource {
-    Extern(/*externally-implemented-fn-name: */ String),
-    Intern(FnImpl),
-}
-
-pub struct FnSig {
-    pub ret_type: Type,
-    pub args: Vec<Type>,
 }
 
 pub type Block = Vec<Statement>;
 
+#[derive(Clone)]
 pub struct FnImpl {
     pub vars: HashMap<VarId, Type>,
-    pub sig: FnSig,
     pub blocks: HashMap<BlockId, Block>,
     pub start_block: BlockId,
 }
 
+#[derive(Clone)]
 pub enum Statement {
     Compute(ValueId, Expr),
     PtrStore(/*val: */ ValueId, /*ptr: */ ValueId),
@@ -59,14 +54,17 @@ pub enum Statement {
     FnCall(/*fn: */ ValueId, /*args: */ Vec<ValueId>, /*ftype: */ Type),
 }
 
+#[derive(Clone)]
 pub enum NumOpKind {
     Plus, Minus, Mul, Div, Mod,
     Lt, Le, Gt, Ge,
     IsEqual, IsNotEqual,
 }
 
+#[derive(Clone)]
 pub enum NumKind { Int, Float }
 
+#[derive(Clone)]
 pub enum Expr {
     NumOp(NumOpKind, NumKind, ValueId, ValueId),
 
@@ -96,7 +94,7 @@ pub enum Expr {
 pub enum Type {
     Pointer(Box<Type>),
     Struct(StructId),
-    Function(Box<Type>, Vec<Type>),
+    Function(/*ret*/ Box<Type>, /*args*/ Vec<Type>),
     Void,
     F64,
     I8,
