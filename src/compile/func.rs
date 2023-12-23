@@ -4,7 +4,6 @@ fn compile_block(fid: FnId, bid: BlockId, ctxt: &mut Ctxt) {
     let f = ctxt.ir.fns[&fid].clone();
     let blk = &f.blocks[&bid];
 
-    ctxt.current_bid = bid;
     ctxt.b.set_active_block(ctxt.blocks[&bid]);
 
     for st in blk {
@@ -74,7 +73,6 @@ fn extract_bool(x: ll::ValueId /* Value */, ctxt: &mut Ctxt) -> ll::ValueId /* i
 }
 
 pub fn compile_fn(fid: FnId, ctxt: &mut Ctxt) {
-    ctxt.current_fid = fid;
     ctxt.blocks = Default::default();
     ctxt.nodes = Default::default();
 

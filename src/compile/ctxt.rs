@@ -13,9 +13,7 @@ pub struct Ctxt {
 
     pub value_struct_id: Option<ll::StructId>,
 
-    // function-local:
-    pub current_fid: FnId,
-    pub current_bid: BlockId,
+    // function-local: (these could be local variables in some functions!)
     pub blocks: HashMap<BlockId, ll::BlockId>,
     pub nodes: HashMap<Node, ll::ValueId>,
 }
@@ -34,8 +32,6 @@ impl Ctxt {
 
             value_struct_id: None,
 
-            current_fid: 0,
-            current_bid: 0,
             blocks: Default::default(),
             nodes: Default::default(),
         }
