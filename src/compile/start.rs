@@ -15,7 +15,7 @@ pub fn compile_start_fn(main_fn: FnId, ctxt: &mut Ctxt) {
     let f = ctxt.lit_fns[&main_fn];
     let args = vec![in_val];
     let ty = ctxt.v2void_t();
-    ctxt.b.push_compute(ll::Expr::FnCall(f, args, ty));
+    ctxt.b.push_fn_call(f, args, ty);
 
-    ctxt.b.push_st(ll::Statement::Return(None));
+    ctxt.b.push_return_void();
 }

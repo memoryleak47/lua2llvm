@@ -10,10 +10,8 @@ pub fn declare_extra_fn(fname: &str, ret: ll::Type, args: &[ll::Type], ctxt: &mu
 pub fn call_extra_fn(fname: &str, args: &[ll::ValueId], ctxt: &mut Ctxt) -> ll::ValueId {
     let f = ctxt.extra_fns[fname];
 
-    let args = args.iter().cloned().collect();
-
     let ll::ValueId::Global(gid) = f else { panic!() };
     let ll::GlobalDef::Function(_, ty, _) = &ctxt.b.m.global_defs[&gid] else { panic!() };
 
-    ctxt.b.push_compute(ll::Expr::FnCall(f, args, ty.clone()))
+    ctxt.b.push_fn_call(f, args, ty.clone())
 }

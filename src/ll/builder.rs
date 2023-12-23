@@ -145,7 +145,7 @@ impl Builder {
 // convenience methods for all Statements / Exprs.
 ///////////////////////////////////////////////////
 
-#[allow(unused)]
+#[allow(dead_code)]
 impl Builder {
 
     // statements
@@ -157,7 +157,7 @@ impl Builder {
         self.push_st(Statement::Return(Some(val)));
     }
 
-    pub fn push_return_void(&mut self, val: ValueId) {
+    pub fn push_return_void(&mut self) {
         self.push_st(Statement::Return(None));
     }
 
@@ -175,8 +175,8 @@ impl Builder {
 
     // exprs
 
-    pub fn push_call(&mut self, call: ValueId, args: &[ValueId], ty: Type) -> ValueId {
-        let args = args.iter().cloned().collect();
+    pub fn push_fn_call(&mut self, call: ValueId, args: impl AsRef<[ValueId]>, ty: Type) -> ValueId {
+        let args = args.as_ref().iter().cloned().collect();
         self.push_compute(Expr::FnCall(call, args, ty))
     }
 
@@ -226,7 +226,7 @@ impl Builder {
 
     pub fn push_ptr_to_int(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::PtrToInt(v, ty)) }
     pub fn push_int_to_ptr(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::IntToPtr(v, ty)) }
-    pub fn push_bitcast(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::BitCast(v, ty)) }
+    pub fn push_bit_cast(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::BitCast(v, ty)) }
     pub fn push_zext(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::ZExt(v, ty)) }
 
     pub fn push_extract_value(&mut self, s: ValueId, i: usize) -> ValueId {

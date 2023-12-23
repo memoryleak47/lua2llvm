@@ -88,13 +88,13 @@ fn alloc(ctxt: &mut Ctxt) -> ll::ValueId {
     let ty = ctxt.value_t();
     let var_id = ctxt.b.alloc_var(ty);
 
-    ctxt.b.push_compute(ll::Expr::Var(var_id))
+    ctxt.b.push_var(var_id)
 }
 
 // will allocate a variable pointing to the Value `x`.
 fn alloc_val(x: ll::ValueId, ctxt: &mut Ctxt) -> ll::ValueId {
     let v = alloc(ctxt);
-    ctxt.b.push_st(ll::Statement::PtrStore(x, v));
+    ctxt.b.push_ptr_store(x, v);
 
     v
 }
@@ -102,5 +102,5 @@ fn alloc_val(x: ll::ValueId, ctxt: &mut Ctxt) -> ll::ValueId {
 // will load a Value*.
 fn load_val(x: ll::ValueId, ctxt: &mut Ctxt) -> ll::ValueId {
     let value_t = ctxt.value_t();
-    ctxt.b.push_compute(ll::Expr::PtrLoad(value_t, x))
+    ctxt.b.push_ptr_load(value_t, x)
 }
