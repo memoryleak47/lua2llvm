@@ -1,7 +1,7 @@
 use crate::ll::*;
 
 pub struct Builder {
-    m: Module,
+    pub m: Module,
     active_fn: Option<ActiveFn>,
 }
 
@@ -33,19 +33,26 @@ impl Builder {
         n
     }
 
-    pub fn alloc_fn(&mut self, name: String, ty: Type) -> ValueId {
-        self.alloc_global_def(GlobalDef::Function(name, ty, None))
+    pub fn alloc_fn(&mut self, name: impl Into<String>, ty: Type) -> ValueId {
+        self.alloc_global_def(GlobalDef::Function(name.into(), ty, None))
     }
 
-    pub fn alloc_string(&mut self, s: String) -> ValueId {
-        self.alloc_global_def(GlobalDef::String(s))
+    pub fn alloc_string(&mut self, s: impl Into<String>) -> ValueId {
+        self.alloc_global_def(GlobalDef::String(s.into()))
     }
 
     pub fn alloc_block(&mut self) -> BlockId {
-        let (a, i) = self.current_impl();
+        let (_, i) = self.current_impl();
         let n = BlockId(i.blocks.len());
         i.blocks.insert(n, vec![]);
 
+        n
+    }
+
+    pub fn alloc_var(&mut self, ty: Type) -> VarId {
+        let (_, i) = self.current_impl();
+        let n = VarId(i.vars.len());
+        i.vars.insert(n, ty);
         n
     }
 
@@ -116,14 +123,14 @@ impl Builder {
         (active, i)
     }
 
-    fn push_st(&mut self, st: Statement) {
+    pub fn push_st(&mut self, st: Statement) {
         let (a, i) = self.current_impl();
         let b = a.active_block.expect("push_st requires an active block!");
         i.blocks.get_mut(&b).unwrap().push(st);
     }
 
-    fn push_compute(&mut self, expr: Expr) -> ValueId {
-        let (a, i) = self.current_impl();
+    pub fn push_compute(&mut self, expr: Expr) -> ValueId {
+        let (a, _) = self.current_impl();
 
         let n = a.next_local_value_id;
         a.next_local_value_id.0 += 1;

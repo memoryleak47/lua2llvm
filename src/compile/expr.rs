@@ -5,21 +5,18 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> ll::ValueId {
         Expr::Nil => mk_nil(ctxt),
         Expr::Bool(b) => {
             let bool_t = ctxt.bool_t();
-            let b = ctxt.push_compute(ll::Expr::ConstInt(bool_t, *b as _));
+            let b = ctxt.b.push_compute(ll::Expr::ConstInt(bool_t, *b as _));
 
             mk_bool(b, ctxt)
         }
         Expr::Num(x) => {
             let f64_t = ctxt.f64_t();
-            let x = ctxt.push_compute(ll::Expr::ConstReal(f64_t, x.const_raw()));
+            let x = ctxt.b.push_compute(ll::Expr::ConstReal(f64_t, x.const_raw()));
 
             mk_num(x, ctxt)
         },
         Expr::Str(s) => {
-            let def = ll::GlobalDef::String(s.to_string());
-            let gid = ctxt.alloc_global(def);
-            let v = ll::ValueId::Global(gid);
-
+            let v = ctxt.b.alloc_string(s);
             mk_str(v, ctxt)
         },
         Expr::NewTable => {
@@ -30,7 +27,6 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> ll::ValueId {
         }
         Expr::Function(fid) => {
             let fid = ctxt.lit_fns[fid];
-            let fid = ll::ValueId::Global(fid);
             mk_fn(fid, ctxt)
         },
         Expr::Index(t, i) => {
@@ -41,7 +37,7 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> ll::ValueId {
             load_val(out, ctxt)
         },
         Expr::Arg => {
-            let param = ctxt.push_compute(ll::Expr::Arg(0));
+            let param = ctxt.b.push_compute(ll::Expr::Arg(0));
             load_val(param, ctxt)
         },
         Expr::BinOp(k, l, r) => compile_binop(*k, l, r, ctxt),
@@ -81,18 +77,18 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> ll::Value
         let lerr = tag_err(l, Tag::NUM, ctxt);
         let rerr = tag_err(r, Tag::NUM, ctxt);
 
-        let err = ctxt.push_compute(ll::Expr::Or(lerr, rerr));
+        let err = ctxt.b.push_compute(ll::Expr::Or(lerr, rerr));
         err_chk(err, "trying to calculate with non-nums!", ctxt);
 
         let l = extract_num(l, ctxt);
         let r = extract_num(r, ctxt);
 
         let x = match k {
-            BinOpKind::Plus => ctxt.push_compute(ll::Expr::NumOp(ll::NumOpKind::Plus, ll::NumKind::Float, l, r)),
-            BinOpKind::Minus => ctxt.push_compute(ll::Expr::NumOp(ll::NumOpKind::Minus, ll::NumKind::Float, l, r)),
-            BinOpKind::Mul => ctxt.push_compute(ll::Expr::NumOp(ll::NumOpKind::Mul, ll::NumKind::Float, l, r)),
-            BinOpKind::Div => ctxt.push_compute(ll::Expr::NumOp(ll::NumOpKind::Div, ll::NumKind::Float, l, r)),
-            BinOpKind::Mod => ctxt.push_compute(ll::Expr::NumOp(ll::NumOpKind::Mod, ll::NumKind::Float, l, r)),
+            BinOpKind::Plus => ctxt.b.push_compute(ll::Expr::NumOp(ll::NumOpKind::Plus, ll::NumKind::Float, l, r)),
+            BinOpKind::Minus => ctxt.b.push_compute(ll::Expr::NumOp(ll::NumOpKind::Minus, ll::NumKind::Float, l, r)),
+            BinOpKind::Mul => ctxt.b.push_compute(ll::Expr::NumOp(ll::NumOpKind::Mul, ll::NumKind::Float, l, r)),
+            BinOpKind::Div => ctxt.b.push_compute(ll::Expr::NumOp(ll::NumOpKind::Div, ll::NumKind::Float, l, r)),
+            BinOpKind::Mod => ctxt.b.push_compute(ll::Expr::NumOp(ll::NumOpKind::Mod, ll::NumKind::Float, l, r)),
             BinOpKind::Pow => call_extra_fn("pow", &[l, r], ctxt),
             _ => unreachable!(),
         };
@@ -104,7 +100,7 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> ll::Value
 
         let mut b /* i1 */ = call_extra_fn("eq", &[l, r], ctxt);
         if matches!(k, IsNotEqual) {
-            b = ctxt.push_compute(ll::Expr::Not(b));
+            b = ctxt.b.push_compute(ll::Expr::Not(b));
         }
 
         mk_bool(b, ctxt)
@@ -120,7 +116,7 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> ll::Value
         let lerr = tag_err(l, Tag::NUM, ctxt);
         let rerr = tag_err(r, Tag::NUM, ctxt);
 
-        let err = ctxt.push_compute(ll::Expr::Or(lerr, rerr));
+        let err = ctxt.b.push_compute(ll::Expr::Or(lerr, rerr));
         err_chk(err, "trying to compare non-nums!", ctxt);
 
         let l = extract_num(l, ctxt);
@@ -134,7 +130,7 @@ fn compile_binop(k: BinOpKind, l: &Node, r: &Node, ctxt: &mut Ctxt) -> ll::Value
             _ => unreachable!(),
         };
 
-        let x = ctxt.push_compute(ll::Expr::NumOp(kind, ll::NumKind::Float, l, r));
+        let x = ctxt.b.push_compute(ll::Expr::NumOp(kind, ll::NumKind::Float, l, r));
 
         mk_bool(x, ctxt)
     } else { unreachable!() }

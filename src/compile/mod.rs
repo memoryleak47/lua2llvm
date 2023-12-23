@@ -37,10 +37,8 @@ pub enum Tag {
 pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
     let mut ctxt = Ctxt::new(ir, inf, layout);
 
-    let start_function_type = ll::Type::Function(Box::new(ll::Type::Void), vec![]);
-    ctxt.start_fn = ctxt.alloc_fn("main".to_string(), start_function_type);
     let i64_t = ctxt.i64_t();
-    ctxt.m.structs.insert(ll::StructId(0), vec![i64_t.clone(), i64_t]);
+    ctxt.value_struct_id = Some(ctxt.b.alloc_struct(vec![i64_t.clone(), i64_t]));
 
     // table implementation:
     declare_extra_fn("new_table", ctxt.void_t(), &[ctxt.value_ptr_t()], &mut ctxt);
@@ -70,7 +68,7 @@ pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
     for &fid in &fids {
         let name = format!("f{}", fid);
         let v2void_t = ctxt.v2void_t();
-        let function = ctxt.alloc_fn(name, v2void_t);
+        let function = ctxt.b.alloc_fn(name, v2void_t);
         ctxt.lit_fns.insert(fid, function);
     }
 
@@ -82,23 +80,21 @@ pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
         compile_fn(fid, &mut ctxt);
     }
 
-    ll::dump(ctxt.m);
+    ll::dump(ctxt.b.finish());
 }
 
 // will allocate a variable of type Value.
 fn alloc(ctxt: &mut Ctxt) -> ll::ValueId {
     let ty = ctxt.value_t();
-    let f = ctxt.current_fn_impl();
-    let n = ll::VarId(f.vars.len());
-    f.vars.insert(n, ty);
+    let var_id = ctxt.b.alloc_var(ty);
 
-    ctxt.push_compute(ll::Expr::Var(n))
+    ctxt.b.push_compute(ll::Expr::Var(var_id))
 }
 
 // will allocate a variable pointing to the Value `x`.
 fn alloc_val(x: ll::ValueId, ctxt: &mut Ctxt) -> ll::ValueId {
     let v = alloc(ctxt);
-    ctxt.push_st(ll::Statement::PtrStore(x, v));
+    ctxt.b.push_st(ll::Statement::PtrStore(x, v));
 
     v
 }
@@ -106,5 +102,5 @@ fn alloc_val(x: ll::ValueId, ctxt: &mut Ctxt) -> ll::ValueId {
 // will load a Value*.
 fn load_val(x: ll::ValueId, ctxt: &mut Ctxt) -> ll::ValueId {
     let value_t = ctxt.value_t();
-    ctxt.push_compute(ll::Expr::PtrLoad(value_t, x))
+    ctxt.b.push_compute(ll::Expr::PtrLoad(value_t, x))
 }
