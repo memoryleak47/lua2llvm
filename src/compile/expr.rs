@@ -4,14 +4,12 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> ll::ValueId {
     match e {
         Expr::Nil => mk_nil(ctxt),
         Expr::Bool(b) => {
-            let bool_t = ctxt.bool_t();
-            let b = ctxt.b.push_const_int(bool_t, *b as _);
+            let b = ctxt.b.push_const_int(ctxt.bool_t(), *b as _);
 
             mk_bool(b, ctxt)
         }
         Expr::Num(x) => {
-            let f64_t = ctxt.f64_t();
-            let x = ctxt.b.push_const_real(f64_t, x.const_raw());
+            let x = ctxt.b.push_const_real(ctxt.f64_t(), x.const_raw());
 
             mk_num(x, ctxt)
         },

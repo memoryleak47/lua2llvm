@@ -55,18 +55,15 @@ fn fn_call(f_val: ll::ValueId /* Value with FN tag */, arg: ll::ValueId, ctxt: &
 
     // call fn
     let f /* i64 */ = ctxt.b.push_extract_value(f_val, 1);
-    let v2void_ptr_t = ctxt.v2void_ptr_t();
-    let f /* void (*fn)(Value) */ = ctxt.b.push_int_to_ptr(f, v2void_ptr_t);
+    let f /* void (*fn)(Value) */ = ctxt.b.push_int_to_ptr(f, ctxt.v2void_ptr_t());
     let args = vec![alloc_val(arg, ctxt)];
-    let ty = ctxt.v2void_t();
-    ctxt.b.push_fn_call(f, args, ty);
+    ctxt.b.push_fn_call(f, args, ctxt.v2void_t());
 }
 
 
 fn extract_bool(x: ll::ValueId /* Value */, ctxt: &mut Ctxt) -> ll::ValueId /* i1 */ {
     let val = ctxt.b.push_extract_value(x, 1);
-    let i64_t = ctxt.i64_t();
-    let one = ctxt.b.push_const_int(i64_t, 1);
+    let one = ctxt.b.push_const_int(ctxt.i64_t(), 1);
     let ret = ctxt.b.push_i_is_equal(val, one);
 
     ret

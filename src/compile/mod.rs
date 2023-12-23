@@ -37,8 +37,7 @@ pub enum Tag {
 pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
     let mut ctxt = Ctxt::new(ir, inf, layout);
 
-    let i64_t = ctxt.i64_t();
-    ctxt.value_struct_id = Some(ctxt.b.alloc_struct(vec![i64_t.clone(), i64_t]));
+    ctxt.value_struct_id = Some(ctxt.b.alloc_struct(vec![ctxt.i64_t(), ctxt.i64_t()]));
 
     // table implementation:
     declare_extra_fn("new_table", ctxt.void_t(), &[ctxt.value_ptr_t()], &mut ctxt);
@@ -67,8 +66,7 @@ pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
 
     for &fid in &fids {
         let name = format!("f{}", fid);
-        let v2void_t = ctxt.v2void_t();
-        let function = ctxt.b.alloc_fn(name, v2void_t);
+        let function = ctxt.b.alloc_fn(name, ctxt.v2void_t());
         ctxt.lit_fns.insert(fid, function);
     }
 
@@ -85,8 +83,7 @@ pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
 
 // will allocate a variable of type Value.
 fn alloc(ctxt: &mut Ctxt) -> ll::ValueId {
-    let ty = ctxt.value_t();
-    let var_id = ctxt.b.alloc_var(ty);
+    let var_id = ctxt.b.alloc_var(ctxt.value_t());
 
     ctxt.b.push_var(var_id)
 }
@@ -101,6 +98,5 @@ fn alloc_val(x: ll::ValueId, ctxt: &mut Ctxt) -> ll::ValueId {
 
 // will load a Value*.
 fn load_val(x: ll::ValueId, ctxt: &mut Ctxt) -> ll::ValueId {
-    let value_t = ctxt.value_t();
-    ctxt.b.push_ptr_load(value_t, x)
+    ctxt.b.push_ptr_load(ctxt.value_t(), x)
 }
