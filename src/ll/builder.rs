@@ -248,4 +248,12 @@ impl Builder {
     pub fn push_const_int(&mut self, ty: Type, v: i64) -> ValueId {
         self.push_compute(Expr::ConstInt(ty, v))
     }
+
+    pub fn push_gep(&mut self, struct_ty: Type, ptr: ValueId, i: usize) -> ValueId {
+        self.push_compute(Expr::Gep(struct_ty, ptr, i))
+    }
+
+    pub fn push_size_of(&mut self, ty: Type) -> ValueId {
+        self.push_compute(Expr::SizeOf(ty))
+    }
 }

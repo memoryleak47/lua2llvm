@@ -60,6 +60,8 @@ pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
     declare_extra_fn("type", ctxt.void_t(), &[ctxt.value_ptr_t(), ctxt.value_ptr_t()], &mut ctxt);
     declare_extra_fn("throw_", ctxt.void_t(), &[ctxt.str_t()], &mut ctxt);
 
+    declare_extra_fn("malloc", ctxt.void_ptr_t(), &[ctxt.i64_t()], &mut ctxt);
+
     // declare lit fns
     let mut fids: Vec<_> = ctxt.ir.fns.keys().cloned().collect();
     fids.sort();

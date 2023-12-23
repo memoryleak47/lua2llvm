@@ -49,6 +49,10 @@ impl Ctxt {
         ll::Type::Void
     }
 
+    pub fn void_ptr_t(&self) -> ll::Type {
+        ll::Type::Pointer(Box::new(ll::Type::Void))
+    }
+
     pub fn f64_t(&self) -> ll::Type {
         ll::Type::F64
     }

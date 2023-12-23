@@ -98,6 +98,9 @@ pub enum Expr {
 
     ConstReal(/*ty: */ Type, /*value: */ f64),
     ConstInt(/*ty: */ Type, /*value: */ i64),
+
+    Gep(/*struct-ty: */ Type, /*ptr: */ ValueId, /*index: */ usize),
+    SizeOf(/*ty: */ Type),
 }
 
 #[derive(Clone, PartialEq, Eq)]

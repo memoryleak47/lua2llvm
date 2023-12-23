@@ -322,6 +322,15 @@ unsafe fn translate_expr(expr: Expr, llvm_f: LLVMValueRef, ctxt: &mut Ctxt) -> L
                 let ty = translate_ty(ty, ctxt);
                 LLVMConstInt(ty, x.try_into().unwrap(), 0)
             },
+            Gep(struct_ty, ptr, i) => {
+                let struct_ty = translate_ty(struct_ty, ctxt);
+                let ptr = translate_value(ptr, ctxt);
+                LLVMBuildStructGEP2(ctxt.builder, struct_ty, ptr, i as u32, EMPTY)
+            },
+            SizeOf(ty) => {
+                let ty = translate_ty(ty, ctxt);
+                LLVMSizeOf(ty)
+            },
         }
     }
     

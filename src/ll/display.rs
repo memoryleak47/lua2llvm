@@ -179,6 +179,9 @@ impl Display for Expr {
 
             ConstReal(ty, val) => write!(f, "{}({})", ty, val),
             ConstInt(ty, val) => write!(f, "{}({})", ty, val),
+
+            Gep(struct_ty, ptr, i) => write!(f, "Gep({}, {}, {})", struct_ty, ptr, i),
+            SizeOf(ty) => write!(f, "SizeOf({})", ty),
         }
     }
 }
