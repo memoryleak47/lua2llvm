@@ -6,6 +6,9 @@ pub use translate::dump;
 
 mod display;
 
+mod builder;
+pub use builder::*;
+
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
