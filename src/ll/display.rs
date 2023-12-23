@@ -169,7 +169,7 @@ impl Display for Expr {
             Arg(i) => write!(f, "arg({})", i),
 
             PtrToInt(v, ty) => write!(f, "PtrToInt({}, {})", v, ty),
-            IntToPtr(v, ty) => write!(f, "IntToPtr{}, {})", v, ty),
+            IntToPtr(v, ty) => write!(f, "IntToPtr({}, {})", v, ty),
             BitCast(v, ty) => write!(f, "BitCast({}, {})", v, ty),
             ZExt(v, ty) => write!(f, "ZExt({}, {})", v, ty),
 
