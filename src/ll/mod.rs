@@ -1,15 +1,12 @@
+// My own LLVM front end.
+// It exposes a subset of the llvm-sys C API, but with a rusty API.
+
 mod translate;
 pub use translate::dump;
 
 mod display;
 
 use std::collections::HashMap;
-
-// My own LLVM front end.
-// It exposes a subset of the llvm-sys C API, but with a rusty API.
-
-// XXX My first and foremost goal is to use this in lua2llvm.
-// Hence I'll ignore all features that I won't use right away.
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StructId(pub usize);
