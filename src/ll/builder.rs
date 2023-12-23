@@ -139,6 +139,113 @@ impl Builder {
 
         ValueId::Local(n)
     }
+}
 
-    // TODO add convenience methods for all Statements / Exprs.
+///////////////////////////////////////////////////
+// convenience methods for all Statements / Exprs.
+///////////////////////////////////////////////////
+
+#[allow(unused)]
+impl Builder {
+
+    // statements
+    pub fn push_ptr_store(&mut self, val: ValueId, ptr: ValueId) {
+        self.push_st(Statement::PtrStore(val, ptr));
+    }
+
+    pub fn push_return(&mut self, val: ValueId) {
+        self.push_st(Statement::Return(Some(val)));
+    }
+
+    pub fn push_return_void(&mut self, val: ValueId) {
+        self.push_st(Statement::Return(None));
+    }
+
+    pub fn push_unreachable(&mut self) {
+        self.push_st(Statement::Unreachable);
+    }
+
+    pub fn push_cond_br(&mut self, cond: ValueId, then: BlockId, else_: BlockId) {
+        self.push_st(Statement::CondBr(cond, then, else_));
+    }
+
+    pub fn push_br(&mut self, target: BlockId) {
+        self.push_st(Statement::Br(target));
+    }
+
+    // exprs
+
+    pub fn push_call(&mut self, call: ValueId, args: &[ValueId], ty: Type) -> ValueId {
+        let args = args.iter().cloned().collect();
+        self.push_compute(Expr::FnCall(call, args, ty))
+    }
+
+    pub fn push_i_plus(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Plus, NumKind::Int, l, r)) }
+    pub fn push_i_minus(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Minus, NumKind::Int, l, r)) }
+    pub fn push_i_mul(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Mul, NumKind::Int, l, r)) }
+    pub fn push_i_div(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Div, NumKind::Int, l, r)) }
+    pub fn push_i_mod(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Mod, NumKind::Int, l, r)) }
+    pub fn push_i_lt(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Lt, NumKind::Int, l, r)) }
+    pub fn push_i_le(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Le, NumKind::Int, l, r)) }
+    pub fn push_i_gt(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Gt, NumKind::Int, l, r)) }
+    pub fn push_i_ge(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Ge, NumKind::Int, l, r)) }
+    pub fn push_i_is_equal(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::IsEqual, NumKind::Int, l, r)) }
+    pub fn push_i_is_not_equal(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::IsNotEqual, NumKind::Int, l, r)) }
+
+    pub fn push_f_plus(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Plus, NumKind::Float, l, r)) }
+    pub fn push_f_minus(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Minus, NumKind::Float, l, r)) }
+    pub fn push_f_mul(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Mul, NumKind::Float, l, r)) }
+    pub fn push_f_div(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Div, NumKind::Float, l, r)) }
+    pub fn push_f_mod(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Mod, NumKind::Float, l, r)) }
+    pub fn push_f_lt(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Lt, NumKind::Float, l, r)) }
+    pub fn push_f_le(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Le, NumKind::Float, l, r)) }
+    pub fn push_f_gt(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Gt, NumKind::Float, l, r)) }
+    pub fn push_f_ge(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::Ge, NumKind::Float, l, r)) }
+    pub fn push_f_is_equal(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::IsEqual, NumKind::Float, l, r)) }
+    pub fn push_f_is_not_equal(&mut self, l: ValueId, r: ValueId) -> ValueId { self.push_compute(Expr::NumOp(NumOpKind::IsNotEqual, NumKind::Float, l, r)) }
+
+    pub fn push_ptr_load(&mut self, ty: Type, ptr: ValueId) -> ValueId {
+        self.push_compute(Expr::PtrLoad(ty, ptr))
+    }
+
+    pub fn push_not(&mut self, x: ValueId) -> ValueId {
+        self.push_compute(Expr::Not(x))
+    }
+
+    pub fn push_or(&mut self, l: ValueId, r: ValueId) -> ValueId {
+        self.push_compute(Expr::Or(l, r))
+    }
+
+    pub fn push_var(&mut self, var_id: VarId) -> ValueId {
+        self.push_compute(Expr::Var(var_id))
+    }
+
+    pub fn push_arg(&mut self, i: usize) -> ValueId {
+        self.push_compute(Expr::Arg(i))
+    }
+
+    pub fn push_ptr_to_int(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::PtrToInt(v, ty)) }
+    pub fn push_int_to_ptr(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::IntToPtr(v, ty)) }
+    pub fn push_bitcast(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::BitCast(v, ty)) }
+    pub fn push_zext(&mut self, v: ValueId, ty: Type) -> ValueId { self.push_compute(Expr::ZExt(v, ty)) }
+
+    pub fn push_extract_value(&mut self, s: ValueId, i: usize) -> ValueId {
+        self.push_compute(Expr::ExtractValue(s, i))
+    }
+
+    pub fn push_insert_value(&mut self, s: ValueId, v: ValueId, i: usize) -> ValueId {
+        self.push_compute(Expr::InsertValue(s, v, i))
+    }
+
+    pub fn push_poison(&mut self, ty: Type) -> ValueId {
+        self.push_compute(Expr::Poison(ty))
+    }
+
+    pub fn push_const_real(&mut self, ty: Type, v: f64) -> ValueId {
+        self.push_compute(Expr::ConstReal(ty, v))
+    }
+
+    pub fn push_const_int(&mut self, ty: Type, v: i64) -> ValueId {
+        self.push_compute(Expr::ConstInt(ty, v))
+    }
 }
