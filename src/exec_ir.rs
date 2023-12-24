@@ -205,11 +205,13 @@ pub fn exec(ir: &IR) {
     call_fn(ir.main_fn, Value::Nil, &mut ctxt);
 
     while ctxt.stack.len() > 0 {
-        step(&mut ctxt);
+        if step(&mut ctxt).is_none() {
+            break;
+        }
     }
 }
 
-fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
+fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) -> Option<()> {
     ctxt.fcx_mut().statement_idx += 1;
 
     use Statement::*;
@@ -256,18 +258,19 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) {
             }
         }
         Throw(s) => {
-            // TODO only terminate this execution, not our whole Rust program.
             println!("ERROR: {}", s);
-            std::process::exit(0);
+            return None;
         }
         Return => {
             ctxt.stack.pop();
         },
     }
+
+    Some(())
 }
 
-fn step(ctxt: &mut Ctxt) {
+fn step(ctxt: &mut Ctxt) -> Option<()> {
     let l: &FnCtxt = ctxt.stack.last().unwrap();
     let stmt = ctxt.ir.fns[&l.fn_id].blocks[&l.block_id].get(l.statement_idx).unwrap();
-    step_stmt(stmt, ctxt);
+    step_stmt(stmt, ctxt)
 }
