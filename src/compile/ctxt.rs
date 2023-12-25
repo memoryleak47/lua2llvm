@@ -12,6 +12,7 @@ pub struct Ctxt {
     pub extra_fns: HashMap<String, ll::ValueId>,
 
     pub value_struct_id: Option<ll::StructId>,
+    pub layout_structs: HashMap<Location, ll::StructId>,
 
     // function-local: (these could be local variables in some functions!)
     pub blocks: HashMap<BlockId, ll::BlockId>,
@@ -31,6 +32,7 @@ impl Ctxt {
             extra_fns: Default::default(),
 
             value_struct_id: None,
+            layout_structs: Default::default(),
 
             blocks: Default::default(),
             nodes: Default::default(),

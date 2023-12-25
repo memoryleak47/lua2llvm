@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::ir::*;
-use crate::infer::Infer;
-use crate::layout::Layout;
+use crate::infer::*;
+use crate::layout::*;
 use crate::ll;
 
 mod ctxt;
@@ -38,6 +38,13 @@ pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
     let mut ctxt = Ctxt::new(ir, inf, layout);
 
     ctxt.value_struct_id = Some(ctxt.b.alloc_struct(vec![ctxt.i64_t(), ctxt.i64_t()]));
+
+    for (loc, ly) in ctxt.layout.table_layouts.clone() {
+        let TableLayout::Struct(fields) = ly else { continue };
+        let fields = fields.iter().map(|_| ctxt.value_t()).collect();
+        let struct_id = ctxt.b.alloc_struct(fields);
+        ctxt.layout_structs.insert(loc, struct_id);
+    }
 
     // table implementation:
     declare_extra_fn("new_table", ctxt.void_t(), &[ctxt.value_ptr_t()], &mut ctxt);
