@@ -20,34 +20,32 @@ pub enum TableLayout {
 
 pub fn layout(ir: &IR, inf: &Infer) -> Layout {
     let mut ly = Layout { table_layouts: HashMap::new() };
+
     for stmt in util::stmts(ir) {
-        for (_, rt_stack) in util::specs_of_stmt(stmt, inf) {
-            handle_spec_stmt(ir, inf, &rt_stack, stmt, &mut ly);
-        }
+        handle_spec_stmt(ir, inf, stmt, &mut ly);
     }
 
     ly
 }
 
-fn handle_spec_stmt(ir: &IR, inf: &Infer, rt_stack: &RtStack, stmt: Stmt, ly: &mut Layout) {
+fn handle_spec_stmt(ir: &IR, inf: &Infer, stmt: Stmt, ly: &mut Layout) {
     let st = util::deref_stmt(stmt, ir);
-    let state = &inf.local_state[rt_stack];
-    if !state.executed { return; }
 
     // If two different locations are contained in any Value, we disqualify both of them and fall back to HashTable.
     // The reason we do this is that we don't want to have multiple tables in one runtime value with different layouts.
     fn chk_value(val: &Value, ly: &mut Layout) {
-        let locs: HashSet<_> = val.classes.iter().map(|x| x.location()).collect();
-        if locs.len() > 1 {
-            for loc in locs {
-                ly.table_layouts.insert(loc, TableLayout::HashTable);
+        if single_loc_value(val).is_none() {
+            for cl in val.classes.iter() {
+                ly.table_layouts.insert(cl.location(), TableLayout::HashTable);
             }
         }
     }
 
-    // We only check the above for nodes, as this is where the probably would eventually arise.
-    for (_, val) in &state.nodes {
-        chk_value(val, ly);
+    // We only check the above for nodes, as this is where the collision would eventually arise.
+    if let Statement::Compute(n, _) = st {
+        let stmt2 = (stmt.0, stmt.1, stmt.2 + 1);
+        let v = merged_value(n, stmt2, inf);
+        chk_value(&v, ly);
     }
 
     // Every table starts off by trying to be a struct.
@@ -57,6 +55,7 @@ fn handle_spec_stmt(ir: &IR, inf: &Infer, rt_stack: &RtStack, stmt: Stmt, ly: &m
         }
     }
 
+
     match st {
 
         Statement::Compute(_, Expr::NewTable) => {
@@ -64,9 +63,9 @@ fn handle_spec_stmt(ir: &IR, inf: &Infer, rt_stack: &RtStack, stmt: Stmt, ly: &m
             init_if_missing(loc, ly);
         },
 
-        // Having `next` called on any location disqualifies it from being a struct.
-        Statement::Compute(_, Expr::Next(t, _)) => {
-            state.nodes[&t].classes.iter()
+        // Having `next` / `len` called on any location disqualifies it from being a struct.
+        Statement::Compute(_, Expr::Next(t, _) | Expr::Len(t)) => {
+            merged_value(t, stmt, inf).classes.iter()
                 .map(|x| x.location())
                 .for_each(|l| {
                     ly.table_layouts.insert(l, TableLayout::HashTable);
@@ -75,9 +74,9 @@ fn handle_spec_stmt(ir: &IR, inf: &Infer, rt_stack: &RtStack, stmt: Stmt, ly: &m
 
         // - All its set & get usages have completely inferred concrete non-table keys (bools/nums/strings).
         Statement::Compute(_, Expr::Index(t, idx)) | Statement::Store(t, idx, _) => {
-            let Some(loc) = single_loc_value(&state.nodes[&t]) else { return; };
+            let Some(loc) = single_loc_value(&merged_value(t, stmt, inf)) else { return; };
 
-            let idx: &Value = &state.nodes[&idx];
+            let idx: &Value = &merged_value(idx, stmt, inf);
             let good_idx = idx.is_concrete() && idx.classes.is_empty();
             if good_idx {
                 init_if_missing(loc, ly);
@@ -96,7 +95,7 @@ fn handle_spec_stmt(ir: &IR, inf: &Infer, rt_stack: &RtStack, stmt: Stmt, ly: &m
     }
 }
 
-fn single_loc_value(value: &Value) -> Option<Location> {
+pub fn single_loc_value(value: &Value) -> Option<Location> {
     // `value` is only allowed to store classes, nothing else.
     let mut copy = Value::bot();
     copy.classes = value.classes.clone();
@@ -109,3 +108,16 @@ fn single_loc_value(value: &Value) -> Option<Location> {
     if locs.len() != 1 { return None; }
     locs.into_iter().next()
 }
+
+pub fn merged_value(t: Node, stmt: Stmt, inf: &Infer) -> Value {
+    let mut merged = Value::bot();
+    for (_, rtstack) in crate::optimize::util::specs_of_stmt(stmt, &inf) {
+        let local_state = &inf.local_state[&rtstack];
+        if let Some(v) = local_state.nodes.get(&t) {
+            merged = merged.merge(v);
+        }
+    }
+
+    merged
+}
+

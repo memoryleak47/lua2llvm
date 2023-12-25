@@ -43,7 +43,8 @@ pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
         let TableLayout::Struct(fields) = ly else { continue };
         let fields = fields.iter().map(|_| ctxt.value_t()).collect();
         let struct_id = ctxt.b.alloc_struct(fields);
-        ctxt.layout_structs.insert(loc, struct_id);
+        let struct_ty = ll::Type::Struct(struct_id);
+        ctxt.layout_structs.insert(loc, struct_ty);
     }
 
     // table implementation:

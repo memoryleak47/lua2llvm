@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> ll::ValueId {
+pub fn compile_expr(e: &Expr, stmt: Stmt, ctxt: &mut Ctxt) -> ll::ValueId {
     match e {
         Expr::Nil => mk_nil(ctxt),
         Expr::Bool(b) => {
@@ -18,21 +18,33 @@ pub fn compile_expr(e: &Expr, ctxt: &mut Ctxt) -> ll::ValueId {
             mk_str(v, ctxt)
         },
         Expr::NewTable => {
-            let var = alloc(ctxt);
-            call_extra_fn("new_table", &[var], ctxt);
+            let loc = Location(stmt);
+            if let Some(struct_ty) = &ctxt.layout_structs.get(&loc) {
+                let struct_size = ctxt.b.push_size_of((**struct_ty).clone());
+                let ptr = call_extra_fn("malloc", &[struct_size], ctxt);
 
-            load_val(var, ctxt)
+                mk_table(ptr, ctxt)
+            } else {
+                let var = alloc(ctxt);
+                call_extra_fn("new_table", &[var], ctxt);
+
+                load_val(var, ctxt)
+            }
         }
         Expr::Function(fid) => {
             let fid = ctxt.lit_fns[fid];
             mk_fn(fid, ctxt)
         },
         Expr::Index(t, i) => {
-            let t = alloc_val(ctxt.nodes[t], ctxt);
-            let i = alloc_val(ctxt.nodes[i], ctxt);
-            let out = alloc(ctxt);
-            call_extra_fn("table_get", &[t, i, out], ctxt);
-            load_val(out, ctxt)
+            if let Some(field_ptr) = infer_struct_field_ptr(*t, *i, stmt, ctxt) {
+                load_val(field_ptr, ctxt)
+            } else {
+                let t = alloc_val(ctxt.nodes[t], ctxt);
+                let i = alloc_val(ctxt.nodes[i], ctxt);
+                let out = alloc(ctxt);
+                call_extra_fn("table_get", &[t, i, out], ctxt);
+                load_val(out, ctxt)
+            }
         },
         Expr::Arg => {
             let param = ctxt.b.push_arg(0);

@@ -6,17 +6,22 @@ fn compile_block(fid: FnId, bid: BlockId, ctxt: &mut Ctxt) {
 
     ctxt.b.set_active_block(ctxt.blocks[&bid]);
 
-    for st in blk {
+    for (sid, st) in blk.iter().enumerate() {
         match st {
             Statement::Compute(n, e) => {
-                let vref = compile_expr(e, ctxt);
+                let vref = compile_expr(e, (fid, bid, sid), ctxt);
                 ctxt.nodes.insert(*n, vref);
             },
             Statement::Store(t, i, v) => {
-                let t = alloc_val(ctxt.nodes[t], ctxt);
-                let i = alloc_val(ctxt.nodes[i], ctxt);
-                let v = alloc_val(ctxt.nodes[v], ctxt);
-                call_extra_fn("table_set", &[t, i, v], ctxt);
+                if let Some(field_ptr) = infer_struct_field_ptr(*t, *i, (fid, bid, sid), ctxt) {
+                    let v = ctxt.nodes[v];
+                    ctxt.b.push_ptr_store(v, field_ptr);
+                } else {
+                    let t = alloc_val(ctxt.nodes[t], ctxt);
+                    let i = alloc_val(ctxt.nodes[i], ctxt);
+                    let v = alloc_val(ctxt.nodes[v], ctxt);
+                    call_extra_fn("table_set", &[t, i, v], ctxt);
+                }
             },
             Statement::If(cond, then_bid, else_bid) => {
                 let cond = ctxt.nodes[cond];
@@ -46,6 +51,23 @@ fn compile_block(fid: FnId, bid: BlockId, ctxt: &mut Ctxt) {
             },
         }
     }
+}
+
+pub fn infer_struct_field_ptr(t: Node, i: Node, stmt: Stmt, ctxt: &mut Ctxt) -> Option<ll::ValueId> {
+    let t_val = merged_value(t, stmt, &ctxt.inf);
+    let i_val = merged_value(i, stmt, &ctxt.inf);
+    let loc = single_loc_value(&t_val)?;
+    let TableLayout::Struct(values) = &ctxt.layout.table_layouts[&loc] else { return None };
+
+    let i = values.iter().position(|value| value == &i_val).unwrap();
+
+    let struct_ty = ctxt.layout_structs[&loc].clone();
+    let t = ctxt.nodes[&t];
+    let t = ctxt.b.push_extract_value(t, 1);
+    let t = ctxt.b.push_int_to_ptr(t, ll::Type::Pointer(Box::new(struct_ty.clone())));
+    let field_ptr = ctxt.b.push_gep(struct_ty, t, i);
+
+    Some(field_ptr)
 }
 
 fn fn_call(f_val: ll::ValueId /* Value with FN tag */, arg: ll::ValueId, ctxt: &mut Ctxt) {

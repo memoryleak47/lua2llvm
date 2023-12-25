@@ -72,6 +72,17 @@ pub fn mk_bool(x: ll::ValueId /* i1 */, ctxt: &mut Ctxt) -> ll::ValueId {
     a
 }
 
+pub fn mk_table(x: ll::ValueId /* table* */, ctxt: &mut Ctxt) -> ll::ValueId {
+    let x = ctxt.b.push_ptr_to_int(x, ctxt.i64_t());
+    let tag = ctxt.b.push_const_int(ctxt.i64_t(), Tag::TABLE_PTR as _);
+
+    let a = ctxt.b.push_poison(ctxt.value_t());
+    let a = ctxt.b.push_insert_value(a, tag, 0);
+    let a = ctxt.b.push_insert_value(a, x, 1);
+
+    a
+}
+
 pub fn extract_num(x: ll::ValueId /* Value */, ctxt: &mut Ctxt) -> ll::ValueId {
     let x = ctxt.b.push_extract_value(x, 1);
     let x = ctxt.b.push_bit_cast(x, ctxt.f64_t());
