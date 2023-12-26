@@ -5,7 +5,7 @@ use std::fmt::{self, Formatter, Display};
 pub fn display_fn_header(fid: FnId, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
     let main_prefix = if ir.main_fn == fid { "main " } else { "" };
 
-    write!(f, "{main_prefix}function f{fid}:\n")
+    write!(f, "{main_prefix}function f{fid}():\n")
 }
 
 pub fn display_fn_footer(f: &mut Formatter<'_>) -> fmt::Result {
