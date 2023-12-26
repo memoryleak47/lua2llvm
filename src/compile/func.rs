@@ -82,15 +82,6 @@ fn fn_call(f_val: ll::ValueId /* Value with FN tag */, arg: ll::ValueId, ctxt: &
     ctxt.b.push_fn_call(f, args, ctxt.v2void_t());
 }
 
-
-fn extract_bool(x: ll::ValueId /* Value */, ctxt: &mut Ctxt) -> ll::ValueId /* i1 */ {
-    let val = ctxt.b.push_extract_value(x, 1);
-    let one = ctxt.b.push_const_int(ctxt.i64_t(), 1);
-    let ret = ctxt.b.push_i_is_equal(val, one);
-
-    ret
-}
-
 pub fn compile_fn(fid: FnId, ctxt: &mut Ctxt) {
     ctxt.blocks = Default::default();
     ctxt.nodes = Default::default();
