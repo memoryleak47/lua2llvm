@@ -1,6 +1,6 @@
 local m = {}
 
-function m.sieve(N)
+m.sieve = function(N)
     local is_prime = {}
     is_prime[1] = false
     for n = 2, N do

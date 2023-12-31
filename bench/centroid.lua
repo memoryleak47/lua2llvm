@@ -1,10 +1,10 @@
 local m = {}
 
-function m.new(x, y)
+m.new = function(x, y)
     return { x, y }
 end
 
-function m.centroid(points, nrep)
+m.centroid = function(points, nrep)
     local x = 0.0
     local y = 0.0
     local npoints = #points

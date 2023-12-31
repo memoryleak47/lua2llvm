@@ -1,6 +1,6 @@
 local m = {}
 
-function m.matmul(A, B)
+m.matmul = function(A, B)
     local C = {}
     local NI = #A
     local NK = #B
@@ -26,7 +26,15 @@ function m.matmul(A, B)
 end
 
 local N   = 800
-local REP = math.max(1.0, 2 * (800/N)^3)
+
+local max = function(a, b)
+    if a > b then
+        return a
+    end
+    return b
+end
+
+local REP = max(1.0, 2 * (800/N)^3)
 
 -- Suggested values for N, REP:
 --  800,    2

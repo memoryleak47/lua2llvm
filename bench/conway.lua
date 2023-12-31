@@ -4,7 +4,7 @@ local ALIVE = "*"
 local DEAD  = " "
 
 -- Create a new grid for the simulation.
-function m.new_canvas(N, M)
+m.new_canvas = function(N, M)
     local t = {}
     for i = 1, N do
         local line = {}
@@ -17,12 +17,12 @@ function m.new_canvas(N, M)
 end
 
 -- Our grid has a toroidal topology with wraparound
-function m.wrap(i, N)
+m.wrap = function(i, N)
     return (i - 1) % N + 1
 end
 
 -- Print the grid to stdout.
-function m.draw(N, M, cells)
+m.draw = function(N, M, cells)
     local out = "" -- accumulate to reduce flicker
     for i = 1, N do
         local cellsi = cells[i]
@@ -40,8 +40,7 @@ function m.draw(N, M, cells)
 end
 
 -- Place a shape in the grid
-function m.spawn(N, M, cells, shape,
-top, left)
+m.spawn = function(N, M, cells, shape, top, left)
     for i = 1, #shape do
         local ci = m.wrap(i+top-1, N)
         local shape_row = shape[i]
@@ -54,8 +53,7 @@ top, left)
 end
 
 -- Run one step of the simulation.
-function m.step(N, M, curr_cells,
-next_cells)
+m.step = function(N, M, curr_cells, next_cells)
     for i2 = 1, N do
         local i1 = m.wrap(i2-1, N)
         local i3 = m.wrap(i2+1, N)
@@ -82,10 +80,7 @@ next_cells)
             local c32 = cells3[j2]
             local c33 = cells3[j3]
 
-            local sum =
-                c11 + c12 + c13 +
-                c21 +       c23 +
-                c31 + c32 + c33
+            local sum = c11 + c12 + c13 + c21 + c23 + c31 + c32 + c33
 
             if sum == 3 or (sum == 2 and (c22 == 1)) then
                 next2[j2] = 1
@@ -118,10 +113,10 @@ for i = 1, 8 do
     end
 end
 
-io.write("\027[2J")	-- ANSI clear screen
+io.write("\027[2J")	-- TODO support ANSI clear screen
 for _ = 1, nsteps do
     m.step(N, M, curr_cells, next_cells)
     curr_cells, next_cells = next_cells, curr_cells
-    io.write("\027[H") -- ANSI home cursor
+    io.write("\027[H") -- TODO support ANSI home cursor
     m.draw(N, M, curr_cells)
 end

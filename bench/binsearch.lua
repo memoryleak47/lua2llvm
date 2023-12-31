@@ -1,6 +1,6 @@
 local m = {}
 
-function m.binsearch(t, x)
+m.binsearch = function(t, x)
     -- lo <= x <= hi
     local lo = 1
     local hi = #t
@@ -9,7 +9,7 @@ function m.binsearch(t, x)
 
     while lo < hi do
 
-        local mid = lo + (hi - lo) // 2
+        local mid = lo + (hi - lo) / 2 -- TODO this should be a // division
         steps = steps + 1
 
         local tmid = t[mid]
@@ -26,7 +26,7 @@ function m.binsearch(t, x)
     return steps
 end
 
-function m.test(t, nrep)
+m.test = function(t, nrep)
     local s = 0
     for i = 1, nrep do
         if m.binsearch(t, i) ~= 22 then
