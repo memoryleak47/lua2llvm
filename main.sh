@@ -12,11 +12,11 @@ echo running lua2llvm ...
 echo compiling extra files ...
 for x in $(cd extra; ls *.cpp)
 do
-    clang++ "extra/$x" -S -emit-llvm -o "build/${x%.cpp}.ll"
+    clang++ -O3 "extra/$x" -S -emit-llvm -o "build/${x%.cpp}.ll"
 done
 
 echo running clang ...
-clang++ build/*.ll -o build/exe
+clang++ -O3 build/*.ll -o build/exe
 
 echo executing exe ...
 ./build/exe
