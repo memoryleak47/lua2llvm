@@ -65,9 +65,4 @@ void type(Value *t, Value *out) {
     out->s = const_cast<char*>(s);
 }
 
-void throw_(const char* s) {
-    puts(s);
-    exit(1);
-}
-
 }

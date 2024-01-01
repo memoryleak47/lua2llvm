@@ -42,8 +42,12 @@ fn compile_block(fid: FnId, bid: BlockId, ctxt: &mut Ctxt) {
                 call_extra_fn("print", &[t], ctxt);
             },
             Statement::Throw(s) => {
-                let v = ctxt.b.alloc_string(s);
-                call_extra_fn("throw_", &[v], ctxt);
+                let s = ctxt.b.alloc_string(s);
+                call_extra_fn("puts", &[s], ctxt);
+
+                let i = ctxt.b.push_const_int(ctxt.i32_t(), 1);
+                call_extra_fn("exit", &[i], ctxt);
+
                 ctxt.b.push_return_void()
             },
             Statement::Return => {
