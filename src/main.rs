@@ -1,6 +1,4 @@
-#![feature(box_patterns)]
 #![feature(type_alias_impl_trait)]
-#![feature(try_blocks)]
 
 extern crate llvm_sys as llvm;
 
