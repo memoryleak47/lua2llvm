@@ -1,3 +1,8 @@
+use crate::infer::{Value, Location};
+
+mod layout;
+pub use layout::*;
+
 pub use noisy_float::prelude::*;
 pub use std::collections::HashMap;
 
@@ -67,6 +72,16 @@ pub struct Function {
 pub struct IR {
     pub fns: HashMap<FnId, Function>,
     pub main_fn: FnId,
+    pub table_layouts: HashMap<Location, TableLayout>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TableLayout {
+    HashTable,
+
+    // Each value stored in this Vec corresponds to a field in the resulting struct.
+    // The values need to be concrete.
+    Struct(Vec<Value>),
 }
 
 

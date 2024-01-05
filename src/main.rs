@@ -27,7 +27,6 @@ use infer::infer;
 
 mod exec_hir;
 
-mod layout;
 mod compile;
 
 mod optimize;
@@ -84,21 +83,17 @@ fn main() {
         normalize(&mut ir);
     }
 
-    if arg("--dump-ir") {
+    let inf = infer(&ir);
+    ir::layout(&mut ir, &inf);
+
+    if arg("--dump-hir") {
+        eprintln!("{}", &hir);
+    } else if arg("--dump-ir") {
         eprintln!("{}", &ir);
     } else if arg("--dump-infer") {
-        let inf = infer(&ir);
         eprintln!("{}", infer_to_string(&ir, &inf));
     } else if arg("--compile") {
-        let inf = infer(&ir);
-        let ly = layout::layout(&ir, &inf);
-        compile::compile(&ir, &inf, &ly);
-    } else if arg("--dump-layout") {
-        let inf = infer(&ir);
-        let ly = layout::layout(&ir, &inf);
-        eprintln!("{}", &ir);
-
-        eprintln!("{}", ly);
+        compile::compile(&ir, &inf);
     } else {
         exec_hir::exec(&hir);
     }

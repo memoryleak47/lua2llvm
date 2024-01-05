@@ -4,39 +4,23 @@ use crate::ir::*;
 use crate::infer::*;
 use crate::optimize::util;
 
-#[derive(Clone)]
-pub struct Layout {
-    pub table_layouts: HashMap<Location, TableLayout>
-}
-
-#[derive(Clone)]
-pub enum TableLayout {
-    HashTable,
-
-    // Each value stored in this Vec corresponds to a field in the resulting struct.
-    // The values need to be concrete.
-    Struct(Vec<Value>),
-}
-
-pub fn layout(ir: &IR, inf: &Infer) -> Layout {
-    let mut ly = Layout { table_layouts: HashMap::new() };
+pub fn layout(ir: &mut IR, inf: &Infer) {
+    ir.table_layouts = HashMap::new();
 
     for stmt in util::stmts(ir) {
-        handle_spec_stmt(ir, inf, stmt, &mut ly);
+        handle_spec_stmt(ir, inf, stmt);
     }
-
-    ly
 }
 
-fn handle_spec_stmt(ir: &IR, inf: &Infer, stmt: Stmt, ly: &mut Layout) {
+fn handle_spec_stmt(ir: &mut IR, inf: &Infer, stmt: Stmt) {
     let st = util::deref_stmt(stmt, ir);
 
     // If two different locations are contained in any Value, we disqualify both of them and fall back to HashTable.
     // The reason we do this is that we don't want to have multiple tables in one runtime value with different layouts.
-    fn chk_value(val: &Value, ly: &mut Layout) {
+    fn chk_value(val: &Value, ir: &mut IR) {
         if single_loc_value(val).is_none() {
             for cl in val.classes.iter() {
-                ly.table_layouts.insert(cl.location(), TableLayout::HashTable);
+                ir.table_layouts.insert(cl.location(), TableLayout::HashTable);
             }
         }
     }
@@ -45,13 +29,13 @@ fn handle_spec_stmt(ir: &IR, inf: &Infer, stmt: Stmt, ly: &mut Layout) {
     if let Statement::Compute(n, _) = st {
         let stmt2 = (stmt.0, stmt.1, stmt.2 + 1);
         let v = merged_value(n, stmt2, inf);
-        chk_value(&v, ly);
+        chk_value(&v, ir);
     }
 
     // Every table starts off by trying to be a struct.
-    fn init_if_missing(loc: Location, ly: &mut Layout) {
-        if !ly.table_layouts.contains_key(&loc) {
-            ly.table_layouts.insert(loc, TableLayout::Struct(Vec::new()));
+    fn init_if_missing(loc: Location, ir: &mut IR) {
+        if !ir.table_layouts.contains_key(&loc) {
+            ir.table_layouts.insert(loc, TableLayout::Struct(Vec::new()));
         }
     }
 
@@ -60,7 +44,7 @@ fn handle_spec_stmt(ir: &IR, inf: &Infer, stmt: Stmt, ly: &mut Layout) {
 
         Statement::Compute(_, Expr::NewTable) => {
             let loc = Location(stmt);
-            init_if_missing(loc, ly);
+            init_if_missing(loc, ir);
         },
 
         // Having `next` / `len` called on any location disqualifies it from being a struct.
@@ -68,7 +52,7 @@ fn handle_spec_stmt(ir: &IR, inf: &Infer, stmt: Stmt, ly: &mut Layout) {
             merged_value(t, stmt, inf).classes.iter()
                 .map(|x| x.location())
                 .for_each(|l| {
-                    ly.table_layouts.insert(l, TableLayout::HashTable);
+                    ir.table_layouts.insert(l, TableLayout::HashTable);
             });
         },
 
@@ -79,15 +63,15 @@ fn handle_spec_stmt(ir: &IR, inf: &Infer, stmt: Stmt, ly: &mut Layout) {
             let idx: &Value = &merged_value(idx, stmt, inf);
             let good_idx = idx.is_concrete() && idx.classes.is_empty();
             if good_idx {
-                init_if_missing(loc, ly);
-                if let TableLayout::Struct(vals) = ly.table_layouts.get_mut(&loc).unwrap() {
+                init_if_missing(loc, ir);
+                if let TableLayout::Struct(vals) = ir.table_layouts.get_mut(&loc).unwrap() {
                     if !vals.contains(idx) {
                         vals.push(idx.clone());
                     }
                 }
             } else {
                 // location disqualified!
-                ly.table_layouts.insert(loc, TableLayout::HashTable);
+                ir.table_layouts.insert(loc, TableLayout::HashTable);
             }
         },
 

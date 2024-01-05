@@ -6,7 +6,6 @@ pub struct Ctxt {
     // these are cloned in for now!
     pub ir: IR,
     pub inf: Infer,
-    pub layout: Layout, // TODO respect the layouting information
 
     pub lit_fns: HashMap<FnId, ll::ValueId>,
     pub extra_fns: HashMap<String, ll::ValueId>,
@@ -20,13 +19,12 @@ pub struct Ctxt {
 }
 
 impl Ctxt {
-    pub fn new(ir: &IR, inf: &Infer, layout: &Layout) -> Self {
+    pub fn new(ir: &IR, inf: &Infer) -> Self {
         Ctxt {
             b: ll::Builder::new(),
 
             ir: ir.clone(),
             inf: inf.clone(),
-            layout: layout.clone(),
 
             lit_fns: Default::default(),
             extra_fns: Default::default(),

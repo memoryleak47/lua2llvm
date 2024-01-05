@@ -1,6 +1,6 @@
 use crate::infer::*;
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct Value {
     pub strings: Lattice<String>,
     pub fns: Set<FnId>,
@@ -10,7 +10,7 @@ pub struct Value {
     pub classes: Set<Class>,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum Lattice<T: Eq + Hash> {
     Top,
     Set(Set<T>),

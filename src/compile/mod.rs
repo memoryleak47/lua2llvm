@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::ir::*;
 use crate::infer::*;
-use crate::layout::*;
 use crate::ll;
 
 mod ctxt;
@@ -34,12 +33,12 @@ pub enum Tag {
     BOOL = 5,
 }
 
-pub fn compile(ir: &IR, inf: &Infer, layout: &Layout) {
-    let mut ctxt = Ctxt::new(ir, inf, layout);
+pub fn compile(ir: &IR, inf: &Infer) {
+    let mut ctxt = Ctxt::new(ir, inf);
 
     ctxt.value_struct_id = Some(ctxt.b.alloc_struct(vec![ctxt.i64_t(), ctxt.i64_t()]));
 
-    for (loc, ly) in ctxt.layout.table_layouts.clone() {
+    for (loc, ly) in ctxt.ir.table_layouts.clone() {
         let TableLayout::Struct(fields) = ly else { continue };
         let fields = fields.iter().map(|_| ctxt.value_t()).collect();
         let struct_id = ctxt.b.alloc_struct(fields);

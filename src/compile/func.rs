@@ -61,7 +61,7 @@ pub fn infer_struct_field_ptr(t: Node, i: Node, stmt: Stmt, ctxt: &mut Ctxt) -> 
     let t_val = merged_value(t, stmt, &ctxt.inf);
     let i_val = merged_value(i, stmt, &ctxt.inf);
     let loc = single_loc_value(&t_val)?;
-    let TableLayout::Struct(values) = &ctxt.layout.table_layouts[&loc] else { return None };
+    let TableLayout::Struct(values) = &ctxt.ir.table_layouts[&loc] else { return None };
 
     let i = values.iter().position(|value| value == &i_val).unwrap();
 

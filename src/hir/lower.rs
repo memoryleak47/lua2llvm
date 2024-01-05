@@ -5,6 +5,7 @@ pub fn lower_hir(hir: &HIR) -> IR {
     IR {
         fns: hir.fns.iter().map(|(x, y)| (*x, lower_function(y))).collect(),
         main_fn: hir.main_fn,
+        table_layouts: Default::default(), // TODO this should be default-set to TableLayout::HashMap everywhere.
     }
 }
 
