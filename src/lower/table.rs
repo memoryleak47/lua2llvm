@@ -37,7 +37,7 @@ pub(in crate::lower) fn lower_table(fields: &[Field], start_node: Option<Node>, 
             Field::NameToExpr(name, expr) => {
                 assert_eq!(calc_length, false);
 
-                let idx = ir::Expr::Str(name.clone());
+                let idx = hir::Expr::Str(name.clone());
                 let idx = ctxt.push_compute(idx);
 
                 let val = lower_expr1(expr, ctxt);
@@ -68,7 +68,7 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         let orig_t_len = mk_num((counter-1) as f64, ctxt);
 
         // `len = val["count"]`
-        let len = ctxt.push_compute(ir::Expr::Index(val, ctxt.count_str()));
+        let len = ctxt.push_compute(hir::Expr::Index(val, ctxt.count_str()));
 
         // `local i = 1`
         let i_var = mk_table_with(ctxt.one(), ctxt);
@@ -84,8 +84,8 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
 
         // `loop {`
         // `if i > len: break`
-        let i = ctxt.push_compute(ir::Expr::Index(i_var, ctxt.inner_str()));
-        let cond = ir::Expr::BinOp(ir::BinOpKind::Gt, i, len);
+        let i = ctxt.push_compute(hir::Expr::Index(i_var, ctxt.inner_str()));
+        let cond = hir::Expr::BinOp(hir::BinOpKind::Gt, i, len);
         let cond = ctxt.push_compute(cond);
         ctxt.push_if(cond, loop_end_bid, loop_body_bid);
 
@@ -93,13 +93,13 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
         ctxt.set_active_block(loop_body_bid);
 
         // `t[i+orig_t_len] = val[i]`
-        let r = ctxt.push_compute(ir::Expr::Index(val, i));
-        let idx = ir::Expr::BinOp(ir::BinOpKind::Plus, i, orig_t_len.clone());
+        let r = ctxt.push_compute(hir::Expr::Index(val, i));
+        let idx = hir::Expr::BinOp(hir::BinOpKind::Plus, i, orig_t_len.clone());
         let idx = ctxt.push_compute(idx);
         ctxt.push_store(t, idx, r);
 
         // `i = i + 1`
-        let r = ir::Expr::BinOp(ir::BinOpKind::Plus, i, ctxt.one());
+        let r = hir::Expr::BinOp(hir::BinOpKind::Plus, i, ctxt.one());
         let r = ctxt.push_compute(r);
         ctxt.push_store(i_var, ctxt.inner_str(), r);
         ctxt.push_goto(loop_start_bid);
@@ -111,10 +111,10 @@ fn push_last_table_expr(t: Node, counter: usize, expr: &Expr, calc_length: bool,
 
         if calc_length {
             // `outlength = i + (orig_t_len - 1)`
-            let i = ir::Expr::Index(i_var, ctxt.inner_str());
+            let i = hir::Expr::Index(i_var, ctxt.inner_str());
             let i = ctxt.push_compute(i);
 
-            let x = ir::Expr::BinOp(ir::BinOpKind::Plus, i, mk_num(counter as f64 - 2.0, ctxt));
+            let x = hir::Expr::BinOp(hir::BinOpKind::Plus, i, mk_num(counter as f64 - 2.0, ctxt));
             let x = ctxt.push_compute(x);
 
             ctxt.push_store(t, ctxt.count_str(), x);

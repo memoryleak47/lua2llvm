@@ -1,4 +1,4 @@
-use crate::ir::*;
+use crate::hir::*;
 
 use std::collections::HashMap;
 
@@ -77,13 +77,13 @@ struct FnCtxt {
     statement_idx: usize,
 }
 
-struct Ctxt<'ir> {
+struct Ctxt<'hir> {
     heap: Vec<TableData>,
-    ir: &'ir IR,
+    hir: &'hir HIR,
     stack: Vec<FnCtxt>,
 }
 
-impl<'ir> Ctxt<'ir> { 
+impl<'hir> Ctxt<'hir> { 
     fn fcx(&self) -> &FnCtxt {
         self.stack.last().unwrap()
     }
@@ -182,7 +182,7 @@ fn call_fn(f: FnId, arg: Value, ctxt: &mut Ctxt) {
         nodes: Default::default(),
         arg,
         fn_id: f,
-        block_id: ctxt.ir.fns[&f].start_block,
+        block_id: ctxt.hir.fns[&f].start_block,
         statement_idx: 0,
     };
     ctxt.stack.push(fcx);
@@ -195,14 +195,14 @@ fn alloc_table(ctxt: &mut Ctxt) -> TablePtr {
     tid
 }
 
-pub fn exec(ir: &IR) {
+pub fn exec(hir: &HIR) {
     let mut ctxt = Ctxt {
-        ir,
+        hir,
         heap: Vec::new(),
         stack: Vec::new(),
     };
 
-    call_fn(ir.main_fn, Value::Nil, &mut ctxt);
+    call_fn(hir.main_fn, Value::Nil, &mut ctxt);
 
     while ctxt.stack.len() > 0 {
         if step(&mut ctxt).is_none() {
@@ -271,6 +271,6 @@ fn step_stmt(stmt: &Statement, ctxt: &mut Ctxt) -> Option<()> {
 
 fn step(ctxt: &mut Ctxt) -> Option<()> {
     let l: &FnCtxt = ctxt.stack.last().unwrap();
-    let stmt = ctxt.ir.fns[&l.fn_id].blocks[&l.block_id].get(l.statement_idx).unwrap();
+    let stmt = ctxt.hir.fns[&l.fn_id].blocks[&l.block_id].get(l.statement_idx).unwrap();
     step_stmt(stmt, ctxt)
 }

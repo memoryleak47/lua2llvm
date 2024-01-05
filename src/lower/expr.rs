@@ -4,7 +4,7 @@ use crate::lower::*;
 pub(in crate::lower) fn lower_expr1(expr: &Expr, ctxt: &mut Ctxt) -> Node {
     let (n, tabled) = lower_expr(expr, ctxt);
     if tabled {
-        let x = ir::Expr::Index(n, mk_num(1.0, ctxt));
+        let x = hir::Expr::Index(n, mk_num(1.0, ctxt));
         let x = ctxt.push_compute(x);
 
         x
@@ -29,12 +29,12 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
 
             let n = mk_table(ctxt);
 
-            let call = ctxt.push_compute(ir::Expr::Function(fid));
+            let call = ctxt.push_compute(hir::Expr::Function(fid));
             ctxt.push_store(n, ctxt.call_str(), call);
 
             let upvalues = mk_table(ctxt);
             for u in &upvalue_idents {
-                let upvalue_ident = ctxt.push_compute(ir::Expr::Str(u.to_string()));
+                let upvalue_ident = ctxt.push_compute(hir::Expr::Str(u.to_string()));
                 let n = locate_ident(u, ctxt);
                 ctxt.push_store(upvalues, upvalue_ident, n);
             }
@@ -47,7 +47,7 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
         },
         Expr::LValue(lval) => {
             let (t, idx) = lower_lvalue(lval, ctxt);
-            let x = ir::Expr::Index(t, idx);
+            let x = hir::Expr::Index(t, idx);
 
             ctxt.push_compute(x)
         },
@@ -61,9 +61,9 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
 
         // literals
         Expr::Literal(Literal::Num(i)) => mk_num(*i as f64, ctxt),
-        Expr::Literal(Literal::Bool(b)) => ctxt.push_compute(ir::Expr::Bool(*b)),
-        Expr::Literal(Literal::Str(s)) => ctxt.push_compute(ir::Expr::Str(s.clone())),
-        Expr::Literal(Literal::Nil) => ctxt.push_compute(ir::Expr::Nil),
+        Expr::Literal(Literal::Bool(b)) => ctxt.push_compute(hir::Expr::Bool(*b)),
+        Expr::Literal(Literal::Str(s)) => ctxt.push_compute(hir::Expr::Str(s.clone())),
+        Expr::Literal(Literal::Nil) => ctxt.push_compute(hir::Expr::Nil),
     };
 
     (node, tabled)
@@ -71,19 +71,19 @@ pub(in crate::lower) fn lower_expr(expr: &Expr, ctxt: &mut Ctxt) -> (Node, /*tab
 
 fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
     let kind = match kind {
-        BinOpKind::Plus => ir::BinOpKind::Plus,
-        BinOpKind::Minus => ir::BinOpKind::Minus,
-        BinOpKind::Mul => ir::BinOpKind::Mul,
-        BinOpKind::Div => ir::BinOpKind::Div,
-        BinOpKind::Mod => ir::BinOpKind::Mod,
-        BinOpKind::Lt => ir::BinOpKind::Lt,
-        BinOpKind::Le => ir::BinOpKind::Le,
-        BinOpKind::Gt => ir::BinOpKind::Gt,
-        BinOpKind::Ge => ir::BinOpKind::Ge,
-        BinOpKind::IsEqual => ir::BinOpKind::IsEqual,
-        BinOpKind::IsNotEqual => ir::BinOpKind::IsNotEqual,
-        BinOpKind::Concat => ir::BinOpKind::Concat,
-        BinOpKind::Pow => ir::BinOpKind::Pow,
+        BinOpKind::Plus => hir::BinOpKind::Plus,
+        BinOpKind::Minus => hir::BinOpKind::Minus,
+        BinOpKind::Mul => hir::BinOpKind::Mul,
+        BinOpKind::Div => hir::BinOpKind::Div,
+        BinOpKind::Mod => hir::BinOpKind::Mod,
+        BinOpKind::Lt => hir::BinOpKind::Lt,
+        BinOpKind::Le => hir::BinOpKind::Le,
+        BinOpKind::Gt => hir::BinOpKind::Gt,
+        BinOpKind::Ge => hir::BinOpKind::Ge,
+        BinOpKind::IsEqual => hir::BinOpKind::IsEqual,
+        BinOpKind::IsNotEqual => hir::BinOpKind::IsNotEqual,
+        BinOpKind::Concat => hir::BinOpKind::Concat,
+        BinOpKind::Pow => hir::BinOpKind::Pow,
 
         BinOpKind::And => {
             let l: Node = lower_expr1(l, ctxt);
@@ -101,7 +101,7 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             ctxt.set_active_block(post_bid);
 
-            return ctxt.push_compute(ir::Expr::Index(t, ctxt.inner_str()));
+            return ctxt.push_compute(hir::Expr::Index(t, ctxt.inner_str()));
         },
         BinOpKind::Or => {
             let l: Node = lower_expr1(l, ctxt);
@@ -119,13 +119,13 @@ fn lower_binop(kind: &BinOpKind, l: &Expr, r: &Expr, ctxt: &mut Ctxt) -> Node {
 
             ctxt.set_active_block(post_bid);
 
-            return ctxt.push_compute(ir::Expr::Index(t, ctxt.inner_str()));
+            return ctxt.push_compute(hir::Expr::Index(t, ctxt.inner_str()));
         },
     };
 
     let l = lower_expr1(l, ctxt);
     let r = lower_expr1(r, ctxt);
-    let x = ir::Expr::BinOp(kind, l, r);
+    let x = hir::Expr::BinOp(kind, l, r);
 
     ctxt.push_compute(x)
 }
@@ -134,8 +134,8 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
     let r = lower_expr1(r, ctxt);
 
     let x = match kind {
-        UnOpKind::Neg => ir::Expr::BinOp(ir::BinOpKind::Minus, ctxt.zero(), r),
-        UnOpKind::Len => ir::Expr::Len(r),
+        UnOpKind::Neg => hir::Expr::BinOp(hir::BinOpKind::Minus, ctxt.zero(), r),
+        UnOpKind::Len => hir::Expr::Len(r),
         UnOpKind::Not => {
             let t = mk_table_with(ctxt.true_(), ctxt);
 
@@ -145,13 +145,13 @@ fn lower_unop(kind: &UnOpKind, r: &Expr, ctxt: &mut Ctxt) -> Node {
             ctxt.push_truthy_if(r, then_bid, post_bid);
 
             ctxt.set_active_block(then_bid);
-            let false_v = ctxt.push_compute(ir::Expr::Bool(false));
+            let false_v = ctxt.push_compute(hir::Expr::Bool(false));
             ctxt.push_store(t, ctxt.inner_str(), false_v);
             ctxt.push_goto(post_bid);
 
             ctxt.set_active_block(post_bid);
 
-            ir::Expr::Index(t, ctxt.inner_str())
+            hir::Expr::Index(t, ctxt.inner_str())
         },
     };
 
@@ -172,13 +172,13 @@ pub(in crate::lower) fn locate_ident(s: &str, ctxt: &mut Ctxt) -> Node {
 
     let new_n = ctxt.append_to_init_block(|ctxt| {
         if ctxt.is_main() {
-            ctxt.push_compute(ir::Expr::NewTable)
+            ctxt.push_compute(hir::Expr::NewTable)
         } else {
-            let arg = ctxt.push_compute(ir::Expr::Arg);
-            let upvalues_table = ctxt.push_compute(ir::Expr::Index(arg, ctxt.upvalues_str()));
-            let upvalue_ident = ctxt.push_compute(ir::Expr::Str(s.to_string()));
+            let arg = ctxt.push_compute(hir::Expr::Arg);
+            let upvalues_table = ctxt.push_compute(hir::Expr::Index(arg, ctxt.upvalues_str()));
+            let upvalue_ident = ctxt.push_compute(hir::Expr::Str(s.to_string()));
 
-            ctxt.push_compute(ir::Expr::Index(upvalues_table, upvalue_ident))
+            ctxt.push_compute(hir::Expr::Index(upvalues_table, upvalue_ident))
         }
     });
 
@@ -196,7 +196,7 @@ pub(in crate::lower) fn lower_lvalue(lvalue: &LValue, ctxt: &mut Ctxt) -> (/*tab
         },
         LValue::Dot(expr, field) => {
             let l = lower_expr1(expr, ctxt);
-            let r = ctxt.push_compute(ir::Expr::Str(field.clone()));
+            let r = ctxt.push_compute(hir::Expr::Str(field.clone()));
             mk_assert(mk_proper_table_check(l, ctxt), "Trying to index into non-table!", ctxt);
 
             (l, r)

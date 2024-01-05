@@ -17,7 +17,7 @@ pub(self) use std::collections::HashMap;
 pub(self) use noisy_float::prelude::R64;
 
 pub(self) use crate::ast::*;
-pub(self) use crate::ir::{self, FnId, IR, Function, Node, BlockId};
+pub(self) use crate::hir::{self, FnId, HIR, Function, Node, BlockId};
 
 struct FnCtxt {
     fn_id: FnId,
@@ -58,7 +58,7 @@ struct FnCtxt {
 
 #[derive(Default)]
 pub(self) struct Ctxt {
-    ir: IR,
+    hir: HIR,
     fn_stack: Vec<FnCtxt>,
 }
 
@@ -72,22 +72,22 @@ impl Ctxt {
     }
 
     fn lit_fn(&self) -> &Function {
-        &self.ir.fns[&self.fcx().fn_id]
+        &self.hir.fns[&self.fcx().fn_id]
     }
 
     fn lit_fn_mut(&mut self) -> &mut Function {
         let fid = self.fcx().fn_id;
-        self.ir.fns.get_mut(&fid).unwrap()
+        self.hir.fns.get_mut(&fid).unwrap()
     }
 
     fn is_main(&self) -> bool {
-        self.fcx().fn_id == self.ir.main_fn
+        self.fcx().fn_id == self.hir.main_fn
     }
 
     fn alloc_block(&mut self) -> BlockId {
         let fid = self.fcx().fn_id;
-        let bid = self.ir.fns[&fid].blocks.len();
-        self.ir.fns.get_mut(&fid).unwrap().blocks.insert(bid, Vec::new());
+        let bid = self.hir.fns[&fid].blocks.len();
+        self.hir.fns.get_mut(&fid).unwrap().blocks.insert(bid, Vec::new());
 
         bid
     }
@@ -104,25 +104,25 @@ impl Ctxt {
         self.fcx_mut().locals.pop().unwrap();
     }
 
-    fn push_st(&mut self, st: ir::Statement) {
+    fn push_st(&mut self, st: hir::Statement) {
         if let Some(bid) = self.fcx().active_block {
             self.lit_fn_mut().blocks.get_mut(&bid).unwrap().push(st);
         }
     }
 
-    fn push_compute(&mut self, expr: ir::Expr) -> Node {
+    fn push_compute(&mut self, expr: hir::Expr) -> Node {
         let node = mk_node(self);
-        self.push_st(ir::Statement::Compute(node, expr));
+        self.push_st(hir::Statement::Compute(node, expr));
 
         node
     }
 
     fn push_store(&mut self, table: Node, index: Node, val: Node) {
-        self.push_st(ir::Statement::Store(table, index, val));
+        self.push_st(hir::Statement::Store(table, index, val));
     }
 
     fn push_if(&mut self, cond: Node, then: BlockId, else_: BlockId) {
-        self.push_st(ir::Statement::If(cond, then, else_));
+        self.push_st(hir::Statement::If(cond, then, else_));
         self.fcx_mut().active_block = None;
     }
 
@@ -130,10 +130,10 @@ impl Ctxt {
     fn push_truthy_if(&mut self, cond: Node, then: BlockId, else_: BlockId) {
         let t = mk_table_with(self.true_(), self);
 
-        let nil = self.push_compute(ir::Expr::Nil);
-        let is_nil = self.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, cond, nil));
-        let false_ = self.push_compute(ir::Expr::Bool(false));
-        let is_false = self.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, cond, false_));
+        let nil = self.push_compute(hir::Expr::Nil);
+        let is_nil = self.push_compute(hir::Expr::BinOp(hir::BinOpKind::IsEqual, cond, nil));
+        let false_ = self.push_compute(hir::Expr::Bool(false));
+        let is_false = self.push_compute(hir::Expr::BinOp(hir::BinOpKind::IsEqual, cond, false_));
 
         let between_bid = self.alloc_block();
         let write_false_bid = self.alloc_block();
@@ -149,7 +149,7 @@ impl Ctxt {
         self.push_goto(post_bid);
 
         self.set_active_block(post_bid);
-        let cond = self.push_compute(ir::Expr::Index(t, self.inner_str()));
+        let cond = self.push_compute(hir::Expr::Index(t, self.inner_str()));
 
         self.push_if(cond, then, else_);
     }
@@ -175,7 +175,7 @@ impl Ctxt {
     fn append_to_init_block<T>(&mut self, f: impl FnOnce(&mut Ctxt) -> T) -> T {
         let old_active = self.fcx_mut().active_block.clone();
         let init_bid = self.fcx().init_block;
-        assert!(matches!(self.lit_fn().blocks[&init_bid].last(), Some(ir::Statement::If(_, _, _))));
+        assert!(matches!(self.lit_fn().blocks[&init_bid].last(), Some(hir::Statement::If(_, _, _))));
 
         self.fcx_mut().active_block = Some(init_bid);
         let final_if = self.lit_fn_mut().blocks.get_mut(&init_bid).unwrap().pop().unwrap();
@@ -191,12 +191,12 @@ impl Ctxt {
 
 
 fn mk_num(x: impl Into<f64>, ctxt: &mut Ctxt) -> Node {
-    let expr = ir::Expr::Num(R64::new(x.into()));
+    let expr = hir::Expr::Num(R64::new(x.into()));
     ctxt.push_compute(expr)
 }
 
 fn mk_str(x: impl Into<String>, ctxt: &mut Ctxt) -> Node {
-    let expr = ir::Expr::Str(x.into());
+    let expr = hir::Expr::Str(x.into());
     ctxt.push_compute(expr)
 }
 
@@ -210,7 +210,7 @@ fn mk_node(ctxt: &mut Ctxt) -> Node {
 }
 
 fn mk_table(ctxt: &mut Ctxt) -> Node {
-    ctxt.push_compute(ir::Expr::NewTable)
+    ctxt.push_compute(hir::Expr::NewTable)
 }
 
 fn mk_table_with(val: Node, ctxt: &mut Ctxt) -> Node {
@@ -220,21 +220,21 @@ fn mk_table_with(val: Node, ctxt: &mut Ctxt) -> Node {
     n
 }
 
-pub fn lower(ast: &Ast) -> IR {
+pub fn lower(ast: &Ast) -> HIR {
     let mut ctxt = Ctxt::default();
     lower_fn(&[], &Variadic::No, &ast.statements, /*is_main: */ true, &mut ctxt);
 
-    ctxt.ir
+    ctxt.hir
 }
 
 // checks whether `arg` is a function, returns this in a new node as bool value.
 fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/ Node) {
     // return Expr::Type(arg) == "table" && Expr::Type(arg["call"]) != "function"
 
-    let t = mk_table_with(ctxt.push_compute(ir::Expr::Bool(false)), ctxt);
+    let t = mk_table_with(ctxt.push_compute(hir::Expr::Bool(false)), ctxt);
 
-    let ty = ctxt.push_compute(ir::Expr::Type(arg));
-    let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, ctxt.table_str()));
+    let ty = ctxt.push_compute(hir::Expr::Type(arg));
+    let is_table = ctxt.push_compute(hir::Expr::BinOp(hir::BinOpKind::IsEqual, ty, ctxt.table_str()));
 
     let then_body = ctxt.alloc_block();
     let post_body = ctxt.alloc_block();
@@ -242,15 +242,15 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
     ctxt.push_if(is_table, then_body, post_body);
 
     ctxt.set_active_block(then_body);
-    let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.call_str()));  // arg["call"]
-    let ty_call = ctxt.push_compute(ir::Expr::Type(arg_call));  // type(arg["call"])
-    let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty_call, ctxt.function_str())); // type(arg["call"]) == "function"
+    let arg_call = ctxt.push_compute(hir::Expr::Index(arg, ctxt.call_str()));  // arg["call"]
+    let ty_call = ctxt.push_compute(hir::Expr::Type(arg_call));  // type(arg["call"])
+    let ty_call_is_fn = ctxt.push_compute(hir::Expr::BinOp(hir::BinOpKind::IsEqual, ty_call, ctxt.function_str())); // type(arg["call"]) == "function"
     ctxt.push_store(t, ctxt.inner_str(), ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
     ctxt.push_goto(post_body);
 
     ctxt.set_active_block(post_body);
 
-    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.inner_str())); // return t["inner"]
+    let bool_node = ctxt.push_compute(hir::Expr::Index(t, ctxt.inner_str())); // return t["inner"]
 
     (bool_node, arg_call)
 }
@@ -258,10 +258,10 @@ fn mk_fn_check(arg: Node, ctxt: &mut Ctxt) -> (/*bool node*/ Node, /*call Node*/
 // check whether arg is a table, and not a function table!
 fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     // return Expr::Type(arg) == "table" && Expr::Type(arg["call"]) != "function"
-    let t = mk_table_with(ctxt.push_compute(ir::Expr::Bool(false)), ctxt);
+    let t = mk_table_with(ctxt.push_compute(hir::Expr::Bool(false)), ctxt);
 
-    let ty = ctxt.push_compute(ir::Expr::Type(arg));
-    let is_table = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsEqual, ty, ctxt.table_str()));
+    let ty = ctxt.push_compute(hir::Expr::Type(arg));
+    let is_table = ctxt.push_compute(hir::Expr::BinOp(hir::BinOpKind::IsEqual, ty, ctxt.table_str()));
 
     let then_body = ctxt.alloc_block();
     let post_body = ctxt.alloc_block();
@@ -269,14 +269,14 @@ fn mk_proper_table_check(arg: Node, ctxt: &mut Ctxt) -> Node {
     ctxt.push_if(is_table, then_body, post_body);
 
     ctxt.set_active_block(then_body);
-    let arg_call = ctxt.push_compute(ir::Expr::Index(arg, ctxt.call_str()));  // arg["call"]
-    let ty_call = ctxt.push_compute(ir::Expr::Type(arg_call));  // type(arg["call"])
-    let ty_call_is_fn = ctxt.push_compute(ir::Expr::BinOp(ir::BinOpKind::IsNotEqual, ty_call, ctxt.function_str())); // type(arg["call"]) == "function"
+    let arg_call = ctxt.push_compute(hir::Expr::Index(arg, ctxt.call_str()));  // arg["call"]
+    let ty_call = ctxt.push_compute(hir::Expr::Type(arg_call));  // type(arg["call"])
+    let ty_call_is_fn = ctxt.push_compute(hir::Expr::BinOp(hir::BinOpKind::IsNotEqual, ty_call, ctxt.function_str())); // type(arg["call"]) == "function"
     ctxt.push_store(t, ctxt.inner_str(), ty_call_is_fn); // t["inner"] = type(arg["call"]) == "function"
     ctxt.push_goto(post_body);
 
     ctxt.set_active_block(post_body);
-    let bool_node = ctxt.push_compute(ir::Expr::Index(t, ctxt.inner_str())); // return t["inner"]
+    let bool_node = ctxt.push_compute(hir::Expr::Index(t, ctxt.inner_str())); // return t["inner"]
 
     bool_node
 }
@@ -289,7 +289,7 @@ fn mk_assert(n: Node, s: &str, ctxt: &mut Ctxt) {
     ctxt.push_if(n, post_body, else_body);
 
     ctxt.set_active_block(else_body);
-    ctxt.push_st(ir::Statement::Throw(s.to_string()));
+    ctxt.push_st(hir::Statement::Throw(s.to_string()));
 
     ctxt.set_active_block(post_body);
 }

@@ -102,11 +102,11 @@ pub(in crate::lower) fn lower_body(statements: &[Statement], ctxt: &mut Ctxt) {
 
 pub(in crate::lower) fn lower_return(/*the table we want to return*/ ret: Node, ctxt: &mut Ctxt) {
     if !ctxt.is_main() {
-        let arg = ctxt.push_compute(ir::Expr::Arg);
+        let arg = ctxt.push_compute(hir::Expr::Arg);
         ctxt.push_store(arg, ctxt.retval_str(), ret);
     }
 
-    ctxt.push_st(ir::Statement::Return);
+    ctxt.push_st(hir::Statement::Return);
     ctxt.fcx_mut().active_block = None;
 }
 
@@ -116,7 +116,7 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
 
     // if exprs == [], just set everything to Nil!
     if exprs.is_empty() {
-        let nil = ctxt.push_compute(ir::Expr::Nil);
+        let nil = ctxt.push_compute(hir::Expr::Nil);
         for (t, idx) in lvalues.iter() {
             ctxt.push_store(*t, *idx, nil);
         }
@@ -145,11 +145,11 @@ fn lower_assign(lvalues: &[(/*table: */ Node, /*index: */ Node)], exprs: &[Expr]
         let expr = if tabled {
             let i = i - min + 1; // starting at 1
             let x = mk_num(i as f64, ctxt);
-            let x = ir::Expr::Index(last, x);
+            let x = hir::Expr::Index(last, x);
 
             x
         } else {
-            ir::Expr::Nil
+            hir::Expr::Nil
         };
         let r = ctxt.push_compute(expr);
         let (t, idx) = lvalues[i].clone();

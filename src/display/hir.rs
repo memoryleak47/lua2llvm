@@ -1,9 +1,9 @@
-use crate::ir::{IR, FnId, Statement, Expr, BinOpKind, Node, BlockId};
+use crate::hir::{HIR, FnId, Statement, Expr, BinOpKind, Node, BlockId};
 use crate::display::ordered_map_iter;
 
 use std::fmt::{self, Formatter, Display};
 
-impl Display for IR {
+impl Display for HIR {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for (&fid, _) in ordered_map_iter(self.fns.iter()) {
             display_fn_header(fid, self, f)?;
@@ -20,7 +20,7 @@ impl Display for IR {
     }
 }
 
-pub fn display_fn_header(fid: FnId, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
+pub fn display_fn_header(fid: FnId, ir: &HIR, f: &mut Formatter<'_>) -> fmt::Result {
     let main_prefix = if ir.main_fn == fid { "main " } else { "" };
 
     write!(f, "{main_prefix}function f{fid}():\n")
@@ -30,7 +30,7 @@ pub fn display_fn_footer(f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "end\n\n")
 }
 
-pub fn display_block_header(fid: FnId, bid: BlockId, ir: &IR, f: &mut Formatter<'_>) -> fmt::Result {
+pub fn display_block_header(fid: FnId, bid: BlockId, ir: &HIR, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "  ")?;
 
     if bid == ir.fns[&fid].start_block {

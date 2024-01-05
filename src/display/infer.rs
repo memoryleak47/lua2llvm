@@ -1,6 +1,40 @@
 use crate::infer::*;
-use crate::display::*;
+use crate::display::ir::*;
+use crate::display::ordered_map_iter;
+use crate::ir::*;
 use std::fmt::{self, Formatter, Display};
+
+pub fn infer_to_string(ir: &IR, inf: &Infer) -> String {
+    let mut out = String::new();
+    let f = &mut Formatter::new(&mut out);
+
+    let res: fmt::Result = try {
+        for (spec, state) in ordered_map_iter(inf.fn_state.iter()) {
+            let fid = spec.fid;
+
+            write!(f, "SPEC {} with arg {}:\n", spec, state.argval)?;
+            if let Some(x) = &state.out_state {
+                write!(f, "OUT:\n")?;
+                write!(f, "{}\n", x)?;
+            }
+
+            display_fn_header(fid, ir, f)?;
+            for (&bid, _) in ordered_map_iter(ir.fns[&fid].blocks.iter()) {
+                display_block_header(fid, bid, ir, f)?;
+                for sid in 0..ir.fns[&fid].blocks[&bid].len() {
+                    let mut rt_stack = spec.rt_stack.clone();
+                    rt_stack.push((fid, bid, sid));
+                    write!(f, "{}", inf.local_state[&rt_stack])?;
+                    write!(f, "{}", &ir.fns[&fid].blocks[&bid][sid])?;
+                }
+            }
+            display_fn_footer(f)?;
+        }
+    };
+    res.unwrap();
+
+    out
+}
 
 impl Display for Location {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

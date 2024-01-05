@@ -1,8 +1,13 @@
 pub use noisy_float::prelude::*;
 pub use std::collections::HashMap;
 
+pub mod lower;
+pub use lower::*;
+
+pub mod parser;
+
 // Note that even though, lower.rs only returns tables from functions, and Arg is always a table too.
-// This is no constraint for the IR itself.
+// This is no constraint for the HIR itself.
 // Further, upvalues might not be tables, but can be any Value (which will be closured per value).
 
 // the same as ast::BinOpKind but without And & Or.
@@ -21,7 +26,7 @@ pub enum BinOpKind {
 // nodes are local to the functions they are defined in.
 pub type Node = usize;
 
-// used to index into IR::fns.
+// used to index into HIR::fns.
 pub type FnId = usize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -64,7 +69,7 @@ pub struct Function {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct IR {
+pub struct HIR {
     pub fns: HashMap<FnId, Function>,
     pub main_fn: FnId,
 }

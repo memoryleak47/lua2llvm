@@ -10,6 +10,8 @@ mod ast;
 mod parse;
 mod visit;
 
+mod hir;
+
 mod ir;
 mod display;
 use display::*;
@@ -23,7 +25,7 @@ use lower::lower;
 mod infer;
 use infer::infer;
 
-mod exec_ir;
+mod exec_hir;
 
 mod layout;
 mod compile;
@@ -62,8 +64,8 @@ fn main() {
     let filename = args.iter().find(|x| !x.starts_with("--")).expect("no input file given!");
     let code = std::fs::read_to_string(filename).unwrap();
 
-    let mut ir = if arg("--ir") {
-        ir::parser::parse_ir(&code)
+    let hir = if arg("--hir") {
+        hir::parser::parse_hir(&code)
     } else {
         let tokens = token::tokenize(&code);
         let mut ast = parse::parse(&tokens).expect("Ast::parse failed!");
@@ -72,6 +74,8 @@ fn main() {
 
         lower(&ast)
     };
+
+    let mut ir = hir::lower_hir(&hir);
 
     if !arg("--no-optimize") {
         optimize(&mut ir);
@@ -96,6 +100,6 @@ fn main() {
 
         eprintln!("{}", ly);
     } else {
-        exec_ir::exec(&ir);
+        exec_hir::exec(&hir);
     }
 }
