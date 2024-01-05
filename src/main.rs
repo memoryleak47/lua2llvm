@@ -1,5 +1,4 @@
 #![feature(box_patterns)]
-#![feature(fmt_internals)]
 #![feature(type_alias_impl_trait)]
 #![feature(try_blocks)]
 
